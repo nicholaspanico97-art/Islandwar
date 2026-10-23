@@ -1,0 +1,18 @@
+; Engine configuration file.
+; Edited by hand for M0. Godot rewrites this file when settings change in the editor.
+
+config_version=5
+
+[application]
+
+config/name="Island War"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[dotnet]
+
+project/assembly_name="IslandWar"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"

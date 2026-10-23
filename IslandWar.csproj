@@ -1,0 +1,21 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <!-- The Godot game assembly: Client/, Server/, Net/ and the entry scene. Game rules live in Sim/. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <RootNamespace>IslandWar</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Sim and the tests are separate projects; keep their sources out of this assembly. -->
+  <ItemGroup>
+    <Compile Remove="Sim/**" />
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Sim/IslandWar.Sim.csproj" />
+  </ItemGroup>
+
+</Project>
