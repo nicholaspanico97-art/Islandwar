@@ -1,0 +1,34 @@
+# Decisions
+
+One line per decision: date, decision, reason. Newest at the bottom. "PENDING" marks a decision
+that's waiting on a test.
+
+## From the revised game plan (docs/game-plan.md)
+
+- 2026-10-23: Pillar 8, the game must be fun at 4v4 in about 45 minutes. Reason: finding 24 players for a 3-hour match is the project's biggest risk.
+- 2026-10-23: Two match presets, Full (12v12, 2–4 h) and Compressed (4v4, about 45 min), both defined in `data/`. Reason: a small match is a real mode, not a test setup.
+- 2026-10-23: Drop-in/drop-out, so late joiners get the full world state, team and phase. Reason: player count. It shapes the netcode, so design for it from M1.
+- 2026-10-23: Guaranteed match end: a nuke win, otherwise a score at a hard time limit, plus a concede vote. Reason: a nuke-only win with a late defence edge can stalemate.
+- 2026-10-23: Team build protection before M3. Reason: one griefer must not ruin a long match for eleven people.
+- 2026-10-23: The late-game defence edge stays, but attackers get counters (kill radar, overwhelm AA, escorts, decoys). Reason: avoid a permanent stalemate.
+- 2026-10-23: Losing a fuel depot must hurt for real. Reason: three pillars push against snowballing, so raids risk feeling pointless.
+- 2026-10-23: Start Phase 1 playtests at about 20 minutes and lengthen it only if players are still busy building. Reason: 45 minutes of scouts only may be too quiet.
+- 2026-10-23: godot_voxel is provisional until the M0 test. The fallback is a custom C# chunk mesher. Reason: godot_voxel + C# integration is an unknown, and the bounded map makes the fallback cheap.
+- 2026-10-23: Client-side prediction for the local character and vehicle; everything else interpolates between snapshots. Reason: server-authoritative flight feels laggy without it.
+- 2026-10-23: MultiplayerSynchronizer/Spawner for M1; expect custom snapshot/delta replication by M3. Reason: 24 players, projectiles and voxel deltas will outgrow them.
+- 2026-10-23: Late-join world sync is the terrain seed plus voxel edit deltas per chunk. Reason: lets a joining client rebuild the current world.
+- 2026-10-23: An automated bot sync test (headless server plus scripted clients, asserting identical voxel state). Reason: Claude Code can't play the game but can run this.
+- 2026-10-23: "Testable" means plain C# and unit tests, not lockstep determinism. Reason: floating-point results aren't bit-identical across machines.
+
+## M0
+
+- 2026-10-23: Target Godot 4.7.2-stable, .NET build. Reason: latest stable tag of godotengine/godot at setup time. **Not yet run locally:** the cloud session couldn't download engine binaries. The C# does compile against `Godot.NET.Sdk/4.7.2` from NuGet.
+- 2026-10-23: .NET 8 SDK, `net8.0`. Reason: `Godot.NET.Sdk/4.7.2` builds with it; it's the LTS release Godot 4.x supports.
+- 2026-10-23: PENDING, godot_voxel vs custom mesher. Facts so far from the godot_voxel docs (v1.7, 2026-08-20): the module edition with C# needs a custom engine build *and* a locally generated NuGet SDK; the GDExtension edition works with official Godot ≥ 4.4.1 but C# can only reach it through `Call`/`Get`/`Set`/`ClassDB.Instantiate` by string name, with no type checking. Run the one-day test on a local machine and record the result here.
+- 2026-10-23: The Sim voxel world (`Sim/Voxels/VoxelWorld`) is the authoritative block data; whatever renders it is a view. Reason: the server stays headless and unit-testable, voxel networking is our own code anyway, and the godot_voxel decision becomes a rendering choice only. Revisit if the M0 test shows godot_voxel needs to own the data.
+- 2026-10-23: Terrain generation uses integer (fixed-point) math only. Reason: every client regenerates terrain from the seed, which must give identical blocks on every machine; floats aren't guaranteed to (see the "testable" decision above).
+- 2026-10-23: Water is a flat plane at sea level, not blocks, for M1. Reason: simplest option; no fluid simulation needed for the vertical slice.
+- 2026-10-23: Block ids are a `ushort` enum; new types are only ever appended. Reason: ids go over the network and into stored deltas.
+- 2026-10-23: Layout: `IslandWar.csproj` (Godot assembly: Client/, Server/, Net/), `Sim/IslandWar.Sim.csproj` (plain class library), `tests/IslandWar.Sim.Tests` (xUnit). Reason: the plan's Sim/Net/Client/Server split, with the compiler enforcing that Sim has no Godot dependency.
+- 2026-10-23: Game arguments come after a bare `--`: `--server`, `--port=N`, `--seed=N`, `--connect=HOST[:PORT]`. Reason: Godot hands those to the game via `OS.GetCmdlineUserArgs()` and keeps its own flags (`--headless`, `--path`) separate.
+- 2026-10-23: Default port 7777. Reason: arbitrary, unprivileged, commonly free.
