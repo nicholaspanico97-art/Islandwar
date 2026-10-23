@@ -1,0 +1,16 @@
+{
+  // M1 test island. Sizes are in blocks unless the name says chunks (1 chunk = 16 blocks).
+  // 8 x 4 x 8 chunks = 128 x 64 x 128 blocks.
+  "chunks_x": 8,
+  "chunks_y": 4,
+  "chunks_z": 8,
+  "sea_level": 16,
+  "seabed_depth": 4,
+  "island_radius": 48,
+  "base_height": 6,
+  "hill_height": 10,
+  "noise_cell_size": 24,
+  "beach_height": 1,
+  "dirt_depth": 3,
+  "default_seed": 1337
+}

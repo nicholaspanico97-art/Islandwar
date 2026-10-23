@@ -1,0 +1,39 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IslandWar", "IslandWar.csproj", "{8F4376C2-23F8-45EF-8579-952688BB7CF1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IslandWar.Sim", "Sim\IslandWar.Sim.csproj", "{119E4974-F25A-48F7-A2F4-2AF6C3E0D430}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{AEB49639-F481-4B13-8C8D-78A72B61A5EF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IslandWar.Sim.Tests", "tests\IslandWar.Sim.Tests\IslandWar.Sim.Tests.csproj", "{074B4781-6D4A-41BE-9B39-D72C0EBE463F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8F4376C2-23F8-45EF-8579-952688BB7CF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F4376C2-23F8-45EF-8579-952688BB7CF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F4376C2-23F8-45EF-8579-952688BB7CF1}.Release|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F4376C2-23F8-45EF-8579-952688BB7CF1}.Release|Any CPU.Build.0 = Debug|Any CPU
+		{119E4974-F25A-48F7-A2F4-2AF6C3E0D430}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{119E4974-F25A-48F7-A2F4-2AF6C3E0D430}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{119E4974-F25A-48F7-A2F4-2AF6C3E0D430}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{119E4974-F25A-48F7-A2F4-2AF6C3E0D430}.Release|Any CPU.Build.0 = Release|Any CPU
+		{074B4781-6D4A-41BE-9B39-D72C0EBE463F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{074B4781-6D4A-41BE-9B39-D72C0EBE463F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{074B4781-6D4A-41BE-9B39-D72C0EBE463F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{074B4781-6D4A-41BE-9B39-D72C0EBE463F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{074B4781-6D4A-41BE-9B39-D72C0EBE463F} = {AEB49639-F481-4B13-8C8D-78A72B61A5EF}
+	EndGlobalSection
+EndGlobal
