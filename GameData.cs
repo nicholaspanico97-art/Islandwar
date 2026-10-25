@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
@@ -25,11 +26,23 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     /// <summary>Makes Godot's physics tick match the simulation tick rate.</summary>
     public void ApplyTickRate() => Engine.PhysicsTicksPerSecond = Net.TickRate;
 
-    /// <summary>Where players appear: standing on the top block at the centre of the island.</summary>
-    public PlayerState SpawnIn(VoxelWorld world)
+    /// <summary>
+    /// Where a player appears, standing on the top block. Slot 0 is the centre of the island; later slots
+    /// go round a small ring so players joining together don't stand inside each other.
+    /// </summary>
+    public PlayerState SpawnIn(VoxelWorld world, int slot = 0)
     {
+        const int ringRadius = 3;
+        const int ringSlots = 8;
         int x = world.SizeX / 2;
         int z = world.SizeZ / 2;
+        if (slot > 0)
+        {
+            double angle = 2 * Math.PI * ((slot - 1) % ringSlots) / ringSlots;
+            x += (int)Math.Round(ringRadius * Math.Cos(angle));
+            z += (int)Math.Round(ringRadius * Math.Sin(angle));
+        }
+
         int top = world.HighestSolid(x, z) ?? Terrain.SeaLevel;
         return PlayerState.At(new System.Numerics.Vector3(x + 0.5f, top + 1, z + 0.5f));
     }
