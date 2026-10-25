@@ -1,0 +1,11 @@
+{
+  // Networking tunables.
+  "tick_rate": 60,
+  // 60 / 3 = 20 snapshots a second.
+  "snapshot_interval_ticks": 3,
+  // Other players are drawn 6 ticks (100 ms) in the past, so there are two snapshots to blend between.
+  "interpolation_delay_ticks": 6,
+  "inputs_per_packet": 4,
+  "max_input_backlog": 10,
+  "max_edits_per_second": 20
+}
