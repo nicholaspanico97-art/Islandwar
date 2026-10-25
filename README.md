@@ -8,14 +8,15 @@ The full design and build order are in [docs/game-plan.md](docs/game-plan.md). D
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
 commands to test each milestone.
 
-**Status:** M0 (project skeleton). Not yet launched in the engine; see "Versions" below.
+**Status:** M0 (project skeleton). Verified locally on Windows 11: unit tests, build, headless server and two
+connected clients. The godot_voxel test is next.
 
 ## Versions
 
 | Tool | Version | Status |
 | --- | --- | --- |
-| Godot | 4.7.2-stable, .NET build | Chosen. C# compiles against `Godot.NET.Sdk/4.7.2`; the engine itself hasn't been run yet. |
-| .NET SDK | 8.0 (`net8.0`) | Verified: builds and tests pass with 8.0.132. |
+| Godot | 4.7.2-stable, .NET build (`4.7.2.stable.mono.official.ed1daf0bf`) | Verified: server and clients run. Still the latest stable on 2026-10-25. |
+| .NET SDK | 8.0 (`net8.0`) | Verified: builds and tests pass with 8.0.132 (Linux) and 8.0.427 (Windows). |
 | Physics | Jolt (built into Godot) | Enabled in `project.godot`. |
 | godot_voxel | v1.7 is the latest release | Pending the M0 test; a custom C# mesher is the fallback. |
 | xUnit | 2.9.2 | Sim unit tests. |

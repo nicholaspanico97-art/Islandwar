@@ -22,7 +22,7 @@ that's waiting on a test.
 
 ## M0
 
-- 2026-10-23: Target Godot 4.7.2-stable, .NET build. Reason: latest stable tag of godotengine/godot at setup time. **Not yet run locally:** the cloud session couldn't download engine binaries. The C# does compile against `Godot.NET.Sdk/4.7.2` from NuGet.
+- 2026-10-23: Target Godot 4.7.2-stable, .NET build. Reason: latest stable tag of godotengine/godot at setup time. **Verified 2026-10-25** on Windows 11 with .NET SDK 8.0.427: tests, build, headless server and two clients connecting all work; 4.7.2 is still the latest stable.
 - 2026-10-23: .NET 8 SDK, `net8.0`. Reason: `Godot.NET.Sdk/4.7.2` builds with it; it's the LTS release Godot 4.x supports.
 - 2026-10-23: PENDING, godot_voxel vs custom mesher. Facts so far from the godot_voxel docs (v1.7, 2026-08-20): the module edition with C# needs a custom engine build *and* a locally generated NuGet SDK; the GDExtension edition works with official Godot ≥ 4.4.1 but C# can only reach it through `Call`/`Get`/`Set`/`ClassDB.Instantiate` by string name, with no type checking. Run the one-day test on a local machine and record the result here.
 - 2026-10-23: The Sim voxel world (`Sim/Voxels/VoxelWorld`) is the authoritative block data; whatever renders it is a view. Reason: the server stays headless and unit-testable, voxel networking is our own code anyway, and the godot_voxel decision becomes a rendering choice only. Revisit if the M0 test shows godot_voxel needs to own the data.

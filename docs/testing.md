@@ -4,7 +4,7 @@ Every milestone adds a section here with the exact commands. Run them from the r
 
 You need:
 - .NET 8 SDK (`dotnet --version` should print 8.x).
-- Godot 4.7.2-stable, **.NET build**. Put it on `PATH` as `godot`, or set `GODOT` to the binary,
+- Godot 4.7.2-stable, **.NET build** (the zip with `mono` in its name). Put it on `PATH` as `godot`, or set `GODOT` to the binary,
   e.g. `export GODOT=~/bin/Godot_v4.7.2-stable_mono_linux.x86_64` (Windows: `$env:GODOT = "C:\Godot\Godot_v4.7.2-stable_mono_win64.exe"`).
 
 On Windows, use `.\build.ps1` wherever this page says `./build.sh`.
@@ -31,7 +31,11 @@ The first build downloads the Godot C# SDK from NuGet.
 
 Open the project once in the Godot editor (`godot --path . --editor`, or import `project.godot` from the
 project manager) so it creates the `.godot/` import cache. Close it again. You only need to do this once
-per checkout.
+per checkout. Without a window, `godot --headless --path . --import` does the same; it ends with a harmless
+`Unable to start the timer` error from Godot's own C# editor tools.
+
+Godot may re-indent C# files with tabs when it imports them. Revert that (`git checkout -- '*.cs'`); the
+code uses spaces. Do commit the `.cs.uid` files it creates.
 
 ### Headless server
 
