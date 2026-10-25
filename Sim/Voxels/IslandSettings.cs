@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace IslandWar.Sim.Voxels;
 
 /// <summary>Island terrain tunables. Loaded from <c>data/terrain.json</c>; never hardcode these.</summary>
@@ -37,17 +35,9 @@ public sealed record IslandSettings
     /// <summary>Seed used when the server is not given one on the command line.</summary>
     public int DefaultSeed { get; init; } = 1337;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     public static IslandSettings FromJson(string json)
     {
-        IslandSettings settings = JsonSerializer.Deserialize<IslandSettings>(json, JsonOptions)
-            ?? throw new InvalidDataException("Terrain settings JSON was empty.");
+        IslandSettings settings = DataJson.Parse<IslandSettings>(json, "terrain.json");
         settings.Validate();
         return settings;
     }
