@@ -1,7 +1,10 @@
 {
   // Player tunables. Distances are in blocks (1 block = 1 metre), speeds in blocks per second.
   "reach": 6.0,
+  "width": 0.6,
+  "height": 1.8,
   "walk_speed": 5.0,
+  "sprint_multiplier": 1.6,
   "jump_velocity": 7.5,
   "gravity": 24.0,
   "eye_height": 1.6,

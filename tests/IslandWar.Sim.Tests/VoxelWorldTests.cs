@@ -92,4 +92,15 @@ public class VoxelWorldTests
 
         Assert.NotEqual(before, world.ComputeHash());
     }
+
+    [Fact]
+    public void HighestSolidFindsTheTopBlockOfAColumn()
+    {
+        var world = new VoxelWorld(1, 2, 1);
+        world.SetGenerated(new BlockPos(3, 0, 3), Block.Stone);
+        world.SetGenerated(new BlockPos(3, 20, 3), Block.Planks);
+
+        Assert.Equal(20, world.HighestSolid(3, 3));
+        Assert.Null(world.HighestSolid(4, 4));
+    }
 }

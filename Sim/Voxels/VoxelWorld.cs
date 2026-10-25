@@ -64,6 +64,20 @@ public sealed class VoxelWorld
         return ChunkAt(p).Get(p.X % Chunk.Size, p.Y % Chunk.Size, p.Z % Chunk.Size);
     }
 
+    /// <summary>Y of the highest solid block in a column, or null if the column is all air.</summary>
+    public int? HighestSolid(int x, int z)
+    {
+        for (int y = SizeY - 1; y >= 0; y--)
+        {
+            if (Get(new BlockPos(x, y, z)) != Block.Air)
+            {
+                return y;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Sets a block without recording it as an edit. Use for terrain generation only; gameplay
     /// changes go through <see cref="ApplyEdit"/> so late joiners receive them.
