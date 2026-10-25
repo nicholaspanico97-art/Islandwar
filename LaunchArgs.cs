@@ -20,7 +20,7 @@ public sealed record LaunchArgs
     /// <summary>Server address for a client. Null means the client does not connect.</summary>
     public string? ConnectHost { get; init; }
 
-    /// <summary>Terrain seed for the server. Null means use the default from data/terrain.json.</summary>
+    /// <summary>Terrain seed for the server or the local sandbox. Null means use the default from data/terrain.json.</summary>
     public int? Seed { get; init; }
 
     public static LaunchArgs Parse(string[] args)

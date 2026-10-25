@@ -9,7 +9,8 @@ in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md
 commands to test each milestone.
 
 **Status:** M0 (project skeleton). Verified locally on Windows 11: unit tests, build, headless server and two
-connected clients. The godot_voxel test is next.
+connected clients. godot_voxel test passed: it renders our island and shows block edits made from C#.
+Next: M1a, the single-player sandbox.
 
 ## Versions
 
@@ -18,15 +19,17 @@ connected clients. The godot_voxel test is next.
 | Godot | 4.7.2-stable, .NET build (`4.7.2.stable.mono.official.ed1daf0bf`) | Verified: server and clients run. Still the latest stable on 2026-10-25. |
 | .NET SDK | 8.0 (`net8.0`) | Verified: builds and tests pass with 8.0.132 (Linux) and 8.0.427 (Windows). |
 | Physics | Jolt (built into Godot) | Enabled in `project.godot`. |
-| godot_voxel | v1.7 is the latest release | Pending the M0 test; a custom C# mesher is the fallback. |
+| godot_voxel | v1.7x, GDExtension edition | Verified: renders and edits from C#. Not committed; `build deps` downloads it. |
 | xUnit | 2.9.2 | Sim unit tests. |
 
 ## Quick start
 
 ```sh
+./build.sh deps                                # once per checkout: download godot_voxel into addons/
 ./build.sh test                                # Sim unit tests, no engine needed
 ./build.sh server --port=7777                  # headless dedicated server
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
+./build.sh client                              # single-player sandbox, no server
 ```
 
 On Windows use `.\build.ps1` with the same arguments. Engine commands need Godot 4.7.2 (.NET) on `PATH`

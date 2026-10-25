@@ -1,10 +1,11 @@
 using Godot;
+using IslandWar.Client.Sandbox;
 
 namespace IslandWar.Client;
 
 /// <summary>
-/// Client entry. For M0 it shows a status label and, with <c>--connect</c>, connects to a server.
-/// The M1a sandbox (player controller and blocks) replaces the label.
+/// Client entry. Without <c>--connect</c> it starts the single-player sandbox (M1a). With it, it
+/// connects to a server and shows a status label; M1b replaces the label with the networked world.
 /// </summary>
 public partial class ClientMain : Node
 {
@@ -16,16 +17,16 @@ public partial class ClientMain : Node
     {
         Name = "Client";
 
+        if (Args.ConnectHost is null)
+        {
+            AddChild(new LocalSandbox { Args = Args });
+            return;
+        }
+
         var ui = new CanvasLayer();
         _status = new Label { Position = new Vector2(16, 16) };
         ui.AddChild(_status);
         AddChild(ui);
-
-        if (Args.ConnectHost is null)
-        {
-            SetStatus("Island War client (M0). Not connected. Start with --connect=HOST:PORT to join a server.");
-            return;
-        }
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateClient(Args.ConnectHost, Args.Port);
