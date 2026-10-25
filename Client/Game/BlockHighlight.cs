@@ -1,7 +1,7 @@
 using Godot;
 using IslandWar.Sim.Voxels;
 
-namespace IslandWar.Client.Sandbox;
+namespace IslandWar.Client.Game;
 
 /// <summary>Dark wireframe box around the block under the crosshair.</summary>
 public partial class BlockHighlight : MeshInstance3D

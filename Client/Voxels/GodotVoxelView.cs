@@ -9,7 +9,7 @@ namespace IslandWar.Client.Voxels;
 /// <summary>
 /// Renders a Sim <see cref="VoxelWorld"/> with godot_voxel's <c>VoxelTerrain</c> (GDExtension edition).
 /// The Sim world stays authoritative: this node copies every chunk in once, then mirrors each edit
-/// through <see cref="ShowEdit"/>. godot_voxel also builds the collision shapes the player walks on.
+/// through <see cref="ShowEdit"/>. It only draws: player collision is done in Sim (PlayerMovement).
 /// </summary>
 /// <remarks>
 /// The GDExtension has no C# bindings, so every godot_voxel class, property and method is reached by
@@ -41,7 +41,7 @@ public partial class GodotVoxelView : Node3D
         _terrain.Set("mesher", mesher);
         _terrain.Set("automatic_loading_enabled", false);
         _terrain.Set("bounds", new Aabb(Vector3.Zero, new Vector3(World.SizeX, World.SizeY, World.SizeZ)));
-        _terrain.Set("generate_collisions", true);
+        _terrain.Set("generate_collisions", false); // Sim does player collision (PlayerMovement).
         _terrain.Set("material_override", new StandardMaterial3D { VertexColorUseAsAlbedo = true, VertexColorIsSrgb = true });
         AddChild(_terrain);
 
@@ -79,12 +79,9 @@ public partial class GodotVoxelView : Node3D
     }
 
     /// <summary>
-    /// True once godot_voxel has meshed every chunk touching <paramref name="area"/> (in blocks). Meshing
-    /// also builds the collision shapes, so after this the player can stand there.
+    /// Shows a block change that has already been applied to <see cref="World"/>. Before a chunk is sent
+    /// this does nothing, which is fine: the chunk is copied from <see cref="World"/> when it is sent.
     /// </summary>
-    public bool IsAreaMeshed(Aabb area) => AllChunksSent && _terrain.Call("is_area_meshed", area).AsBool();
-
-    /// <summary>Shows a block change that has already been applied to <see cref="World"/>.</summary>
     public void ShowEdit(VoxelEdit edit)
     {
         _tool.Call("set_voxel", new Vector3I(edit.Position.X, edit.Position.Y, edit.Position.Z), (int)edit.Block);
