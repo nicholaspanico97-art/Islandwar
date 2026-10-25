@@ -36,3 +36,15 @@ that's waiting on a test.
 - 2026-10-25: Block picking uses our own grid raycast in Sim (`VoxelRaycast`), not godot_voxel's. Reason: the server must check edits without a renderer, and client and server should agree on what was aimed at.
 - 2026-10-25: A client started without `--connect` runs the single-player sandbox (M1a). Reason: simplest way to play locally; `--connect` keeps the networked path.
 - 2026-10-25: Player tunables (reach, speeds, gravity, look sensitivity) live in `data/player.json`. Reason: the data-file convention; reach is a rule the server will enforce.
+
+## M1
+
+- 2026-10-25: Build rules live in `Sim/Players/BuildRules` (can break, can place, in reach). Reason: the client checks them before an edit and the M1b server must re-check the same rules.
+- 2026-10-25: The bottom block layer (y = 0) is unbreakable. Reason: simplest way to stop players digging out of the world.
+- 2026-10-25: The player is a box collider (`width` x `height` x `width` from `data/player.json`) on a `CharacterBody3D`, walking on godot_voxel's collision mesh. No auto-step: jumping clears one block. Reason: a box matches the block grid and the placement rule; auto-step can come later if climbing feels fiddly.
+- 2026-10-25: Physics interpolation is on, and the camera is top-level, following the interpolated body each frame. Reason: smooth view on high-refresh monitors with 60 Hz physics, without lagging mouse look.
+- 2026-10-25: F toggles flying with collisions off (noclip). Reason: a debug and building aid during M1; revisit before matches have rules.
+- 2026-10-25: Input actions are registered from code (`Client/InputActions.cs`) rather than in `project.godot`. Reason: readable bindings in one place; project.godot stores them as serialized objects.
+- 2026-10-25: The hotbar holds every non-air block type. Reason: no inventory or resources until M3.
+- 2026-10-25: A sand-coloured plane continues the seabed outside the map. Reason: otherwise the map's square edge shows through the water.
+

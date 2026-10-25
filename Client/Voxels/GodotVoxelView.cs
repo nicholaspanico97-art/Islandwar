@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using IslandWar.Sim.Voxels;
 
@@ -17,17 +19,6 @@ public partial class GodotVoxelView : Node3D
 {
     // VoxelBuffer.CHANNEL_TYPE. Its default depth is 16 bits, which matches Block's ushort values.
     private const int ChannelType = 0;
-
-    /// <summary>Block colours, indexed by block id. The blocky library's model index equals the block id.</summary>
-    private static readonly Color[] Colors =
-    {
-        default,                       // Air (not rendered)
-        new(0.50f, 0.50f, 0.52f),      // Stone
-        new(0.47f, 0.33f, 0.21f),      // Dirt
-        new(0.33f, 0.62f, 0.25f),      // Grass
-        new(0.86f, 0.80f, 0.57f),      // Sand
-        new(0.72f, 0.55f, 0.33f),      // Planks
-    };
 
     private readonly Queue<ChunkPos> _unsent = new();
     private Node3D _terrain = null!;
@@ -87,6 +78,12 @@ public partial class GodotVoxelView : Node3D
         }
     }
 
+    /// <summary>
+    /// True once godot_voxel has meshed every chunk touching <paramref name="area"/> (in blocks). Meshing
+    /// also builds the collision shapes, so after this the player can stand there.
+    /// </summary>
+    public bool IsAreaMeshed(Aabb area) => AllChunksSent && _terrain.Call("is_area_meshed", area).AsBool();
+
     /// <summary>Shows a block change that has already been applied to <see cref="World"/>.</summary>
     public void ShowEdit(VoxelEdit edit)
     {
@@ -96,12 +93,16 @@ public partial class GodotVoxelView : Node3D
     private static GodotObject CreateLibrary()
     {
         var library = ClassDB.Instantiate("VoxelBlockyLibrary").AsGodotObject();
+        // The library's model index must equal the block id, so add one model per id in order.
         library.Call("add_model", ClassDB.Instantiate("VoxelBlockyModelEmpty"));
-        for (int id = 1; id < Colors.Length; id++)
+        foreach (Block block in Enum.GetValues<Block>().Where(b => b != Block.Air).Order())
         {
             var cube = ClassDB.Instantiate("VoxelBlockyModelCube").AsGodotObject();
-            cube.Set("color", Colors[id]);
-            library.Call("add_model", cube);
+            cube.Set("color", BlockColors.Of(block));
+            if (library.Call("add_model", cube).AsInt32() != (int)block)
+            {
+                throw new InvalidOperationException($"Block ids must be contiguous; {block} would render as the wrong model.");
+            }
         }
 
         library.Call("bake");

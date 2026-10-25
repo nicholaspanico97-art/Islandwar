@@ -8,9 +8,9 @@ The full design and build order are in [docs/game-plan.md](docs/game-plan.md). D
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
 commands to test each milestone.
 
-**Status:** M0 (project skeleton). Verified locally on Windows 11: unit tests, build, headless server and two
-connected clients. godot_voxel test passed: it renders our island and shows block edits made from C#.
-Next: M1a, the single-player sandbox.
+**Status:** M0 done, M1a done. M0 verified locally on Windows 11: unit tests, build, headless server and two
+connected clients. godot_voxel test passed. **M1a (single-player sandbox) is playable:** walk, jump, fly, break and place
+blocks with a hotbar. Next: M1b, networked blocks.
 
 ## Versions
 

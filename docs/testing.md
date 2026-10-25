@@ -65,24 +65,6 @@ In two more terminals:
 Each client window shows `Connected to 127.0.0.1:7777 as peer <id>.`, and the server logs
 `[server] peer <id> connected` once per client. Closing a client logs `peer <id> disconnected`.
 
-### Single-player sandbox (godot_voxel test)
-
-```sh
-./build.sh client
-```
-
-Expected: a window with the island (grass, sand and water), a `+` crosshair and a help line. The log
-prints `[client] local sandbox: seed 1337, ... hash 8c8109c14d2c2e39`, the same hash as the server.
-Click to capture the mouse, then fly with WASD, Space/Ctrl and Shift. Left click breaks the block under
-the crosshair (within reach, 6 blocks); right click places the block picked with 1-5. Esc frees the mouse.
-
-To check rendering with nobody at the keyboard, record a few seconds and pull out the last frame:
-
-```sh
-godot --path . --resolution 1280x720 --write-movie shot.avi --quit-after 240
-ffmpeg -sseof -0.2 -i shot.avi -frames:v 1 shot.png
-```
-
 ### Smoke test without a window
 
 Godot's `--quit-after <frames>` exits on its own, which is handy in scripts:
@@ -96,3 +78,34 @@ godot --headless --path . --quit-after 120 -- --server
 Not built yet. It arrives with M1b (see docs/game-plan.md). The Sim test
 `LateJoinerRebuildsTheSameWorldFromSeedAndDeltas` already covers the world-state half: build a
 tower, crater it, and check that a world rebuilt from seed + deltas has the same hash.
+
+## M1a: local sandbox
+
+```sh
+./build.sh client
+```
+
+No server needed. The log prints `[client] local sandbox: seed 1337, ... hash 8c8109c14d2c2e39`, the
+same hash as the server. Add `--seed=N` for a different island.
+
+Check, in order:
+1. You spawn standing on the hilltop, with the mouse captured, a crosshair, a help line and a hotbar
+   of five blocks along the bottom.
+2. WASD walks, Shift sprints, Space jumps. A one-block step can be climbed by jumping; holding Space
+   keeps hopping. Walking off the beach into the sea drops you to the seabed.
+3. A thin dark outline marks the block under the crosshair when it's within reach (6 blocks).
+4. Left click breaks that block. The bottom layer (y = 0) can't be broken.
+5. 1-5 or the mouse wheel picks a block; the selected slot gets a white border. Right click places it
+   against the face you're aiming at. You can't place a block inside yourself (look straight down and
+   right click: nothing happens).
+6. F toggles flying: Space and Ctrl go up and down, collisions are off, and you can place blocks
+   anywhere in reach. F again drops you back to walking.
+7. Fall off the map's edge (fly out, press F) and you respawn on the hilltop.
+8. Esc frees the mouse; clicking the window captures it again without breaking anything.
+
+To check rendering with nobody at the keyboard, record a few seconds and pull out the last frame:
+
+```sh
+godot --path . --resolution 1280x720 --write-movie shot.avi --quit-after 240
+ffmpeg -sseof -0.2 -i shot.avi -frames:v 1 shot.png
+```

@@ -16,6 +16,7 @@ public partial class ClientMain : Node
     public override void _Ready()
     {
         Name = "Client";
+        InputActions.Register();
 
         if (Args.ConnectHost is null)
         {
