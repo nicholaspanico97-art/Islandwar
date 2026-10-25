@@ -17,6 +17,12 @@ public sealed record PlayerSettings
     /// <summary>Downward acceleration in blocks per second squared.</summary>
     public float Gravity { get; init; } = 24;
 
+    /// <summary>Fastest downward speed from falling.</summary>
+    public float MaxFallSpeed { get; init; } = 50;
+
+    /// <summary>A player whose feet drop below this height (off the map) respawns.</summary>
+    public float RespawnBelowY { get; init; } = -16;
+
     /// <summary>Width and depth of the player's collision box.</summary>
     public float Width { get; init; } = 0.6f;
 
@@ -41,7 +47,7 @@ public sealed record PlayerSettings
 
     public void Validate()
     {
-        if (Reach <= 0 || Width <= 0 || Height <= 0 || WalkSpeed <= 0 || SprintMultiplier <= 0 || JumpVelocity <= 0 || Gravity <= 0 || EyeHeight <= 0 || FlySpeed <= 0 || LookSensitivity <= 0)
+        if (Reach <= 0 || Width <= 0 || Height <= 0 || WalkSpeed <= 0 || SprintMultiplier <= 0 || JumpVelocity <= 0 || Gravity <= 0 || MaxFallSpeed <= 0 || EyeHeight <= 0 || FlySpeed <= 0 || LookSensitivity <= 0)
         {
             throw new InvalidDataException("Every value in player.json must be positive.");
         }

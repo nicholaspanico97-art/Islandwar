@@ -7,6 +7,9 @@
   "sprint_multiplier": 1.6,
   "jump_velocity": 7.5,
   "gravity": 24.0,
+  "max_fall_speed": 50.0,
+  // Feet below this height (fallen off the map) respawn the player.
+  "respawn_below_y": -16.0,
   "eye_height": 1.6,
   "fly_speed": 15.0,
   // Degrees of camera turn per pixel of mouse movement.
