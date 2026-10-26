@@ -90,4 +90,10 @@ that's waiting on a test.
 - 2026-10-26: The match status (stage, phase, clock, winner, reason) rides in every snapshot rather than in separate events; clients announce changes by comparing. Reason: always current, survives packet loss, and late joiners get it for free.
 - 2026-10-26: Input sequence numbers carry on across a world reset (the client's new prediction starts from the last number sent). Reason: the server ignores numbers it has already seen, so restarting at 1 would freeze the player.
 - 2026-10-26: Reaching the time limit is a draw until scoring arrives in piece 4.
+- 2026-10-26: Each island has an industrial core: a 7 x 5 x 7 box of a new `Core` block at the centre, on a levelled stone foundation, generated with the terrain (`core_size`, `core_height` in `data/terrain.json`). Reason: part of the seed, so every client has it with no extra network traffic, and it mirrors for fairness.
+- 2026-10-26: Core blocks can't be broken or placed by hand. Bombs only destroy them within `core_blast_factor` (0.5) of their crater radius; nukes ignore that. Reason: conventional raids chip the core (it counts for the score in piece 4) without making the nuke pointless; repairing it comes with M3.
+- 2026-10-26: Core health is the share of core blocks still standing. Clients count it from their own world. Reason: the world is already in sync, so no extra messages.
+- 2026-10-26: The nuke stub: from phase 3 each team has a nuke, then another `nuke_cooldown_minutes` after each drop (per preset). Right click in the air drops it; it flies like a bomb and blasts a radius-9 crater. Landing within `nuke_hit_margin` (3) blocks of the enemy core's footprint ends the match with that team winning (reason CoreDestroyed). Reason: the plan's "stub the nuke as a special bomb" until the M4 pipeline; the hit counts on the site, so a core already bombed flat can still be hit.
+- 2026-10-26: Spawns are on a ring just outside the core. Reason: nobody spawns on top of it.
+- 2026-10-26: Conventional bombs reducing a core to 0% don't end the match. Reason: only a nuke on the core wins outright (game plan); the score in piece 4 will reward core damage.
 

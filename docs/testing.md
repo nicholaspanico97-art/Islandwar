@@ -274,16 +274,48 @@ one. Join one client to each team. Check, in order:
 ./build.sh matchtest
 ```
 
-A headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher` bot per team.
-Each places a plank in warmup, then checks that the start reset the world (the plank gone, the hash
-matching the server's), that the stages came in order and the time limit ended it, and finally compares
-world hashes. Expected output ends with:
+Two scenarios, one after the other:
+- **flow**: a headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher`
+  bot per team. Each places a plank in warmup, then checks that the start reset the world (the plank
+  gone, the hash matching the server's), that the stages came in order and the time limit ended it.
+- **nuke** (from M2 piece 3): a server on the `nuketest` preset (phase 3 after 3 seconds, developer mode)
+  with Red's `nuker` and Blue's `defender`. The nuker waits for the match to start, flies over, and drops
+  Red's nuke on Blue's core; both bots must see `Red wins (CoreDestroyed)`.
+
+Every bot finishes by comparing world hashes with the server. Expected output ends with:
 
 ```
 [bot watcher] stages seen: Countdown -> phase 1 -> phase 2 -> phase 3 -> Ended
 [bot watcher] PASS: world hash <h>, server <h>
+...
+[bot nuker] Red won by nuking the core; pressing E
+[bot nuker] PASS: world hash <h2>, server <h2>
+[bot defender] the match ended: Red wins (CoreDestroyed)
+[bot defender] PASS: world hash <h2>, server <h2>
 Match test PASSED
 ```
 
-It takes about 30 seconds.
+It takes about a minute.
+
+## M2, piece 3: industrial cores and the nuke
+
+```sh
+./build.sh server --port=7777 --preset=quick
+./build.sh client
+./build.sh client
+```
+
+Join one client to each team. Check, in order:
+1. Each island has an orange 7 x 5 x 7 core in the middle on a stone foundation; players spawn on a ring
+   around it. Under the match line: `Red core 100%    Blue core 100%`.
+2. Core blocks can't be broken or placed by hand, and the hotbar has no core block.
+3. In phase 2 or 3, bomb a core directly: it loses some blocks but not most (bombs only reach core blocks
+   within half their crater radius). The percentage drops for both players; the server logs
+   `<Team> core: N/245 blocks`.
+4. The flight readout shows the nuke: `Nuke: phase 3` before it, then `NUKE READY: right click over the
+   enemy core`, and `Nuke in 0:25` after a drop (`quick` has a 30-second cooldown).
+5. Right click in the air in phase 3 drops the nuke: twice the size of a bomb, with a yellow band.
+6. A nuke landing on (or within 3 blocks of) the enemy core blasts a radius-9 crater, takes the core to
+   about 0%, and ends the match at once: `Red team wins` / `Red's nuke hit the Blue core`.
+7. A nuke that misses only makes a big crater; the match carries on.
 

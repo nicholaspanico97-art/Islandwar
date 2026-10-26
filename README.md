@@ -16,8 +16,9 @@ must end identical.
 
 M2 (the match loop) is under way. Done so far: two mirrored islands, Red and Blue teams with their own
 spawns and planes, player names, a menu to join a server by address, and the match itself: warmup,
-countdown, three timed phases that unlock and grow bombs, a time limit, and a fresh island each match.
-`build matchtest` checks a whole match with bots.
+countdown, three timed phases that unlock and grow bombs, a time limit, and a fresh island each match;
+and an industrial core on each island that bombs chip and a phase-3 nuke wins the match by hitting.
+`build matchtest` checks a whole match, and a nuke win, with bots.
 
 ## Versions
 
@@ -38,7 +39,7 @@ countdown, three timed phases that unlock and grow bombs, a time limit, and a fr
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
 ./build.sh client                              # the menu: join a server by address, or the sandbox
 ./build.sh synctest                            # automated sync test: server + three bots
-./build.sh matchtest                           # automated match test: a 20-second match, two bots
+./build.sh matchtest                           # automated match tests: a fast match, then a nuke win
 ```
 
 On Windows use `.\build.ps1` with the same arguments. Engine commands need Godot 4.7.2 (.NET) on `PATH`
