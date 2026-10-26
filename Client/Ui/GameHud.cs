@@ -20,6 +20,10 @@ public partial class GameHud : CanvasLayer
     private Label _prompt = null!;
     private Label _flight = null!;
     private Label _identity = null!;
+    private Label _match = null!;
+    private Label _bannerTitle = null!;
+    private Label _bannerDetail = null!;
+    private double _bannerSecondsLeft;
 
     public Hotbar Hotbar { get; private set; } = null!;
 
@@ -45,6 +49,24 @@ public partial class GameHud : CanvasLayer
         _identity.OffsetTop = 8;
         _identity.AddThemeFontSizeOverride("font_size", 20);
 
+        _match = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
+        _match.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
+        _match.GrowHorizontal = Control.GrowDirection.Both;
+        _match.OffsetTop = 34;
+        _match.AddThemeFontSizeOverride("font_size", 18);
+
+        _bannerTitle = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
+        _bannerTitle.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _bannerTitle.GrowHorizontal = Control.GrowDirection.Both;
+        _bannerTitle.OffsetTop = -150;
+        _bannerTitle.AddThemeFontSizeOverride("font_size", 48);
+        _bannerTitle.AddThemeConstantOverride("outline_size", 10);
+        _bannerDetail = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
+        _bannerDetail.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _bannerDetail.GrowHorizontal = Control.GrowDirection.Both;
+        _bannerDetail.OffsetTop = -90;
+        _bannerDetail.AddThemeFontSizeOverride("font_size", 24);
+
         _flight = Outlined(new Label { Visible = false });
         // Anchored to the bottom-left corner and growing upward, so extra lines never run off the screen.
         _flight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
@@ -54,6 +76,32 @@ public partial class GameHud : CanvasLayer
         _flight.OffsetTop = -16;
         _flight.AddThemeFontSizeOverride("font_size", 22);
         ShowOnFoot(null);
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_bannerSecondsLeft > 0)
+        {
+            _bannerSecondsLeft -= delta;
+            float fade = Mathf.Clamp((float)_bannerSecondsLeft, 0, 1);
+            _bannerTitle.Modulate = _bannerTitle.Modulate with { A = fade };
+            _bannerDetail.Modulate = _bannerDetail.Modulate with { A = fade };
+            _bannerTitle.Visible = _bannerDetail.Visible = _bannerSecondsLeft > 0;
+        }
+    }
+
+    /// <summary>The match line under the help text: stage, phase and clock.</summary>
+    public void ShowMatch(string text) => _match.Text = text;
+
+    /// <summary>A big announcement in the middle of the screen for a few seconds.</summary>
+    public void Announce(string title, string detail, Color colour, double seconds = 5)
+    {
+        _bannerTitle.Text = title;
+        _bannerDetail.Text = detail;
+        _bannerTitle.Modulate = colour;
+        _bannerDetail.Modulate = Colors.White;
+        _bannerTitle.Visible = _bannerDetail.Visible = true;
+        _bannerSecondsLeft = seconds;
     }
 
     /// <summary>Who and which side you are, top right.</summary>

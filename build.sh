@@ -7,7 +7,8 @@
 #   ./build.sh test               run the Sim unit tests
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
-#   ./build.sh synctest           headless server + two bot clients; fails unless every world matches
+#   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
+#   ./build.sh matchtest          headless server on the fast test preset + two bots following a whole match
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -45,8 +46,9 @@ synctest() {
   dotnet build IslandWar.csproj
   local logs port=7790 builder breaker pilot builder_status=0 breaker_status=0 pilot_status=0
   logs="$(mktemp -d)"
-  # Developer mode lets the bots pick their teams and noclip to their plane.
-  "$GODOT" --headless --path . -- --server --port=$port --dev >"$logs/server.log" 2>&1 &
+  # Developer mode lets the bots pick their teams and noclip to their plane; the practice preset never
+  # starts a match, so nothing resets the world under them.
+  "$GODOT" --headless --path . -- --server --port=$port --dev --preset=practice >"$logs/server.log" 2>&1 &
   server_pid=$!  # global: the EXIT trap runs after this function returns
   trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
@@ -70,6 +72,32 @@ synctest() {
   echo "Sync test PASSED"
 }
 
+# The automated match test (docs/testing.md): a whole match on the fast test preset, followed by one
+# watcher bot per team. Each exits 0 only if the stages, the world reset and the hashes all check out.
+matchtest() {
+  dotnet build IslandWar.csproj
+  local logs port=7791 red blue red_status=0 blue_status=0
+  logs="$(mktemp -d)"
+  "$GODOT" --headless --path . -- --server --port=$port --preset=test >"$logs/server.log" 2>&1 &
+  server_pid=$!  # global: the EXIT trap runs after this function returns
+  trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+  wait_for_line "$logs/server.log" "listening on port"
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=watcher --team=red --name=red-watcher >"$logs/red.log" 2>&1 &
+  red=$!
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=watcher --team=blue --name=blue-watcher >"$logs/blue.log" 2>&1 &
+  blue=$!
+  wait "$red" || red_status=$?
+  wait "$blue" || blue_status=$?
+
+  grep -h "^\[bot" "$logs/red.log" "$logs/blue.log" || true
+  if [ "$red_status" -ne 0 ] || [ "$blue_status" -ne 0 ]; then
+    echo "Match test FAILED. Logs: $logs"
+    exit 1
+  fi
+  echo "Match test PASSED"
+}
+
 command="${1:-build}"
 shift || true
 
@@ -80,5 +108,6 @@ case "$command" in
   server) dotnet build IslandWar.csproj && "$GODOT" --headless --path . -- --server "$@" ;;
   client) dotnet build IslandWar.csproj && "$GODOT" --path . -- "$@" ;;
   synctest) synctest ;;
-  *) echo "Unknown command '$command'. Use deps, build, test, server, client or synctest." >&2; exit 2 ;;
+  matchtest) matchtest ;;
+  *) echo "Unknown command '$command'. Use deps, build, test, server, client, synctest or matchtest." >&2; exit 2 ;;
 esac

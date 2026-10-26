@@ -18,9 +18,15 @@ public sealed class PredictedPlayer
     private uint _lastSeq;
     private uint _lastAck;
 
-    public PredictedPlayer(PawnState start)
+    /// <param name="lastSeq">
+    /// The last input number already sent. A new prediction after a world reset carries on from there, so the
+    /// server, which ignores numbers it has seen, still accepts the next inputs.
+    /// </param>
+    public PredictedPlayer(PawnState start, uint lastSeq = 0)
     {
         State = start;
+        _lastSeq = lastSeq;
+        _lastAck = lastSeq;
     }
 
     public PawnState State { get; private set; }

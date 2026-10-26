@@ -40,6 +40,8 @@ public class TeamTests
 
         Assert.Contains("compressed", presets.Keys);
         Assert.Contains("full", presets.Keys);
+        Assert.Contains("practice", presets.Keys);
+        Assert.Contains("test", presets.Keys);
         Assert.True(presets["full"].MaxPlayersPerTeam > presets["compressed"].MaxPlayersPerTeam);
     }
 }

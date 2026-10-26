@@ -9,7 +9,10 @@ public sealed record BombSettings
     /// <summary>Air drag per second, proportional to speed.</summary>
     public float Drag { get; init; } = 0.05f;
 
-    /// <summary>Every block within this many blocks of the impact is destroyed (except the bottom layer).</summary>
+    /// <summary>
+    /// Crater radius outside a match (warmup, practice, the sandbox). During a match the preset's
+    /// crater_radius_by_phase decides instead.
+    /// </summary>
     public int CraterRadius { get; init; } = 4;
 
     /// <summary>Seconds between drops from the same plane.</summary>

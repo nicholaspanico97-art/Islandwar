@@ -15,7 +15,7 @@ using IslandWar.Sim.Weapons;
 namespace IslandWar.Server;
 
 /// <summary>
-/// Dedicated server: owns the world, every player, plane and bomb. Clients send only inputs and edit
+/// Dedicated server: owns the match, the world, every player, plane and bomb. Clients send only inputs and edit
 /// requests. The server runs each player (or the plane they fly) from their inputs, checks every edit
 /// against the build rules, drops and flies bombs, blasts their craters, and sends the results back as
 /// edits, snapshots, drops and explosions.
@@ -35,6 +35,7 @@ public partial class ServerMain : Node
     private readonly Dictionary<int, ulong> _pending = new();
     private readonly Dictionary<Team, int> _spawnSlots = new() { [Team.Red] = 0, [Team.Blue] = 0 };
     private MatchPreset _preset = null!;
+    private MatchStatus _match = MatchStatus.Warmup;
     private GameData _data = null!;
     private GameRules _rules = null!;
     private Replicator _net = null!;
@@ -78,6 +79,8 @@ public partial class ServerMain : Node
             GD.Print($"[server] {team} plane {plane.Id} parked at {plane.State.Position}");
         }
 
+        GD.Print($"[server] warmup: the match starts {_preset.CountdownSeconds:0} s after both teams have {_preset.MinPlayersPerTeam} player(s)");
+
         GD.Print($"[server] preset '{Args.Preset}', up to {_preset.MaxPlayersPerTeam} per team{(Args.Dev ? "; developer mode: noclip on, any team" : "")}");
 
         _net = new Replicator();
@@ -107,6 +110,7 @@ public partial class ServerMain : Node
         _tick++;
         NetSettings net = _data.Net;
         DropSilentPeers();
+        AdvanceMatch(net.TickSeconds);
         foreach ((int peer, ServerPlayer player) in _players)
         {
             player.Refill(net);
@@ -158,17 +162,18 @@ public partial class ServerMain : Node
         }
     }
 
-    /// <summary>Drops a bomb if the plane is airborne and its bomb bay has reloaded.</summary>
+    /// <summary>Drops a bomb if the phase allows bombs, the plane is airborne and its bomb bay has reloaded.</summary>
     private void TryDropBomb(int peer, ServerPlane plane)
     {
         uint cooldown = (uint)Math.Ceiling(_rules.Bomb.CooldownSeconds * _data.Net.TickRate);
-        if (plane.State.OnGround || (plane.LastDropTick is { } last && _tick - last < cooldown))
+        int radius = MatchFlow.CraterRadius(_match, _preset, _rules.Bomb.CraterRadius);
+        if (radius == 0 || plane.State.OnGround || (plane.LastDropTick is { } last && _tick - last < cooldown))
         {
             return;
         }
 
         plane.LastDropTick = _tick;
-        var bomb = new ServerBomb(_nextBombId++, peer, _tick, BombFlight.Drop(_rules.Bomb, plane.State));
+        var bomb = new ServerBomb(_nextBombId++, peer, _tick, BombFlight.Drop(_rules.Bomb, plane.State), radius);
         _bombs.Add(bomb);
         _net.BroadcastBombDrop(new BombDrop(bomb.Id, peer, bomb.SpawnTick, bomb.State));
         GD.Print($"[server] peer {peer} dropped bomb {bomb.Id} at {bomb.State.Position}");
@@ -192,7 +197,7 @@ public partial class ServerMain : Node
             bomb.State = next;
             if (impact is { } hit)
             {
-                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, _rules.Bomb, hit);
+                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, bomb.CraterRadius, hit);
                 _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList())));
                 GD.Print(hit.InWater
                     ? $"[server] bomb {bomb.Id} splashed into the sea"
@@ -214,7 +219,64 @@ public partial class ServerMain : Node
         PlaneSnapshot[] planes = _planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId, p.Team)).ToArray();
         foreach ((int peer, ServerPlayer player) in _players)
         {
-            _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes)));
+            _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes, _match)));
+        }
+    }
+
+    /// <summary>Moves the match clock on and acts on what changed.</summary>
+    private void AdvanceMatch(float dt)
+    {
+        (_match, MatchEvent change) = MatchFlow.Advance(
+            _match, _preset, dt, _players.Values.Count(p => p.Team == Team.Red), _players.Values.Count(p => p.Team == Team.Blue));
+        switch (change)
+        {
+            case MatchEvent.CountdownStarted:
+                GD.Print($"[server] both teams ready: the match starts in {_preset.CountdownSeconds:0} s");
+                break;
+            case MatchEvent.CountdownCancelled:
+                GD.Print("[server] a team dropped below the minimum: back to warmup");
+                break;
+            case MatchEvent.MatchStarted:
+                ResetWorld();
+                GD.Print("[server] match started: phase 1");
+                break;
+            case MatchEvent.PhaseChanged:
+                GD.Print($"[server] phase {_match.Phase}");
+                break;
+            case MatchEvent.MatchEnded:
+                GD.Print($"[server] match over: {(_match.Winner == Team.None ? "draw" : $"{_match.Winner} wins")} ({_match.Reason})");
+                break;
+            case MatchEvent.BackToWarmup:
+                GD.Print("[server] back to warmup");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// A fair start: the island regenerated from the seed, planes back on their moorings, bombs gone, everyone
+    /// on foot at their team's spawn. Every client gets the fresh world, the same way a late joiner would.
+    /// </summary>
+    private void ResetWorld()
+    {
+        World = IslandGenerator.Generate(_data.Terrain, _seed);
+        _bombs.Clear();
+        foreach (ServerPlane plane in _planes.Values)
+        {
+            plane.State = _data.PlaneSpawnIn(World, plane.Team);
+            plane.PilotPeerId = 0;
+            plane.LastDropTick = null;
+        }
+
+        foreach (Team team in Teams.Playing)
+        {
+            _spawnSlots[team] = 0;
+        }
+
+        var fresh = new WorldInit(_seed, _data, WireFormat.EncodeEdits(Array.Empty<VoxelEdit>()), World.ComputeHash(), Args.Dev, Args.Preset);
+        foreach ((int peer, ServerPlayer player) in _players)
+        {
+            player.Respawn(_data.SpawnIn(World, player.Team, _spawnSlots[player.Team]++));
+            _net.SendWorld(peer, fresh);
         }
     }
 
@@ -410,13 +472,17 @@ public partial class ServerMain : Node
 
     private sealed class ServerBomb
     {
-        public ServerBomb(int id, int ownerPeerId, uint spawnTick, BombState state)
+        public ServerBomb(int id, int ownerPeerId, uint spawnTick, BombState state, int craterRadius)
         {
             Id = id;
             OwnerPeerId = ownerPeerId;
             SpawnTick = spawnTick;
             State = state;
+            CraterRadius = craterRadius;
         }
+
+        /// <summary>Set by the match phase when the bomb was dropped.</summary>
+        public int CraterRadius { get; }
 
         public int Id { get; }
 
@@ -449,7 +515,7 @@ public partial class ServerMain : Node
         public Team Team { get; }
 
         /// <summary>Where this player appeared, and where they come back after falling off the map.</summary>
-        public PlayerState Spawn { get; }
+        public PlayerState Spawn { get; private set; }
 
         public PawnState Pawn { get; set; }
 
@@ -481,6 +547,17 @@ public partial class ServerMain : Node
         {
             _inputBudget = Math.Min(_inputBudget + 1, net.MaxInputBacklog);
             _editBudget = Math.Min(_editBudget + (float)net.MaxEditsPerSecond / net.TickRate, net.MaxEditsPerSecond);
+        }
+
+        /// <summary>
+        /// Puts the player on foot at a new spawn for a fresh match. Queued inputs from before are dropped;
+        /// the sequence numbers carry on, so the client's next inputs are still accepted.
+        /// </summary>
+        public void Respawn(PlayerState spawn)
+        {
+            Spawn = spawn;
+            Pawn = PawnState.OnFoot(spawn);
+            _inputs.Clear();
         }
 
         public bool TryTakeInput(out PlayerInput input)

@@ -13,10 +13,10 @@ public readonly record struct PlayerSnapshot(int PeerId, PlayerState State, floa
 public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotPeerId, Team Team = Team.None);
 
 /// <summary>
-/// The server's view of every player and plane at one tick. <see cref="AckSeq"/> is the last input the
-/// server has processed from the client receiving this snapshot.
+/// The server's view of the match, every player and every plane at one tick. <see cref="AckSeq"/> is the
+/// last input the server has processed from the client receiving this snapshot.
 /// </summary>
-public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes);
+public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes, MatchStatus Match = default);
 
 /// <summary>
 /// Byte layouts for messages sent often or in bulk. Little-endian. Decoders treat the bytes as untrusted:
@@ -86,6 +86,11 @@ public static class WireFormat
         {
             writer.Write(snapshot.Tick);
             writer.Write(snapshot.AckSeq);
+            writer.Write((byte)snapshot.Match.Stage);
+            writer.Write((byte)snapshot.Match.Phase);
+            writer.Write(snapshot.Match.StageSeconds);
+            writer.Write((byte)snapshot.Match.Winner);
+            writer.Write((byte)snapshot.Match.Reason);
             writer.Write((byte)snapshot.Players.Count);
             foreach (PlayerSnapshot player in snapshot.Players)
             {
@@ -121,6 +126,7 @@ public static class WireFormat
     {
         uint tick = reader.ReadUInt32();
         uint ack = reader.ReadUInt32();
+        var match = new MatchStatus((MatchStage)reader.ReadByte(), reader.ReadByte(), reader.ReadSingle(), (Team)reader.ReadByte(), (EndReason)reader.ReadByte());
         int count = reader.ReadByte();
         var players = new PlayerSnapshot[count];
         for (int i = 0; i < count; i++)
@@ -148,7 +154,7 @@ public static class WireFormat
             planes[i] = new PlaneSnapshot(id, state, pilot, team);
         }
 
-        return new Snapshot(tick, ack, players, planes);
+        return new Snapshot(tick, ack, players, planes, match);
     });
 
     /// <summary>Block edits, 8 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>

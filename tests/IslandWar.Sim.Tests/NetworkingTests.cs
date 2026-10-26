@@ -198,8 +198,8 @@ public class WireFormatTests
             new PlayerSnapshot(7, new PlayerState(new Vector3(9, 8, 7), Vector3.Zero, false, true), -1, 0.1f, PlaneId: 3),
         }, new[]
         {
-            new PlaneSnapshot(3, new PlaneState(new Vector3(5, 30, 6), Quaternion.CreateFromYawPitchRoll(0.3f, 0.1f, -0.4f), 31, 0.5f, 0.8f, false), 7),
-        });
+            new PlaneSnapshot(3, new PlaneState(new Vector3(5, 30, 6), Quaternion.CreateFromYawPitchRoll(0.3f, 0.1f, -0.4f), 31, 0.5f, 0.8f, false), 7, IslandWar.Sim.Match.Team.Blue),
+        }, new IslandWar.Sim.Match.MatchStatus(IslandWar.Sim.Match.MatchStage.Playing, 2, 612.5f, IslandWar.Sim.Match.Team.None, IslandWar.Sim.Match.EndReason.None));
 
         Snapshot decoded = WireFormat.DecodeSnapshot(WireFormat.EncodeSnapshot(snapshot));
 
@@ -207,6 +207,7 @@ public class WireFormatTests
         Assert.Equal(snapshot.AckSeq, decoded.AckSeq);
         Assert.Equal(snapshot.Players, decoded.Players);
         Assert.Equal(snapshot.Planes, decoded.Planes);
+        Assert.Equal(snapshot.Match, decoded.Match);
     }
 
     [Fact]

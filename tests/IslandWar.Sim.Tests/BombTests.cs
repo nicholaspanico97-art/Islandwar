@@ -81,7 +81,7 @@ public class BombTests
 
         Assert.True(impact!.Value.InWater);
         Assert.Equal(SeaLevel, impact.Value.Position.Y, 2);
-        Assert.Empty(BombFlight.Explode(world, Settings, impact.Value));
+        Assert.Empty(BombFlight.Explode(world, Settings.CraterRadius, impact.Value));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class BombTests
         var bomb = new BombState(new Vector3(20.5f, 40, 10.5f), Vector3.Zero);
         (_, BombImpact? impact, _) = Fall(world, bomb);
 
-        IReadOnlyList<VoxelEdit> edits = BombFlight.Explode(world, Settings, impact!.Value);
+        IReadOnlyList<VoxelEdit> edits = BombFlight.Explode(world, Settings.CraterRadius, impact!.Value);
 
         Assert.NotEmpty(edits);
         Assert.Equal(Block.Air, world.Get(new BlockPos(20, 11, 10)));

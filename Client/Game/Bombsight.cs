@@ -9,8 +9,9 @@ namespace IslandWar.Client.Game;
 public partial class Bombsight : MeshInstance3D
 {
     private StandardMaterial3D _material = null!;
+    private TorusMesh _ring = null!;
 
-    public float Radius { get; init; } = 4;
+    public float Radius { get; private set; } = 4;
 
     public override void _Ready()
     {
@@ -23,8 +24,18 @@ public partial class Bombsight : MeshInstance3D
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             NoDepthTest = true,
         };
-        Mesh = new TorusMesh { InnerRadius = Radius - 0.25f, OuterRadius = Radius, Rings = 32, RingSegments = 6 };
+        _ring = new TorusMesh { Rings = 32, RingSegments = 6 };
+        Mesh = _ring;
         MaterialOverride = _material;
+        SetRadius(Radius);
+    }
+
+    /// <summary>The crater size changes with the match phase.</summary>
+    public void SetRadius(float radius)
+    {
+        Radius = radius;
+        _ring.InnerRadius = Mathf.Max(0.1f, radius - 0.25f);
+        _ring.OuterRadius = Mathf.Max(0.35f, radius);
     }
 
     /// <summary>Shows the ring at the predicted impact, or hides it (null) when there isn't one.</summary>

@@ -35,4 +35,16 @@ public interface IGameLink
 
     /// <summary>A player's name and team, or null if the roster hasn't caught up yet.</summary>
     RosterEntry? Player(int peer);
+
+    /// <summary>Everyone connected, by peer id.</summary>
+    IReadOnlyDictionary<int, RosterEntry> Roster { get; }
+
+    /// <summary>The match as of the latest snapshot.</summary>
+    MatchStatus Match { get; }
+
+    /// <summary>The server's match preset.</summary>
+    MatchPreset? Preset { get; }
+
+    /// <summary>The newest input number sent; a fresh prediction carries on from it.</summary>
+    uint LastSentSeq { get; }
 }

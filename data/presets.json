@@ -1,14 +1,65 @@
 {
   // Match presets (game plan: both are real modes). Pick one with the server's --preset=NAME.
-  // M2 adds phase timings, score and concede settings here piece by piece.
+  // Times are in minutes unless the name says seconds. Phase 1 runs from the start to phase2_start_minutes.
+  // crater_radius_by_phase: bomb crater radius in phases 1, 2, 3; 0 = no bombs (phase 1 is scouting only).
   "compressed": {
-    // 4v4, about 45 minutes.
+    // 4v4, about 45 minutes. The default.
     "max_players_per_team": 4,
-    "max_team_imbalance": 1
+    "max_team_imbalance": 1,
+    "min_players_per_team": 1,
+    "countdown_seconds": 10,
+    "phase2_start_minutes": 8,
+    "phase3_start_minutes": 25,
+    "time_limit_minutes": 45,
+    "results_seconds": 20,
+    "crater_radius_by_phase": [0, 3, 5]
   },
   "full": {
-    // 12v12, 2 to 4 hours.
+    // 12v12, about 3 hours. Phase 1 starts at 20 minutes for playtests (game plan review note 6).
     "max_players_per_team": 12,
-    "max_team_imbalance": 1
+    "max_team_imbalance": 1,
+    "min_players_per_team": 2,
+    "countdown_seconds": 20,
+    "phase2_start_minutes": 20,
+    "phase3_start_minutes": 120,
+    "time_limit_minutes": 180,
+    "results_seconds": 30,
+    "crater_radius_by_phase": [0, 3, 5]
+  },
+  "quick": {
+    // A five-minute match to see every phase: demos and short playtests.
+    "max_players_per_team": 4,
+    "max_team_imbalance": 1,
+    "min_players_per_team": 1,
+    "countdown_seconds": 10,
+    "phase2_start_minutes": 1,
+    "phase3_start_minutes": 3,
+    "time_limit_minutes": 5,
+    "results_seconds": 15,
+    "crater_radius_by_phase": [0, 3, 5]
+  },
+  "practice": {
+    // Never starts a match: endless warmup with everything allowed. The bot sync test uses it.
+    "max_players_per_team": 12,
+    "max_team_imbalance": 12,
+    "min_players_per_team": 1000,
+    "countdown_seconds": 10,
+    "phase2_start_minutes": 1,
+    "phase3_start_minutes": 2,
+    "time_limit_minutes": 3,
+    "results_seconds": 10,
+    "crater_radius_by_phase": [4, 4, 4]
+  },
+  "test": {
+    // A whole match in about 20 seconds, for the automated match test.
+    "max_players_per_team": 4,
+    "max_team_imbalance": 1,
+    "min_players_per_team": 1,
+    "countdown_seconds": 3,
+    "phase2_start_minutes": 0.1,
+    "phase3_start_minutes": 0.2,
+    "time_limit_minutes": 0.3,
+    "results_seconds": 4,
+    "crater_radius_by_phase": [0, 2, 3]
   }
 }

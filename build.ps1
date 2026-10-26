@@ -6,7 +6,8 @@
 #   .\build.ps1 test
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
-#   .\build.ps1 synctest (headless server + two bot clients; fails unless every world matches)
+#   .\build.ps1 synctest  (headless server + three bot clients; fails unless every world matches)
+#   .\build.ps1 matchtest (headless server on the fast test preset + two bots following a whole match)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -54,8 +55,9 @@ function Invoke-SyncTest {
   New-Item -ItemType Directory -Force $logs | Out-Null
   Get-ChildItem $logs | Remove-Item
   $port = 7790
-  # Developer mode lets the bots pick their teams and noclip to their plane.
-  $server = Start-Godot "server" @("--server", "--port=$port", "--dev")
+  # Developer mode lets the bots pick their teams and noclip to their plane; the practice preset never
+  # starts a match, so nothing resets the world under them.
+  $server = Start-Godot "server" @("--server", "--port=$port", "--dev", "--preset=practice")
   $bots = @()
   try {
     Wait-ForLine "server" "listening on port"
@@ -77,6 +79,33 @@ function Invoke-SyncTest {
   Write-Host "Sync test PASSED"
 }
 
+# The automated match test (docs/testing.md): a whole match on the fast test preset, followed by one
+# watcher bot per team. Each exits 0 only if the stages, the world reset and the hashes all check out.
+function Invoke-MatchTest {
+  $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-matchtest"
+  New-Item -ItemType Directory -Force $logs | Out-Null
+  Get-ChildItem $logs | Remove-Item
+  $port = 7791
+  $server = Start-Godot "server" @("--server", "--port=$port", "--preset=test")
+  $bots = @()
+  try {
+    Wait-ForLine "server" "listening on port"
+    $bots += Start-Godot "red" @("--connect=127.0.0.1:$port", "--bot=watcher", "--team=red", "--name=red-watcher")
+    $bots += Start-Godot "blue" @("--connect=127.0.0.1:$port", "--bot=watcher", "--team=blue", "--name=blue-watcher")
+    $bots | Wait-Process -Timeout 120
+  } finally {
+    $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
+  }
+
+  Get-Content (Join-Path $logs "red.log"), (Join-Path $logs "blue.log") | Select-String "^\[bot" | ForEach-Object { $_.Line }
+  if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
+    Write-Host "Match test FAILED. Logs: $logs"
+    exit 1
+  }
+
+  Write-Host "Match test PASSED"
+}
+
 switch ($Command) {
   "deps"     { Install-Voxel }
   "build"    { Invoke-Checked { dotnet build IslandWar.sln } }
@@ -84,5 +113,6 @@ switch ($Command) {
   "server"   { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --headless --path . -- --server @GameArgs }
   "client"   { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --path . -- @GameArgs }
   "synctest" { Invoke-Checked { dotnet build IslandWar.csproj }; Invoke-SyncTest }
-  default    { Write-Error "Unknown command $Command. Use deps, build, test, server, client or synctest."; exit 2 }
+  "matchtest" { Invoke-Checked { dotnet build IslandWar.csproj }; Invoke-MatchTest }
+  default    { Write-Error "Unknown command $Command. Use deps, build, test, server, client, synctest or matchtest."; exit 2 }
 }

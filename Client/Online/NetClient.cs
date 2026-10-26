@@ -44,6 +44,15 @@ public partial class NetClient : Node, IGameLink
     /// <summary>Everyone connected, by peer id, as of the server's last roster.</summary>
     public IReadOnlyDictionary<int, RosterEntry> Roster => _roster;
 
+    /// <summary>The match as of the latest snapshot.</summary>
+    public MatchStatus Match { get; private set; } = MatchStatus.Warmup;
+
+    /// <summary>The match preset the server runs, once the world has arrived.</summary>
+    public MatchPreset? Preset { get; private set; }
+
+    /// <summary>The newest input number sent, so a new prediction after a world reset can carry on from it.</summary>
+    public uint LastSentSeq { get; private set; }
+
     /// <summary>Our own team, once the server has said.</summary>
     public Team MyTeam => _roster.TryGetValue(Multiplayer.GetUniqueId(), out RosterEntry me) ? me.Team : Team.None;
 
@@ -61,6 +70,12 @@ public partial class NetClient : Node, IGameLink
 
     /// <summary>The server is about to disconnect us, and why (full, for example).</summary>
     public event Action<string>? KickedOut;
+
+    /// <summary>
+    /// A new match started and the server sent a fresh world. <see cref="World"/> is already rebuilt; whoever
+    /// plays it should start over, and <see cref="Joined"/> fires again with the new spawn.
+    /// </summary>
+    public event Action? WorldReset;
 
     public override void _Ready()
     {
@@ -95,7 +110,15 @@ public partial class NetClient : Node, IGameLink
         }
     }
 
-    public void SendInputs(IReadOnlyList<PlayerInput> inputs) => Replicator.SendInputs(WireFormat.EncodeInputs(inputs));
+    public void SendInputs(IReadOnlyList<PlayerInput> inputs)
+    {
+        if (inputs.Count > 0)
+        {
+            LastSentSeq = Math.Max(LastSentSeq, inputs[^1].Seq);
+        }
+
+        Replicator.SendInputs(WireFormat.EncodeInputs(inputs));
+    }
 
     public void SubmitEdit(VoxelEdit edit) => Replicator.RequestEdit(edit);
 
@@ -134,9 +157,11 @@ public partial class NetClient : Node, IGameLink
 
     private void OnWorld(WorldInit init)
     {
+        bool reset = World is not null;
         Data = init.Data;
         DevMode = init.DevMode;
         PresetName = init.PresetName;
+        Preset = Data.Presets.TryGetValue(init.PresetName, out MatchPreset? preset) ? preset : null;
         Data.ApplyTickRate();
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
@@ -149,6 +174,16 @@ public partial class NetClient : Node, IGameLink
         else
         {
             GD.PushError($"[client] rebuilt world hash {hash:x16} differs from the server's {init.Hash:x16}");
+        }
+
+        if (reset)
+        {
+            // Everything from the last match is gone; wait for our new spawn in the next snapshot.
+            _joined = false;
+            _others.Clear();
+            _planes.Clear();
+            _bombs.Clear();
+            WorldReset?.Invoke();
         }
     }
 
@@ -199,6 +234,8 @@ public partial class NetClient : Node, IGameLink
             GD.PushWarning($"[client] bad snapshot: {e.Message}");
             return;
         }
+
+        Match = snapshot.Match;
 
         // Follow the server's clock, but only jump when it has drifted, so remote players move evenly.
         if (Math.Abs(_serverTick - snapshot.Tick) > Data!.Net.SnapshotIntervalTicks * 2)

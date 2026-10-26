@@ -22,6 +22,8 @@ public partial class ClientMain : Node
     private Replicator _replicator = null!;
     private Node? _session;
     private NetClient? _net;
+    private ClientGame? _game;
+    private bool _botStarted;
     private string _address = "";
     private (string Name, Team Team) _hello;
 
@@ -34,7 +36,7 @@ public partial class ClientMain : Node
         InputActions.Register();
 
         _ui = new CanvasLayer { Layer = 10 };
-        _status = new Label { Position = new Vector2(16, 40) };
+        _status = new Label { Position = new Vector2(16, 62) };
         _status.AddThemeColorOverride("font_outline_color", Colors.Black);
         _status.AddThemeConstantOverride("outline_size", 4);
         _ui.AddChild(_status);
@@ -89,6 +91,7 @@ public partial class ClientMain : Node
         _net = new NetClient { Replicator = _replicator };
         session.AddChild(_net);
         _net.Joined += StartGame;
+        _net.WorldReset += EndGame;
         _net.KickedOut += reason => Fail($"The server turned us away: {reason}");
 
         var peer = new ENetMultiplayerPeer();
@@ -108,9 +111,19 @@ public partial class ClientMain : Node
         NetClient net = _net!;
         if (Args.Bot is not null)
         {
-            _session!.AddChild(Args.Bot == "pilot"
-                ? new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn }
-                : new SyncBot { Net = net, Role = Args.Bot });
+            // Bots keep running through a world reset; they watch for it themselves.
+            if (_botStarted)
+            {
+                return;
+            }
+
+            _botStarted = true;
+            _session!.AddChild(Args.Bot switch
+            {
+                "pilot" => new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn },
+                "watcher" => new MatchBot { Net = net, Role = Args.Bot },
+                _ => (TestBot)new SyncBot { Net = net, Role = Args.Bot },
+            });
             return;
         }
 
@@ -124,12 +137,28 @@ public partial class ClientMain : Node
             Spawn = spawn,
             Link = net,
         };
+        _game = game;
         _session!.AddChild(game);
         net.WorldChanged += game.ShowWorldChange;
         net.OwnStateReceived += game.Reconcile;
         net.Exploded += game.ShowExplosion;
         SetStatus($"Playing on {_address} ({net.PresetName} preset{(net.DevMode ? ", developer mode" : "")}).");
         GetTree().CreateTimer(6).Timeout += () => _status.Text = "";
+    }
+
+    /// <summary>A new match: drop the old game scene; <see cref="StartGame"/> runs again with the new spawn.</summary>
+    private void EndGame()
+    {
+        if (_game is null || _net is null)
+        {
+            return;
+        }
+
+        _net.WorldChanged -= _game.ShowWorldChange;
+        _net.OwnStateReceived -= _game.Reconcile;
+        _net.Exploded -= _game.ShowExplosion;
+        _game.QueueFree();
+        _game = null;
     }
 
     /// <summary>Bots exit with a failure; players go back to the menu with the reason.</summary>
@@ -158,6 +187,8 @@ public partial class ClientMain : Node
         _session?.QueueFree();
         _session = null;
         _net = null;
+        _game = null;
+        _botStarted = false;
         if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer peer)
         {
             peer.Close();

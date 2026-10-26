@@ -5,6 +5,7 @@ using Godot;
 using IslandWar.Client.Ui;
 using IslandWar.Client.Voxels;
 using IslandWar.Sim;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
@@ -50,6 +51,7 @@ public partial class ClientGame : Node3D
     private bool _wantsFlying;
     private bool _usePressed;
     private bool _firePressed;
+    private MatchStatus _lastMatch;
 
     public VoxelWorld World { get; init; } = null!;
 
@@ -77,12 +79,16 @@ public partial class ClientGame : Node3D
         AddChild(_view);
         _highlight = new BlockHighlight();
         AddChild(_highlight);
-        _bombsight = new Bombsight { Radius = Rules.Bomb.CraterRadius };
+        _bombsight = new Bombsight();
         AddChild(_bombsight);
         _others = new Node3D { Name = "Others" };
         AddChild(_others);
 
-        _player = new PredictedPlayer(Spawn);
+        _player = new PredictedPlayer(Spawn, Link?.LastSentSeq ?? 0);
+        // A fresh game scene is made when a match starts (the world resets), so it never sees warmup turn into
+        // play. If the match has only just begun, count it as unseen so the start is still announced.
+        MatchStatus match = Link?.Match ?? MatchStatus.Warmup;
+        _lastMatch = match.Playing && match.StageSeconds < 3 ? MatchStatus.Warmup : match;
         _previous = Spawn;
         _camera = new CameraRig();
         AddChild(_camera);
@@ -207,7 +213,7 @@ public partial class ClientGame : Node3D
         }
 
         _highlight.ShowAt(State.InPlane ? null : Aim()?.Block);
-        _aim = State.InPlane && !State.Plane.OnGround
+        _aim = State.InPlane && !State.Plane.OnGround && CraterRadius > 0
             ? BombFlight.PredictImpact(World, Rules.Bomb, Rules.SeaLevel, BombFlight.Drop(Rules.Bomb, State.Plane), Net.TickSeconds, BombsightTicks)
             : null;
     }
@@ -236,6 +242,8 @@ public partial class ClientGame : Node3D
 
         ShowPlanes(planes, delta);
         ShowIdentity();
+        ShowMatch();
+        _bombsight.SetRadius(Math.Max(1, CraterRadius));
         _bombsight.ShowAt(_aim is { } aim ? ToGodot(aim.Position) : null, _aim?.InWater ?? false);
         if (Link is not null)
         {
@@ -256,12 +264,39 @@ public partial class ClientGame : Node3D
         }
     }
 
+    /// <summary>The crater a bomb dropped now would make (0 = bombs locked), from the match phase.</summary>
+    private int CraterRadius => Link?.Preset is { } preset
+        ? MatchFlow.CraterRadius(Link.Match, preset, Rules.Bomb.CraterRadius)
+        : Rules.Bomb.CraterRadius;
+
+    private void ShowMatch()
+    {
+        if (Link?.Preset is not { } preset)
+        {
+            _hud.ShowMatch("");
+            return;
+        }
+
+        MatchStatus match = Link.Match;
+        int red = Link.Roster.Values.Count(p => p.Team == Team.Red);
+        int blue = Link.Roster.Values.Count(p => p.Team == Team.Blue);
+        _hud.ShowMatch(MatchText.Status(match, preset, red, blue));
+        if (MatchText.Announcement(_lastMatch, match, preset) is { } news)
+        {
+            Color colour = match.Stage == MatchStage.Ended && match.Winner != Team.None ? TeamColors.Of(match.Winner).Lightened(0.3f) : Colors.Gold;
+            _hud.Announce(news.Title, news.Detail, colour, match.Stage == MatchStage.Ended ? preset.ResultsSeconds : 5);
+        }
+
+        _lastMatch = match;
+    }
+
     private bool BombReady => NowSeconds - _lastDropSeconds >= Rules.Bomb.CooldownSeconds;
 
     private static double NowSeconds => Time.GetTicksMsec() / 1000.0;
 
     private string BombStatus() =>
         Link is null ? "No bombs in the sandbox"
+        : CraterRadius == 0 ? (Link.Match.Playing ? "Bombs unlock in phase 2" : "No bombs now")
         : State.Plane.OnGround ? "Bombs: take off first"
         : BombReady ? "Bomb ready: left click"
         : "Bomb bay reloading...";
@@ -302,7 +337,7 @@ public partial class ClientGame : Node3D
         if (_firePressed)
         {
             // The server has the final say on the reload; this only keeps the HUD honest.
-            if (State.InPlane && !State.Plane.OnGround && BombReady)
+            if (State.InPlane && !State.Plane.OnGround && BombReady && CraterRadius > 0)
             {
                 _lastDropSeconds = NowSeconds;
             }
