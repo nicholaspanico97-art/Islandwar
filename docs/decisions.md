@@ -110,3 +110,4 @@ that's waiting on a test.
 - 2026-10-26: Block owners travel with every edit and with the late-join world, and the world hash covers them. Reason: clients predict breaks with the same rule, and the sync tests catch ownership drift.
 - 2026-10-26: Placing is not restricted (anyone may build anywhere). Reason: simplest first; revisit if players wall in teammates or block planes.
 
+- 2026-10-26: A joiner whose identity token is already in use by a connected player is treated as a new player (fresh player id, no claim on that seat or those blocks). Reason: two windows on one machine share a token, and protection must still tell them apart; it also stops one token being used by two people at once. Such a joiner can't reclaim a seat after a disconnect.

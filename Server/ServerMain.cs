@@ -389,6 +389,13 @@ public partial class ServerMain : Node
             return;
         }
 
+        // A token already in use belongs to someone else (or another window on the same machine): this
+        // joiner is a new player, with no claim on that player's seat or blocks.
+        if (_players.Values.Any(p => p.Token == token))
+        {
+            token = "";
+        }
+
         (string Name, Team Team) seat = ("", Team.None);
         bool returning = token.Length > 0 && _departed.Remove(token, out seat);
         if (returning)
@@ -423,7 +430,7 @@ public partial class ServerMain : Node
         List<VoxelEdit> edits = World.EditsWithOwners().ToList();
         _net.SendWorld(peer, new WorldInit(_seed, _data, WireFormat.EncodeEdits(edits), World.ComputeHash(), Args.Dev, Args.Preset));
         BroadcastRoster();
-        GD.Print($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' on {team}; sent the world with {edits.Count} edits");
+        GD.Print($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' (player {playerId}) on {team}; sent the world with {edits.Count} edits");
     }
 
     private void Leave(int peer)
