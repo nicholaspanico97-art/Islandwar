@@ -111,3 +111,9 @@ that's waiting on a test.
 - 2026-10-26: Placing is not restricted (anyone may build anywhere). Reason: simplest first; revisit if players wall in teammates or block planes.
 
 - 2026-10-26: A joiner whose identity token is already in use by a connected player is treated as a new player (fresh player id, no claim on that seat or those blocks). Reason: two windows on one machine share a token, and protection must still tell them apart; it also stops one token being used by two people at once. Such a joiner can't reclaim a seat after a disconnect.
+- 2026-10-26: **The industrial core is removed.** A nuke landing on solid ground anywhere on the enemy island (the enemy's half of the map) wins; a splash in the sea doesn't. Teams decide where to hide their equipment. Supersedes the core, core protection, core health and the core-based time-limit score from M2 piece 3 and 4. Reason: developer decision; hiding the pipeline makes the nuke and recon matter.
+- 2026-10-26: Reaching the time limit is a draw until a score is designed. Reason: developer decision to decide scoring once the economy exists.
+- 2026-10-26: The `Core` block id (6) is retired, not removed: never generated or placeable. Reason: block ids are never reused.
+- 2026-10-26: Island direction set by the developer (`docs/island-sketch.png`): big islands (about two minutes to walk across), identical and mirrored for now, with mountains at the far end, forests, hills and grassland facing the strait. Not built yet; the current generator still makes the round M2 islands.
+- 2026-10-26: Next order of work: the big sketch-based islands, then foundations (server split into systems, a generic replicated object and structure model, team state), then resources against the developer's tech tree.
+

@@ -1,8 +1,9 @@
 # Island War
 
-A multiplayer team game: two islands, two teams. Gather, build an industrial base, research, and
-attack across the water with player-piloted planes, missiles and ships. Win by delivering a nuke
-to the enemy's industrial core. Think old modded Minecraft military sandbox, arcade not simulation.
+A multiplayer team game: two islands, two teams, a 2 to 4 hour match. Gather, build and hide an
+industrial base, climb a big tech tree, and attack across the water with player-piloted planes, missiles
+and ships. Win by landing a nuke anywhere on the enemy island. Part Minecraft tech mod, part FPS, part
+MOBA: arcade, not simulation.
 
 The full design and build order are in [docs/game-plan.md](docs/game-plan.md). Decisions are logged
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
@@ -16,13 +17,14 @@ must end identical.
 
 M2 added: two mirrored islands, Red and Blue teams with their own spawns and planes, player names, a menu
 to join a server by address, and the match itself: warmup, countdown, three timed phases that unlock and
-grow bombs, a fresh island each match, an industrial core on each island that bombs chip and a phase-3
-nuke wins by hitting, a time-limit score from core damage, a concede vote, rejoining your team after a
-disconnect, and a Tab scoreboard. `build matchtest` checks a whole match, a nuke win, and a rejoin with a
+grow bombs, a fresh island each match, a phase-3 nuke that wins by landing anywhere on the enemy island,
+a concede vote, rejoining your team after a disconnect, and a Tab scoreboard. (The industrial core and its
+score were removed on 2026-10-26; the time limit is a draw for now.) `build matchtest` checks a whole match, a nuke win, and a rejoin with a
 concession, with bots.
 
 M3 (economy and building) is under way. Done so far: team build protection (teammates' blocks can't be
-broken by hand, and your own bombs don't crater your own half).
+broken by hand, and your own bombs don't crater your own half). Next: the big islands from the developer's
+sketch (`docs/island-sketch.png`), then foundations, then resources against the developer's tech tree.
 
 ## Versions
 

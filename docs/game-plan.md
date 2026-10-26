@@ -1,12 +1,19 @@
 # Island War (working title)
 
-Multiplayer team game. Two islands, two teams, 12v12 to start. Players gather resources, build an industrial base, research, and attack each other across the water with piloted aircraft, missiles, and ships. Matches last 2–4 hours. The win condition is researching, building, and successfully delivering a nuke to the enemy's industrial core.
+Multiplayer team game. Two islands, two teams, 12v12 to start. Players gather resources, build an industrial base, research, and attack each other across the water with piloted aircraft, missiles, and ships. Matches last 2–4 hours. The win condition is researching, building, and successfully delivering a nuke to the enemy's industrial core. **[SUPERSEDED 2026-10-26: anywhere on the enemy island; there is no core.]**
 
 The feel we want: old modded Minecraft (Flan's, ICBM) military-industrial sandbox, without the frustration of logging in to a cratered base. Building is the joy; destruction is the drama. Arcade, not simulation.
 
 Solo/small-team project. Built with Claude Code as the primary implementer. Experience is a goal in itself, so prefer clear, maintainable code over clever code.
 
 > **Revision note (2026-10-23):** This plan was reviewed and revised. Changes from the original are marked **[REV]**. The reasoning behind them is in "Review notes" at the end. Record each one in `docs/decisions.md` when the repo is set up.
+
+> **Developer revisions (2026-10-26):** These override the plan where they disagree; the overridden lines are marked **[SUPERSEDED]**. Logged in `docs/decisions.md`.
+> - **No industrial core.** A nuke landing *anywhere* on the enemy island wins. Each team decides how and where to hide its equipment; that's what makes the nuke and recon matter. Defence means stopping nukes from arriving (AA, radar, scouting) and finding the enemy's pipeline.
+> - **The game is part Minecraft tech mod, part FPS, part MOBA:** two opposing bases that can't be destroyed straight away, built up and fought over across a long session.
+> - **Islands are big:** about two minutes to walk across, sized for a 2–4 hour match with people coming and going. For now both islands are identical mirror images, laid out from `docs/island-sketch.png`: a long island ringed by beach; mountains along the far end (dense ore); forest patches; a cluster of hills; open grassland in the middle (sparse ore everywhere). The grassland faces the strait. Building fast on open grassland versus hiding in the mountains is meant to be a real choice. Different-but-balanced islands may come later.
+> - **A big tech tree** in the spirit of Minecraft tech mods, but run through faster than in those mods. The developer is writing a first version.
+> - **Time-limit score: decided later.** Until then, reaching the time limit is a draw.
 
 ---
 
@@ -31,7 +38,7 @@ Solo/small-team project. Built with Claude Code as the primary implementer. Expe
 - **[REV]** Guaranteed match end. The nuke is the primary win. If no nuke lands by a hard time limit, the match ends on a score (core health, industrial output, or similar; decide during M2). A team can also vote to concede.
 - **[REV]** Team build protection. Teammates cannot freely destroy each other's builds (protection rules or permissions; pick the simplest option before M3). One griefer must not be able to ruin three hours for eleven people.
 - Research costs resources (same ore/fuel pool as weapons), so build-vs-research is a real tradeoff.
-- Nuke must hit the enemy industrial core structure, not anywhere on the island, so AA matters.
+- Nuke must hit the enemy industrial core structure, not anywhere on the island, so AA matters. **[SUPERSEDED 2026-10-26: no core; a nuke anywhere on the enemy island wins, so stopping it from arriving matters more.]**
 - Defense gets a slight edge late game (AA out-ranges the bomber drop point) to avoid coin-flip double-nuke finishes. **[REV]** Attackers must still have counters (destroying radar first, overwhelming AA, escorts, decoys) so the late game can't become a permanent stalemate.
 - Conventional raids need satisfying soft targets: fuel depots, parked planes, ore stockpiles, docked ships. Things that burn visibly. **[REV]** Losing a depot must hurt for real. With pillars 1, 2, and 6 all pushing against snowballing, raids risk feeling pointless.
 - Oil depot destruction should be big, loud, and burn for minutes. It's the set piece.
@@ -90,7 +97,7 @@ Plus:
 - Two islands, two teams, spawn points, team assignment.
 - Match timer with three phases. Phase number is readable by all systems.
 - **[REV]** Match presets (Full / Compressed) loaded from `data/`.
-- Industrial core structure per team. Match ends when a nuke hits the enemy core (stub the nuke as a special bomb for now).
+- Industrial core structure per team. Match ends when a nuke hits the enemy core (stub the nuke as a special bomb for now). **[SUPERSEDED 2026-10-26: no core; a nuke anywhere on the enemy island ends it.]**
 - **[REV]** Time-limit ending with score, and concede vote.
 - **[REV]** Drop-in/drop-out: join mid-match, rejoin after disconnect.
 - Lobby, join by IP, player names.

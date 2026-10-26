@@ -281,7 +281,7 @@ Three scenarios, one after the other:
   gone, the hash matching the server's), that the stages came in order and the time limit ended it.
 - **nuke** (from M2 piece 3): a server on the `nuketest` preset (phase 3 after 3 seconds, developer mode)
   with Red's `nuker` and Blue's `defender`. The nuker waits for the match to start, flies over, and drops
-  Red's nuke on Blue's core; both bots must see `Red wins (CoreDestroyed)`.
+  Red's nuke on Blue's island; both bots must see `Red wins (NukeHit)`.
 - **rejoin** (from M2 piece 4): Red's `leaver` drops out mid-match; a `returner` connects with the same
   identity token while asking for Blue under another name, and must be seated back on Red as
   `red-leaver` (developer mode would otherwise grant Blue). Then Blue's `conceder` votes to concede and
@@ -293,9 +293,9 @@ Every bot finishes by comparing world hashes with the server. Expected output en
 [bot watcher] stages seen: Countdown -> phase 1 -> phase 2 -> phase 3 -> Ended
 [bot watcher] PASS: world hash <h>, server <h>
 ...
-[bot nuker] Red won by nuking the core; pressing E
+[bot nuker] Red won by nuking the enemy island; pressing E
 [bot nuker] PASS: world hash <h2>, server <h2>
-[bot defender] the match ended: Red wins (CoreDestroyed)
+[bot defender] the match ended: Red wins (NukeHit)
 [bot defender] PASS: world hash <h2>, server <h2>
 ...
 [bot returner] came back as 'red-leaver' on Red
@@ -306,7 +306,10 @@ Match test PASSED
 
 It takes about a minute and a half.
 
-## M2, piece 3: industrial cores and the nuke
+## M2, piece 3: the nuke
+
+The industrial core this piece first added was removed on 2026-10-26 (see docs/decisions.md): a nuke
+landing anywhere on the enemy island wins.
 
 ```sh
 ./build.sh server --port=7777 --preset=quick
@@ -315,18 +318,13 @@ It takes about a minute and a half.
 ```
 
 Join one client to each team. Check, in order:
-1. Each island has an orange 7 x 5 x 7 core in the middle on a stone foundation; players spawn on a ring
-   around it. Under the match line: `Red core 100%    Blue core 100%`.
-2. Core blocks can't be broken or placed by hand, and the hotbar has no core block.
-3. In phase 2 or 3, bomb a core directly: it loses some blocks but not most (bombs only reach core blocks
-   within half their crater radius). The percentage drops for both players; the server logs
-   `<Team> core: N/245 blocks`.
-4. The flight readout shows the nuke: `Nuke: phase 3` before it, then `NUKE READY: right click over the
-   enemy core`, and `Nuke in 0:25` after a drop (`quick` has a 30-second cooldown).
-5. Right click in the air in phase 3 drops the nuke: twice the size of a bomb, with a yellow band.
-6. A nuke landing on (or within 3 blocks of) the enemy core blasts a radius-9 crater, takes the core to
-   about 0%, and ends the match at once: `Red team wins` / `Red's nuke hit the Blue core`.
-7. A nuke that misses only makes a big crater; the match carries on.
+1. The flight readout shows the nuke: `Nuke: phase 3` before it, then `NUKE READY: right click over the
+   enemy island`, and `Nuke in 0:25` after a drop (`quick` has a 30-second cooldown).
+2. Right click in the air in phase 3 drops the nuke: twice the size of a bomb, with a yellow band.
+3. A nuke landing anywhere on the enemy island blasts a radius-9 crater and ends the match at once:
+   `Red team wins` / `Red's nuke hit the Blue island.`
+4. A nuke that lands in the sea only splashes, and the match carries on. One on your own island makes no
+   crater (no friendly fire) and doesn't win.
 
 ## M2, piece 4: score, concede, rejoin and the scoreboard
 
@@ -337,15 +335,12 @@ Join one client to each team. Check, in order:
 ```
 
 Join one client to each team (a third on Red helps with the vote). Check, in order:
-1. Hold Tab: a scoreboard with both teams, each player's ping, concede votes, and each core's health.
-2. The core line says who's ahead at the time limit once one core has taken damage, e.g.
-   `Red core 100%    Blue core 91%    (Red ahead at the time limit)`.
-3. Bomb a core in phase 2 or 3 and let the time run out (5:00 in `quick`): the banner says
-   `Red team wins` / `Time's up: Red kept more of its core.` Untouched cores give `Draw` / `with the cores level`.
-4. F10 votes to concede (F10 again takes it back). With two players on a team, one vote shows
+1. Hold Tab: a scoreboard with both teams, each player's ping and concede votes.
+2. Let the time run out (5:00 in `quick`): the banner says `Draw` / `Time's up.` (a score comes later).
+3. F10 votes to concede (F10 again takes it back). With two players on a team, one vote shows
    `Your team: 1 of 2 votes to concede`; the second ends the match: `Blue team wins` / `Red conceded.`
    A team of one concedes with its single vote. Votes reset when a match starts.
-5. Rejoin: quit a client mid-match and join again from the same machine (it keeps an identity token in
+4. Rejoin: quit a client mid-match and join again from the same machine (it keeps an identity token in
    `user://settings.cfg`). You're back on your team with your old name, whatever team you pick in the
    menu. The server logs `came back as '<name>' on <team>`. Seats are forgotten when the server returns
    to warmup.
