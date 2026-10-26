@@ -19,7 +19,10 @@ to join a server by address, and the match itself: warmup, countdown, three time
 grow bombs, a fresh island each match, an industrial core on each island that bombs chip and a phase-3
 nuke wins by hitting, a time-limit score from core damage, a concede vote, rejoining your team after a
 disconnect, and a Tab scoreboard. `build matchtest` checks a whole match, a nuke win, and a rejoin with a
-concession, with bots. Next: M3, economy and building (see docs/game-plan.md).
+concession, with bots.
+
+M3 (economy and building) is under way. Done so far: team build protection (teammates' blocks can't be
+broken by hand, and your own bombs don't crater your own half).
 
 ## Versions
 

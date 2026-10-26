@@ -102,3 +102,11 @@ that's waiting on a test.
 - 2026-10-26: The roster carries each player's concede vote and ping, and is re-sent every 2 seconds as well as on changes. Reason: the scoreboard needs live pings; one small message per 2 s is cheap.
 - 2026-10-26: The scoreboard is shown while Tab is held. Reason: the usual convention.
 
+## M3
+
+- 2026-10-26: Team build protection by ownership (the plan's "simplest option before M3"): every placed block records the placer's lasting player id and team. By hand, a player can break natural blocks, their own, the enemy's, and those of teammates who aren't on the server; never an online teammate's. Reason: one griefer can't tear down the team's base, and an absent player's work can still be cleared.
+- 2026-10-26: Lasting player ids are assigned per identity token for the server's lifetime, so ownership survives a reconnect. Reason: the token already identifies a returning player (M2 piece 4).
+- 2026-10-26: No friendly fire: a team's bombs and nukes make no crater on its own half of the map (Red west, Blue east); the bombsight shows white there. Reason: stops a teammate bombing their own base, with a rule that's easy to see and explain. Enemy blocks built on your half can still be broken by hand.
+- 2026-10-26: Block owners travel with every edit and with the late-join world, and the world hash covers them. Reason: clients predict breaks with the same rule, and the sync tests catch ownership drift.
+- 2026-10-26: Placing is not restricted (anyone may build anywhere). Reason: simplest first; revisit if players wall in teammates or block planes.
+

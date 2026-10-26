@@ -138,8 +138,9 @@ starts a headless server (developer mode, `practice` preset, so no match starts 
 three headless bots on port 7790:
 - The **builder** joins and builds a 5-block tower two blocks east of the island centre, then waits
   until the tower has been both broken and bombed.
-- Once the tower is up, two more join late. The **breaker** checks the tower is in the world it
-  rebuilt (late join) and breaks the top two blocks.
+- Once the tower is up, two more join late. The **breaker** (also Red) checks the tower is in the world it
+  rebuilt (late join), tries to break the builder's top block (team build protection must refuse it), then
+  adds two planks of its own and breaks the upper one (allowed).
 - The **pilot** flies to the plane, gets in, takes off, flies a bombing pattern back over the island,
   drops when the bomb's predicted impact is on the tower, checks the crater took tower blocks, and gets
   out. It predicts every tick like a real client and fails if the server ever corrects it by more than
@@ -348,4 +349,26 @@ Join one client to each team (a third on Red helps with the vote). Check, in ord
    `user://settings.cfg`). You're back on your team with your old name, whatever team you pick in the
    menu. The server logs `came back as '<name>' on <team>`. Seats are forgotten when the server returns
    to warmup.
+
+## M3, piece 1: team build protection
+
+```sh
+./build.sh server --port=7777 --preset=quick
+./build.sh client
+./build.sh client
+./build.sh client
+```
+
+Put two clients on Red and one on Blue. Check, in order:
+1. A Red player builds something. The other Red player can't break it: the block stays and
+   `<name> built that. Teammates' blocks are protected.` appears under the crosshair. The server logs
+   `rejected ... a teammate built that`.
+2. Each player can break their own blocks, natural terrain, and anything the other team built.
+3. When the builder disconnects, their blocks become breakable by the team (so nothing is stuck forever).
+   When they come back (same machine, so the same identity token) the blocks are theirs again.
+4. In a plane, over your own half of the map the bombsight ring is white. A bomb there makes the usual
+   flash but no crater, and `No friendly fire: bombs don't crater your own island.` appears; the server
+   logs `landed on Red's own half: no crater`. Over the enemy half the ring is red and bombs crater as before.
+5. The automated tests cover it too: the sync test's breaker hits the protection (see above), and every
+   hash check now includes who owns each block.
 
