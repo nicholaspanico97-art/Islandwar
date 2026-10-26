@@ -28,6 +28,9 @@ public partial class NetClient : Node, IGameLink
 
     public VoxelWorld? World { get; private set; }
 
+    /// <summary>True if the world rebuilt on join had the same hash as the server's.</summary>
+    public bool WorldMatchedServer { get; private set; }
+
     /// <summary>The world is rebuilt and the server has placed us: the game can start here.</summary>
     public event Action<PlayerState>? Joined;
 
@@ -71,7 +74,8 @@ public partial class NetClient : Node, IGameLink
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
         ulong hash = World.ComputeHash();
-        if (hash == init.Hash)
+        WorldMatchedServer = hash == init.Hash;
+        if (WorldMatchedServer)
         {
             GD.Print($"[client] rebuilt the world: seed {init.Seed} plus {edits.Count} edits, hash {hash:x16} matches the server");
         }

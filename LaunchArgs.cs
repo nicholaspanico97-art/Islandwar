@@ -20,6 +20,9 @@ public sealed record LaunchArgs
     /// <summary>Server address for a client. Null means the client does not connect.</summary>
     public string? ConnectHost { get; init; }
 
+    /// <summary>Run as a headless test bot instead of a player (needs --connect). See Client/Bots.</summary>
+    public string? Bot { get; init; }
+
     /// <summary>Terrain seed for the server or the local sandbox. Null means use the default from data/terrain.json.</summary>
     public int? Seed { get; init; }
 
@@ -35,7 +38,8 @@ public sealed record LaunchArgs
                 "--port" => result with { Port = ParseInt(key, value) },
                 "--seed" => result with { Seed = ParseInt(key, value) },
                 "--connect" => WithConnect(result, value),
-                _ => throw new ArgumentException($"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N or --connect=HOST[:PORT]."),
+                "--bot" => result with { Bot = value is "builder" or "breaker" ? value : throw new ArgumentException("--bot must be builder or breaker.") },
+                _ => throw new ArgumentException($"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --connect=HOST[:PORT] or --bot=builder|breaker."),
             };
         }
 

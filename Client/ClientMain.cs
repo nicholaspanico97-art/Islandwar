@@ -1,4 +1,5 @@
 using Godot;
+using IslandWar.Client.Bots;
 using IslandWar.Client.Game;
 using IslandWar.Client.Online;
 using IslandWar.Client.Sandbox;
@@ -60,6 +61,12 @@ public partial class ClientMain : Node
 
     private void StartGame(PlayerState spawn)
     {
+        if (Args.Bot is not null)
+        {
+            AddChild(new SyncBot { Net = _net, Role = Args.Bot });
+            return;
+        }
+
         GameData data = _net.Data!;
         var game = new ClientGame
         {

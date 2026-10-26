@@ -8,9 +8,9 @@ The full design and build order are in [docs/game-plan.md](docs/game-plan.md). D
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
 commands to test each milestone.
 
-**Status:** M0 done, M1a done. M0 verified locally on Windows 11: unit tests, build, headless server and two
-connected clients. godot_voxel test passed. **M1a (single-player sandbox) is playable:** walk, jump, fly, break and place
-blocks with a hotbar. Next: M1b, networked blocks.
+**Status:** M0, M1a and M1b done. Players join a dedicated server, see each other, and build and break
+blocks together. The server is authoritative, each client predicts its own movement and edits, and late
+joiners get the current world. `build synctest` checks it with bots. Next: M1c, the plane.
 
 ## Versions
 
@@ -30,6 +30,7 @@ blocks with a hotbar. Next: M1b, networked blocks.
 ./build.sh server --port=7777                  # headless dedicated server
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
 ./build.sh client                              # single-player sandbox, no server
+./build.sh synctest                            # automated sync test: server + two bots
 ```
 
 On Windows use `.\build.ps1` with the same arguments. Engine commands need Godot 4.7.2 (.NET) on `PATH`

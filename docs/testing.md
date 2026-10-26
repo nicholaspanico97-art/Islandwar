@@ -73,12 +73,6 @@ Godot's `--quit-after <frames>` exits on its own, which is handy in scripts:
 godot --headless --path . --quit-after 120 -- --server
 ```
 
-### Automated bot sync test
-
-Not built yet. It arrives with M1b (see docs/game-plan.md). The Sim test
-`LateJoinerRebuildsTheSameWorldFromSeedAndDeltas` already covers the world-state half: build a
-tower, crater it, and check that a world rebuilt from seed + deltas has the same hash.
-
 ## M1a: local sandbox
 
 ```sh
@@ -109,3 +103,46 @@ To check rendering with nobody at the keyboard, record a few seconds and pull ou
 godot --path . --resolution 1280x720 --write-movie shot.avi --quit-after 240
 ffmpeg -sseof -0.2 -i shot.avi -frames:v 1 shot.png
 ```
+
+## M1b: networked blocks
+
+### Server and two clients
+
+```sh
+./build.sh server --port=7777
+./build.sh client --connect=127.0.0.1:7777
+./build.sh client --connect=127.0.0.1:7777
+```
+
+Each client logs `rebuilt the world: seed 1337 plus N edits, hash ... matches the server`, then
+`Playing on 127.0.0.1:7777 as peer <id>`. Check, in order:
+1. Each window shows the other player as a coloured box with a head, a dark visor on the side they're
+   facing, and a `Player <id>` label. They move smoothly and tilt their head when that player looks up or down.
+2. Your own movement feels exactly like the sandbox: no lag, no rubber-banding.
+3. A block broken or placed in one window appears in the other within a blink. The server logs
+   `peer <id> set (x, y, z) to <Block>` for each.
+4. You can't place a block inside the other player: the block you predicted disappears again, and the
+   server logs `rejected ... can't place there`.
+5. **Late join:** build something, then start a third client. It shows everything built so far, and its
+   log says `plus N edits` with N > 0 and `matches the server`.
+6. Close a client: its avatar disappears from the other window, and the server logs `peer <id> disconnected`.
+
+### Automated bot sync test
+
+```sh
+./build.sh synctest
+```
+
+Starts a headless server and two headless bots on port 7790. The builder joins and builds a 5-block
+tower two blocks east of the island centre. The breaker joins once the tower is up (a late join),
+checks the tower is in the world it rebuilt, and breaks the top two blocks. Each bot then asks the
+server for its world hash. Expected output ends with:
+
+```
+[bot builder] PASS: world hash <h>, server <h>
+[bot breaker] PASS: world hash <h>, server <h>
+Sync test PASSED
+```
+
+It exits 1 and prints the log folder if anything differs or a bot times out (60 s). M1d adds a bomb.
+

@@ -6,6 +6,7 @@
 #   .\build.ps1 test
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
+#   .\build.ps1 synctest (headless server + two bot clients; fails unless every world matches)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -27,11 +28,58 @@ function Install-Voxel {
   Write-Host "godot_voxel installed in addons/zylann.voxel. Run 'godot --headless --path . --import' once."
 }
 
+# Starts headless Godot with game arguments, logging to $logs/<name>.log.
+function Start-Godot([string]$Name, [string[]]$Arguments) {
+  $process = Start-Process $godot -ArgumentList (@("--headless", "--path", ".", "--") + $Arguments) -PassThru -NoNewWindow `
+    -RedirectStandardOutput (Join-Path $logs "$Name.log") -RedirectStandardError (Join-Path $logs "$Name.err")
+  $null = $process.Handle  # keeps the exit code readable after the process ends
+  return $process
+}
+
+function Wait-ForLine([string]$Name, [string]$Pattern, [int]$Seconds = 60) {
+  $log = Join-Path $logs "$Name.log"
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    if ((Test-Path $log) -and (Select-String -Path $log -Pattern $Pattern -Quiet)) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "Timed out waiting for '$Pattern' in $log"
+}
+
+# The automated sync test (docs/testing.md): a headless server, a builder bot, then a breaker bot that
+# joins late. Each bot exits 0 only if its world hash matches the server's.
+function Invoke-SyncTest {
+  $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-synctest"
+  New-Item -ItemType Directory -Force $logs | Out-Null
+  Get-ChildItem $logs | Remove-Item
+  $port = 7790
+  $server = Start-Godot "server" @("--server", "--port=$port")
+  $bots = @()
+  try {
+    Wait-ForLine "server" "listening on port"
+    $bots += Start-Godot "builder" @("--connect=127.0.0.1:$port", "--bot=builder")
+    Wait-ForLine "builder" "built the tower"
+    $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker")
+    $bots | Wait-Process -Timeout 90
+  } finally {
+    $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
+  }
+
+  Get-Content (Join-Path $logs "builder.log"), (Join-Path $logs "breaker.log") | Select-String "^\[bot" | ForEach-Object { $_.Line }
+  if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
+    Write-Host "Sync test FAILED. Logs: $logs"
+    exit 1
+  }
+
+  Write-Host "Sync test PASSED"
+}
+
 switch ($Command) {
-  "deps"   { Install-Voxel }
-  "build"  { Invoke-Checked { dotnet build IslandWar.sln } }
-  "test"   { Invoke-Checked { dotnet test tests/IslandWar.Sim.Tests } }
-  "server" { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --headless --path . -- --server @GameArgs }
-  "client" { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --path . -- @GameArgs }
-  default  { Write-Error "Unknown command $Command. Use deps, build, test, server or client."; exit 2 }
+  "deps"     { Install-Voxel }
+  "build"    { Invoke-Checked { dotnet build IslandWar.sln } }
+  "test"     { Invoke-Checked { dotnet test tests/IslandWar.Sim.Tests } }
+  "server"   { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --headless --path . -- --server @GameArgs }
+  "client"   { Invoke-Checked { dotnet build IslandWar.csproj }; & $godot --path . -- @GameArgs }
+  "synctest" { Invoke-Checked { dotnet build IslandWar.csproj }; Invoke-SyncTest }
+  default    { Write-Error "Unknown command $Command. Use deps, build, test, server, client or synctest."; exit 2 }
 }
