@@ -64,4 +64,11 @@ that's waiting on a test.
 - 2026-10-25: Getting in and out is decided by the server, on the input that pressed E, and not predicted. The client sees the change one round trip later. Reason: only the server knows if the seat is free; the delay is short enough for M1.
 - 2026-10-25: The single-player sandbox has no plane. Reason: planes are server entities; play M1c with a local server.
 - 2026-10-25: Planes are drawn from boxes (`PlaneModel`) and seen through a chase camera that follows heading and half the pitch, not roll. Reason: placeholder art; a rolling horizon is hard to fly by.
+- 2026-10-25: Bombs fly in Sim (`BombFlight`): gravity and drag, the move checked block by block so nothing tunnels, and the sea surface stops them. Hitting a block blasts a crater of radius `crater_radius` around it; the sea makes a splash and no crater. Tunables in `data/weapons.json`. Reason: same code for the server's real bomb, the clients' drawing and the bombsight.
+- 2026-10-25: Left click in the air drops a bomb, through a `Fire` input button handled on its tick like `Use`; 1-second reload per plane; no bombs while on the ground. Reason: one key, and the server decides.
+- 2026-10-25: Bombs aren't in snapshots. The server sends a reliable drop event (id, tick, position, velocity) and clients simulate the fall themselves; the server's explosion event carries the impact point and the crater edits in one message. Other players' bombs are drawn at the same delay as their planes, your own at the present. Reason: no per-tick traffic for bombs, and the crater stays authoritative.
+- 2026-10-25: Craters can't remove the bottom layer, the same rule as breaking by hand (`VoxelWorld.UnbreakableLayer`). Reason: consistency, and nobody bombs a hole out of the world.
+- 2026-10-25: Blocks have no gravity: whatever a crater leaves standing stays, floating if need be. Reason: Minecraft-style and simplest; revisit if floating towers spoil raids.
+- 2026-10-25: The pilot sees a bombsight ring at the predicted impact. Reason: arcade, not simulation; dropping blind with a 50-block throw would be frustrating.
+- 2026-10-25: The bomb doesn't damage players or planes yet. Reason: there's no health system before M2/M3.
 

@@ -133,22 +133,31 @@ Each client logs `rebuilt the world: seed 1337 plus N edits, hash ... matches th
 ./build.sh synctest
 ```
 
-Starts a headless server and three headless bots on port 7790. The builder joins and builds a 5-block
-tower two blocks east of the island centre. Once the tower is up, two more join late: the breaker
-checks the tower is in the world it rebuilt and breaks the top two blocks, and the pilot (M1c) flies
-to the plane, gets in, takes off, climbs 15 blocks and gets out. The pilot predicts every tick like a
-real client and fails if the server ever corrects it by more than 0.05 blocks. Each bot then asks the
-server for its world hash. Expected output ends with:
+The plan's sync test: bot A builds a tower, bot B bombs it, and every world must end identical. It
+starts a headless server and three headless bots on port 7790:
+- The **builder** joins and builds a 5-block tower two blocks east of the island centre, then waits
+  until the tower has been both broken and bombed.
+- Once the tower is up, two more join late. The **breaker** checks the tower is in the world it
+  rebuilt (late join) and breaks the top two blocks.
+- The **pilot** flies to the plane, gets in, takes off, flies a bombing pattern back over the island,
+  drops when the bomb's predicted impact is on the tower, checks the crater took tower blocks, and gets
+  out. It predicts every tick like a real client and fails if the server ever corrects it by more than
+  0.05 blocks.
+
+Each bot then asks the server for its world hash. Expected output ends with:
 
 ```
 [bot builder] PASS: world hash <h>, server <h>
-[bot breaker] PASS: world hash <h>, server <h>
+[bot breaker] PASS: world hash <h2>, server <h2>
+[bot pilot] bombs away at height 52.0, ... blocks short of the tower
+[bot pilot] bomb hit (...); tower blocks 3 -> 0
 [bot pilot] got out at height ...; largest correction from the server 0.0000 blocks
 [bot pilot] PASS: world hash <h>, server <h>
 Sync test PASSED
 ```
 
-It exits 1 and prints the log folder if anything differs or a bot times out (60 s). M1d adds a bomb.
+The builder's and pilot's hashes are the same (both checked after the bomb); the breaker's is earlier.
+It takes about 30 seconds, and exits 1 with the log folder if anything differs or a bot times out (90 s).
 
 ## M1c: the plane
 
@@ -178,4 +187,26 @@ Check, in order:
    seat, and only one player can fly it at a time.
 
 Flight tuning lives in `data/plane.json`.
+
+## M1d: the bomb
+
+```sh
+./build.sh server --port=7777
+./build.sh client --connect=127.0.0.1:7777
+./build.sh client --connect=127.0.0.1:7777
+```
+
+Fly the plane (see M1c) and check, in order:
+1. On the water the HUD says `Bombs: take off first`; left click does nothing.
+2. In the air a ring appears below and ahead of the plane: where a bomb dropped now would land, sized
+   to the crater. Red over land, white over the sea.
+3. Left click drops a bomb. The HUD shows `Bomb bay reloading...` for a second, then `Bomb ready`.
+4. The bomb falls in an arc, carried forward by the plane's speed, and lands in the ring.
+5. On land: a flash, a fireball, flying debris, rising smoke, a camera shake if you're near, and a
+   crater (radius 4) in both windows at once. The server logs `bomb <n> hit (x, y, z): crater of N blocks`.
+6. In the sea: a white splash and no crater (`splashed into the sea`).
+7. The bottom block layer survives any crater.
+8. Late join after a few craters: the new client sees every crater, and its log says `matches the server`.
+
+Bomb tuning lives in `data/weapons.json`.
 

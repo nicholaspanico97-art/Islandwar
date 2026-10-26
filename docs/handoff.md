@@ -1,5 +1,9 @@
 # Handoff: M0 continues on a local machine
 
+> **Superseded (2026-10-25):** everything below has been done: M0 and all of M1 (a to d). The README's
+> status line says where things stand, docs/decisions.md says why, and docs/testing.md says how to test
+> each milestone. Kept for history.
+
 From: a cloud Claude Code session (2026-10-23). To: a Claude Code session running on the developer's
 own computer, with a screen. Read `docs/game-plan.md` first; it's the source of truth. This file only
 says where things stand and what to do next.
