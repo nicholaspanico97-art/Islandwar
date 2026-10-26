@@ -72,3 +72,14 @@ that's waiting on a test.
 - 2026-10-25: The pilot sees a bombsight ring at the predicted impact. Reason: arcade, not simulation; dropping blind with a 50-block throw would be frustrating.
 - 2026-10-25: The bomb doesn't damage players or planes yet. Reason: there's no health system before M2/M3.
 
+## M2
+
+- 2026-10-25: Two islands side by side along X, the east one a mirror image of the west (`island_spacing` in `data/terrain.json`; 0 still means one island). The map is 320 x 64 x 160 blocks with 80 blocks of sea between the beaches. Reason: neither team gets better ground, and generation stays a pure function of the seed.
+- 2026-10-25: Teams are Red (west island) and Blue (east island). A joining player may ask for a team; it's honoured unless that team would be more than `max_team_imbalance` players ahead, otherwise they join the smaller team. Reason: friends can play together, and teams still stay even.
+- 2026-10-25: Match presets live in `data/presets.json` (`compressed` and `full`), chosen with the server's `--preset=NAME`; `compressed` is the default. Reason: the game plan's two presets; small matches are the common case while playtesting.
+- 2026-10-25: Clients say hello (name, team wish) after connecting; the server answers with the world and a roster of everyone's name and team, sent again on every change. A client that doesn't say hello in 10 seconds is dropped; a full server says why before disconnecting. Reason: names and teams need to exist before a player spawns.
+- 2026-10-25: Names are cleaned on the server: letters, digits, spaces and `-_.` only, at most 16 characters, made unique with a number. Reason: readable labels, and no impersonating someone already playing.
+- 2026-10-25: Noclip flying is allowed only on a server started with `--dev` (developer mode), which also lets any player pick any team. The server strips the fly button otherwise. Decides the M1 open question. Reason: noclip is a cheat in a real match; the test bots still need it.
+- 2026-10-25: One plane per team, parked off the far beach of its island, facing out to sea. Only that team can fly it. Reason: take-off away from the enemy, and a team's plane is its own.
+- 2026-10-25: The client opens on a menu (name, server address, team) that remembers the last name and address in `user://settings.cfg`; `--connect` skips it. Losing the connection goes back to the menu with the reason. Reason: the plan's lobby and join-by-IP, kept to one screen.
+

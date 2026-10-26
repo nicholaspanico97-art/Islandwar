@@ -12,7 +12,10 @@ commands to test each milestone.
 break blocks, fly a plane with arcade controls, and bomb craters into the island. The server is
 authoritative, each client predicts its own movement (on foot or flying) and edits, and late joiners get
 the current world. `build synctest` checks it with bots: one builds a tower, one bombs it, and every world
-must end identical. Next: M2, the match loop (see docs/game-plan.md).
+must end identical.
+
+M2 (the match loop) is under way. Done so far: two mirrored islands, Red and Blue teams with their own
+spawns and planes, player names, and a menu to join a server by address.
 
 ## Versions
 
@@ -29,9 +32,9 @@ must end identical. Next: M2, the match loop (see docs/game-plan.md).
 ```sh
 ./build.sh deps                                # once per checkout: download godot_voxel into addons/
 ./build.sh test                                # Sim unit tests, no engine needed
-./build.sh server --port=7777                  # headless dedicated server
+./build.sh server --port=7777                  # headless dedicated server (add --preset=full, --dev)
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
-./build.sh client                              # single-player sandbox, no server
+./build.sh client                              # the menu: join a server by address, or the sandbox
 ./build.sh synctest                            # automated sync test: server + two bots
 ```
 

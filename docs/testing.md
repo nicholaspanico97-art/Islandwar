@@ -79,7 +79,7 @@ godot --headless --path . --quit-after 120 -- --server
 ./build.sh client
 ```
 
-No server needed. The log prints `[client] local sandbox: seed 1337, ... hash 8c8109c14d2c2e39`, the
+Click **Sandbox** in the menu. No server needed. The log prints `[client] local sandbox: seed 1337, ... hash 8c8109c14d2c2e39`, the
 same hash as the server. Add `--seed=N` for a different island.
 
 Check, in order:
@@ -168,8 +168,10 @@ Planes are server-side, so use a server and a client (the single-player sandbox 
 ./build.sh client --connect=127.0.0.1:7777
 ```
 
-The server logs `plane 1 parked at ...`. The plane sits on the water just off the south beach, facing
-out to sea. From the spawn, turn round (it's behind you, to the south) and walk or fly (F) to the beach.
+Since M2 each team has its own plane: the server logs `Red plane 1 parked at ...` and `Blue plane 2
+parked at ...`. Each sits on the water just off the far beach of its team's island (Red's to the west,
+Blue's to the east), facing out to sea. Walk there from the spawn, or start the server with `--dev` and
+fly (F). Only your own team's plane lets you in.
 
 Check, in order:
 1. Near the plane, `Press E to fly the plane` appears above the hotbar. E puts you in; the view
@@ -209,4 +211,35 @@ Fly the plane (see M1c) and check, in order:
 8. Late join after a few craters: the new client sees every crater, and its log says `matches the server`.
 
 Bomb tuning lives in `data/weapons.json`.
+
+## M2, piece 1: two islands, two teams, names and the lobby
+
+```sh
+./build.sh server --port=7777
+./build.sh client
+./build.sh client
+```
+
+Add `--preset=full` to the server for the 12-a-side preset (`compressed`, 4 a side, is the default), and
+`--dev` for developer mode (noclip flying, and any player may pick any team).
+
+Check, in order:
+1. A client opens on the menu: Name, Server (remembered from last time) and Team (whichever needs
+   players, Red or Blue). Join, Sandbox and Quit work; Enter in a field joins.
+2. A bad address, or no server running, comes back to the menu with the reason.
+3. The server logs `peer <id> joined as '<name>' on Red|Blue`. The top-right corner shows your name and
+   team in its colour.
+4. Two islands, mirror images of each other, with 80 blocks of sea between them. Red spawns on the west
+   island, Blue on the east one.
+5. Other players show in their team's colour with their name above them. Two players asking for the
+   same name become `Nick` and `Nick 2`.
+6. Team choice is honoured unless it would put that team 2 players ahead; then you join the other team.
+   A full server (4 a side for `compressed`) turns you away with `The server is full`.
+7. Each team's plane has team-coloured wingtips and fin, and only that team can get in (E does nothing
+   at the other team's plane).
+8. Without `--dev`, F (noclip) does nothing.
+
+Quick check of the join rules without a screen: set `max_players_per_team` to 1 in the compressed preset,
+start a server, and connect three `--bot=builder --team=red --name=Nick` clients. The server should log
+`Nick` on Red, `Nick 2` on Blue, and `kicking peer ...: The server is full (1 per team).`
 
