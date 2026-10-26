@@ -7,6 +7,7 @@ using IslandWar.Client.Game;
 using IslandWar.Net;
 using IslandWar.Sim;
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Voxels;
@@ -33,6 +34,12 @@ public partial class NetClient : Node, IGameLink
     public GameData? Data { get; private set; }
 
     public VoxelWorld? World { get; private set; }
+
+    /// <summary>Every structure, as the server last said.</summary>
+    public ObjectStore? Objects { get; private set; }
+
+    /// <summary>Our team's shared state, as the server last said.</summary>
+    public TeamState? TeamState { get; private set; }
 
     /// <summary>True if the world rebuilt on join had the same hash as the server's.</summary>
     public bool WorldMatchedServer { get; private set; }
@@ -97,6 +104,9 @@ public partial class NetClient : Node, IGameLink
         Replicator.ExplosionReceived += OnExplosion;
         Replicator.RosterReceived += OnRoster;
         Replicator.Kicked += OnKicked;
+        Replicator.ObjectsReceived += OnObjects;
+        Replicator.ObjectRemoved += OnObjectRemoved;
+        Replicator.TeamStateReceived += OnTeamState;
     }
 
     public override void _ExitTree()
@@ -109,6 +119,9 @@ public partial class NetClient : Node, IGameLink
         Replicator.ExplosionReceived -= OnExplosion;
         Replicator.RosterReceived -= OnRoster;
         Replicator.Kicked -= OnKicked;
+        Replicator.ObjectsReceived -= OnObjects;
+        Replicator.ObjectRemoved -= OnObjectRemoved;
+        Replicator.TeamStateReceived -= OnTeamState;
     }
 
     public override void _Process(double delta)
@@ -131,6 +144,13 @@ public partial class NetClient : Node, IGameLink
     }
 
     public void SubmitEdit(VoxelEdit edit) => Replicator.RequestEdit(edit);
+
+    public void RequestPlace(string kind, BlockPos origin, int facing) => Replicator.RequestPlace(kind, origin, facing);
+
+    public void RequestRemove(int objectId) => Replicator.RequestRemove(objectId);
+
+    /// <summary>What we compare with the server's hash: our world and our objects.</summary>
+    public ulong ComputeHash() => GameHash.Of(World!, Objects!);
 
     public IReadOnlyDictionary<int, RemoteState> SampleRemotePlayers() => Sample(_others);
 
@@ -177,11 +197,18 @@ public partial class NetClient : Node, IGameLink
         Data.ApplyTickRate();
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
-        ulong hash = World.ComputeHash();
+        Objects = new ObjectStore(Data.Kinds);
+        IReadOnlyList<GameObject> objects = WireFormat.DecodeObjects(init.ObjectsData);
+        foreach (GameObject obj in objects)
+        {
+            Objects.Set(obj);
+        }
+
+        ulong hash = ComputeHash();
         WorldMatchedServer = hash == init.Hash;
         if (WorldMatchedServer)
         {
-            GD.Print($"[client] rebuilt the world: seed {init.Seed} plus {edits.Count} edits, hash {hash:x16} matches the server");
+            GD.Print($"[client] rebuilt the world: seed {init.Seed} plus {edits.Count} edits and {objects.Count} objects, hash {hash:x16} matches the server");
         }
         else
         {
@@ -204,6 +231,30 @@ public partial class NetClient : Node, IGameLink
     private void OnRoster(byte[] data) => _roster = WireFormat.DecodeRoster(data).ToDictionary(e => e.PeerId);
 
     private void OnKicked(string reason) => KickedOut?.Invoke(reason);
+
+    private void OnObjects(byte[] data)
+    {
+        if (Objects is null)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (GameObject obj in WireFormat.DecodeObjects(data))
+            {
+                Objects.Set(obj);
+            }
+        }
+        catch (InvalidDataException e)
+        {
+            GD.PushWarning($"[client] bad object message: {e.Message}");
+        }
+    }
+
+    private void OnObjectRemoved(int id) => Objects?.Remove(id);
+
+    private void OnTeamState(byte[] data) => TeamState = WireFormat.DecodeTeamState(data);
 
     private void OnExplosion(Explosion explosion)
     {

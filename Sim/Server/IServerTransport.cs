@@ -32,4 +32,12 @@ public interface IServerTransport
     void SendSnapshot(int peer, byte[] snapshot);
 
     void SendHash(int peer, ulong hash);
+
+    /// <summary>Objects that appeared or changed, packed with <see cref="WireFormat.EncodeObjects"/>.</summary>
+    void BroadcastObjects(byte[] objects);
+
+    void BroadcastObjectRemoved(int id);
+
+    /// <summary>A team's state, packed with <see cref="WireFormat.EncodeTeamState"/>, to one of its players.</summary>
+    void SendTeamState(int peer, byte[] state);
 }

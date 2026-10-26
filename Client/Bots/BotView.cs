@@ -8,7 +8,7 @@ using IslandWar.Sim.Voxels;
 namespace IslandWar.Client.Bots;
 
 /// <summary>
-/// When a bot runs in a window (without <c>--headless</c>) it draws what it sees: the terrain streamed in
+/// When a bot runs in a window (without <c>--headless</c>) it draws what it sees: the terrain and structures
 /// around its pawn, from a camera above and behind. Only for watching or recording bot runs; the bots
 /// themselves never look at it.
 /// </summary>
@@ -78,6 +78,7 @@ public partial class BotView : Node3D
         AddChild(new Scenery { World = Net.World!, Terrain = Net.Data!.Terrain, View = settings });
         _view = new GodotVoxelView { World = Net.World!, Settings = settings, ViewDistance = settings.FlyingViewDistance };
         AddChild(_view);
+        AddChild(new ObjectViews { Objects = Net.Objects });
     }
 
     private void ShowEdit(VoxelEdit edit)

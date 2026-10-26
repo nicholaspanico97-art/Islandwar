@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
@@ -56,4 +57,16 @@ public interface IGameLink
 
     /// <summary>Sets or clears our vote for our team to concede.</summary>
     void SetConcedeVote(bool vote);
+
+    /// <summary>Every structure, as the server last said; null until the world has arrived.</summary>
+    ObjectStore? Objects { get; }
+
+    /// <summary>Our team's shared state, once the server has sent it.</summary>
+    TeamState? TeamState { get; }
+
+    /// <summary>Asks the server to place a structure. Not predicted: it appears when the server says so.</summary>
+    void RequestPlace(string kind, BlockPos origin, int facing);
+
+    /// <summary>Asks the server to take a structure away.</summary>
+    void RequestRemove(int objectId);
 }

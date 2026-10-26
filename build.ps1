@@ -48,7 +48,7 @@ function Wait-ForLine([string]$Name, [string]$Pattern, [int]$Seconds = 60) {
 }
 
 # The automated sync test (docs/testing.md): a headless server, a builder bot, then a breaker bot that
-# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its world hash matches the
+# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its game hash matches the
 # server's (and, for the pilot, the server never had to correct its prediction).
 function Invoke-SyncTest {
   $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-synctest"
@@ -62,7 +62,7 @@ function Invoke-SyncTest {
   try {
     Wait-ForLine "server" "listening on port"
     $bots += Start-Godot "builder" @("--connect=127.0.0.1:$port", "--bot=builder", "--team=red")
-    Wait-ForLine "builder" "built the tower"
+    Wait-ForLine "builder" "built the tower and the crate"
     $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker", "--team=red")
     $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot", "--team=blue")
     $bots | Wait-Process -Timeout 200

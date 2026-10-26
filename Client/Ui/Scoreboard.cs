@@ -6,8 +6,8 @@ using IslandWar.Sim.Match;
 namespace IslandWar.Client.Ui;
 
 /// <summary>
-/// Shown while Tab is held: both teams side by side with each player's ping and concede vote, and how many
-/// votes a concession needs.
+/// Shown while Tab is held: both teams side by side with each player's ping and concede vote, how many
+/// votes a concession needs, and a line about our own team's structures and stock.
 /// </summary>
 public partial class Scoreboard : PanelContainer
 {
@@ -48,10 +48,11 @@ public partial class Scoreboard : PanelContainer
         GrowVertical = GrowDirection.Both;
     }
 
-    public void ShowRoster(IReadOnlyCollection<RosterEntry> roster, int myPeer, float concedeFraction)
+    /// <param name="teamSummary">One line about our own team as a whole (its structures and stock).</param>
+    public void ShowRoster(IReadOnlyCollection<RosterEntry> roster, int myPeer, float concedeFraction, string teamSummary)
     {
         // Rebuild the rows only when something on them changed.
-        string content = string.Join(";", roster.OrderBy(p => p.PeerId));
+        string content = string.Join(";", roster.OrderBy(p => p.PeerId)) + teamSummary;
         if (content == _shown)
         {
             return;
@@ -81,7 +82,7 @@ public partial class Scoreboard : PanelContainer
             }
         }
 
-        _footer.Text = "F10: vote to concede (or take your vote back)";
+        _footer.Text = $"{teamSummary}\nF10: vote to concede (or take your vote back)";
     }
 
     private static Label Line(string text, Color colour, int size)

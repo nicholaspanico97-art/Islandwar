@@ -1,4 +1,5 @@
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Voxels;
@@ -26,6 +27,11 @@ public sealed class ServerState
         Net = net;
         Log = log;
         World = IslandGenerator.Generate(data.Terrain, options.Seed);
+        Objects = new ObjectStore(data.Kinds);
+        foreach (Team team in Teams.Playing)
+        {
+            TeamStates[team] = new TeamState(team);
+        }
     }
 
     public GameData Data { get; }
@@ -44,6 +50,12 @@ public sealed class ServerState
 
     /// <summary>Everyone who has said hello, by peer id.</summary>
     public Dictionary<int, ServerPlayer> Players { get; } = new();
+
+    /// <summary>Structures and anything else placed in the world, besides blocks.</summary>
+    public ObjectStore Objects { get; }
+
+    /// <summary>What each team has as a whole.</summary>
+    public Dictionary<Team, TeamState> TeamStates { get; } = new();
 
     public Dictionary<int, ServerPlane> Planes { get; } = new();
 
@@ -72,9 +84,13 @@ public sealed class ServerState
         }
     }
 
-    /// <summary>The world as it is now, for a joiner: the seed, every edit and the hash to check against.</summary>
+    /// <summary>What clients check their copy against: the world and every object.</summary>
+    public ulong ComputeHash() => GameHash.Of(World, Objects);
+
+    /// <summary>The world as it is now, for a joiner: the seed, every edit, every object and the hash to check against.</summary>
     public WorldInit CurrentWorld() =>
-        new(Options.Seed, Data, WireFormat.EncodeEdits(World.EditsWithOwners().ToList()), World.ComputeHash(), Options.Dev, Options.PresetName);
+        new(Options.Seed, Data, WireFormat.EncodeEdits(World.EditsWithOwners().ToList()), WireFormat.EncodeObjects(Objects.All.ToList()),
+            ComputeHash(), Options.Dev, Options.PresetName);
 
     public void BroadcastRoster() =>
         Net.BroadcastRoster(WireFormat.EncodeRoster(Players

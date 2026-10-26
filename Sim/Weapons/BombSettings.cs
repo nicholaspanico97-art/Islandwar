@@ -18,6 +18,12 @@ public sealed record BombSettings
     /// <summary>The nuke's crater radius. Landing anywhere on the enemy island wins regardless.</summary>
     public int NukeCraterRadius { get; init; } = 9;
 
+    /// <summary>Health a bomb takes off each structure it reaches (anything within its crater radius).</summary>
+    public int StructureDamage { get; init; } = 50;
+
+    /// <summary>The same for the nuke.</summary>
+    public int NukeStructureDamage { get; init; } = 1000;
+
     /// <summary>Seconds between drops from the same plane.</summary>
     public float CooldownSeconds { get; init; } = 1;
 
@@ -32,7 +38,7 @@ public sealed record BombSettings
         BombSettings settings = DataJson.Parse<BombSettings>(json, "weapons.json");
         if (settings.Gravity <= 0 || settings.Drag < 0 || settings.CraterRadius <= 0 || settings.CooldownSeconds < 0
             || settings.DropHeight < 0 || settings.MaxLifetimeSeconds <= 0
-            || settings.NukeCraterRadius <= 0)
+            || settings.NukeCraterRadius <= 0 || settings.StructureDamage < 0 || settings.NukeStructureDamage < 0)
         {
             throw new InvalidDataException("weapons.json has a value out of range.");
         }

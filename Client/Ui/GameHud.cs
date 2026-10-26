@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Godot;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Vehicles;
 
 namespace IslandWar.Client.Ui;
@@ -10,7 +12,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint | Left click break, right click place, number keys or wheel pick a block | E plane | Tab scores | Esc mouse";
+        "WASD move, Space jump, Shift sprint | Left click break, right click place, number keys or wheel pick a block or structure | E plane | Tab scores | Esc mouse";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
@@ -32,12 +34,15 @@ public partial class GameHud : CanvasLayer
 
     public Hotbar Hotbar { get; private set; } = null!;
 
+    /// <summary>Kinds of structure for the hotbar, after the blocks.</summary>
+    public IReadOnlyList<ObjectKind> StructureKinds { get; init; } = System.Array.Empty<ObjectKind>();
+
     public override void _Ready()
     {
         Name = "Hud";
         _crosshair = new Crosshair();
         AddChild(_crosshair);
-        Hotbar = new Hotbar();
+        Hotbar = new Hotbar { Kinds = StructureKinds };
         AddChild(Hotbar);
         _help = Outlined(new Label { Position = new Vector2(12, 8) });
 

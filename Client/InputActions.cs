@@ -26,8 +26,8 @@ public static class InputActions
     public const string HotbarPrevious = "hotbar_previous";
     public const string ReleaseMouse = "release_mouse";
 
-    /// <summary>Number of hotbar slots that have a number key (1 to 9).</summary>
-    public const int HotbarKeys = 9;
+    /// <summary>Number of hotbar slots that have a number key (1 to 9, then 0).</summary>
+    public const int HotbarKeys = 10;
 
     public static string HotbarSlot(int index) => $"hotbar_{index + 1}";
 
@@ -51,7 +51,7 @@ public static class InputActions
         AddMouse(HotbarPrevious, MouseButton.WheelUp);
         for (int i = 0; i < HotbarKeys; i++)
         {
-            AddKey(HotbarSlot(i), Key.Key1 + i);
+            AddKey(HotbarSlot(i), i == 9 ? Key.Key0 : Key.Key1 + i);
         }
     }
 

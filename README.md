@@ -25,8 +25,10 @@ concession, with bots.
 M3 (economy and building) is under way. Done so far: team build protection (teammates' blocks can't be
 broken by hand, and your own bombs don't crater your own half), and the big islands from the developer's
 sketch (`docs/island-sketch.png`): two 600 x 300 mirrored islands with mountains full of ore, hills,
-forests and grassland facing the strait, streamed in around the camera. Next: foundations, then resources
-against the developer's tech tree.
+forests and grassland facing the strait, streamed in around the camera; and the foundations: the server
+game moved into plain C# systems (unit-tested without the engine), generic replicated objects with
+placeable structures that bombs damage and destroy, and per-team state sent only to that team. Next:
+resources against the developer's tech tree.
 
 ## Versions
 
@@ -59,9 +61,9 @@ as `godot`, or the `GODOT` environment variable pointing at it.
 project.godot, Main.tscn, Main.cs   Godot project and entry scene (picks server or client)
 IslandWar.csproj                    Godot C# assembly: Client/, Server/, Net/
 Client/                             rendering, input, UI
-Server/                             dedicated server entry, match orchestration
+Server/                             dedicated server host: network port, ticks the Sim server
 Net/                                replication (from M1b)
-Sim/                                game rules: plain C#, no Godot dependency
+Sim/                                game rules and the server game (Sim/Server): plain C#, no Godot dependency
 tests/IslandWar.Sim.Tests/          xUnit tests for Sim
 data/                               tunables (JSON); never hardcode these
 docs/                               plan, decisions, testing

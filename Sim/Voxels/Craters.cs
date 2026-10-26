@@ -5,7 +5,7 @@ public static class Craters
 {
     /// <summary>
     /// Removes every solid block within <paramref name="radius"/> of <paramref name="center"/>, except the
-    /// unbreakable bottom layer.
+    /// unbreakable bottom layer and structures (which take damage instead).
     /// </summary>
     /// <returns>The edits that were applied, in a fixed order (Y, then Z, then X).</returns>
     public static IReadOnlyList<VoxelEdit> Blast(VoxelWorld world, BlockPos center, int radius)
@@ -29,7 +29,7 @@ public static class Craters
                     }
 
                     var edit = new VoxelEdit(new BlockPos(center.X + dx, center.Y + dy, center.Z + dz), Block.Air);
-                    if (world.ApplyEdit(edit))
+                    if (world.Get(edit.Position) != Block.Structure && world.ApplyEdit(edit))
                     {
                         edits.Add(edit);
                     }

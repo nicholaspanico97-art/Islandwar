@@ -10,10 +10,10 @@ namespace IslandWar.Sim.Players;
 public static class BuildRules
 {
     public static bool CanBreak(VoxelWorld world, BlockPos target) =>
-        target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) != Block.Air;
+        target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) is not (Block.Air or Block.Structure);
 
-    /// <summary>Blocks a player can place: everything but air, natural-only blocks and retired block types.</summary>
-    public static bool Placeable(Block block) => block is not (Block.Air or Block.Core or Block.Ore);
+    /// <summary>Blocks a player can place: everything but air, natural-only blocks, structure blocks and retired block types.</summary>
+    public static bool Placeable(Block block) => block is not (Block.Air or Block.Core or Block.Ore or Block.Structure);
 
     /// <summary>
     /// A block can go into an in-bounds air cell that no player's collision box overlaps.

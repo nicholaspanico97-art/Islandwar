@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Server;
 using IslandWar.Sim.Voxels;
@@ -19,6 +20,9 @@ public sealed class FakeTransport : IServerTransport
     public List<(int Peer, ulong Hash)> Hashes { get; } = new();
     public List<Explosion> Explosions { get; } = new();
     public List<(int Peer, Snapshot Snapshot)> Snapshots { get; } = new();
+    public List<GameObject> Objects { get; } = new();
+    public List<int> RemovedObjects { get; } = new();
+    public List<(int Peer, TeamState State)> TeamStates { get; } = new();
 
     public void SendWorld(int peer, WorldInit world) => Worlds.Add((peer, world));
     public void BroadcastRoster(byte[] roster) => Rosters.Add(WireFormat.DecodeRoster(roster));
@@ -31,6 +35,9 @@ public sealed class FakeTransport : IServerTransport
     public void SendEdit(int peer, VoxelEdit edit) => Corrections.Add((peer, edit));
     public void SendSnapshot(int peer, byte[] snapshot) => Snapshots.Add((peer, WireFormat.DecodeSnapshot(snapshot)));
     public void SendHash(int peer, ulong hash) => Hashes.Add((peer, hash));
+    public void BroadcastObjects(byte[] objects) => Objects.AddRange(WireFormat.DecodeObjects(objects));
+    public void BroadcastObjectRemoved(int id) => RemovedObjects.Add(id);
+    public void SendTeamState(int peer, byte[] state) => TeamStates.Add((peer, WireFormat.DecodeTeamState(state)));
 }
 
 /// <summary>A server on the real data files, with the islands shrunk so each test generates its world quickly.</summary>
@@ -104,7 +111,7 @@ public class ServerTests
         Assert.Equal(1, player.PlayerId);
         (int peer, WorldInit world) = Assert.Single(test.Net.Worlds);
         Assert.Equal(2, peer);
-        Assert.Equal(test.Server.World.ComputeHash(), world.Hash);
+        Assert.Equal(test.State.ComputeHash(), world.Hash);
         Assert.Contains(test.Net.Rosters[^1], e => e.PeerId == 2 && e.Name == "Alice" && e.Team == Team.Blue);
     }
 
@@ -233,7 +240,7 @@ public class ServerTests
         test.Join(2, "Alice");
         test.Server.HashRequested(2);
 
-        Assert.Equal((2, test.Server.World.ComputeHash()), Assert.Single(test.Net.Hashes));
+        Assert.Equal((2, test.State.ComputeHash()), Assert.Single(test.Net.Hashes));
     }
 
     /// <summary>An air cell next to the player's head, in easy reach.</summary>

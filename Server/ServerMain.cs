@@ -51,6 +51,8 @@ public partial class ServerMain : Node, IServerTransport
         _net.HashRequested += _game.HashRequested;
         _net.HelloReceived += _game.Hello;
         _net.ConcedeVoteReceived += _game.ConcedeVote;
+        _net.PlaceRequested += _game.PlaceRequested;
+        _net.RemoveRequested += _game.RemoveRequested;
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateServer(Args.Port, MaxClients);
@@ -101,4 +103,10 @@ public partial class ServerMain : Node, IServerTransport
     public void SendSnapshot(int peer, byte[] snapshot) => _net.SendSnapshot(peer, snapshot);
 
     public void SendHash(int peer, ulong hash) => _net.SendHash(peer, hash);
+
+    public void BroadcastObjects(byte[] objects) => _net.BroadcastObjects(objects);
+
+    public void BroadcastObjectRemoved(int id) => _net.BroadcastObjectRemoved(id);
+
+    public void SendTeamState(int peer, byte[] state) => _net.SendTeamState(peer, state);
 }

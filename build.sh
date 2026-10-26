@@ -40,7 +40,7 @@ wait_for_line() {
 }
 
 # The automated sync test (docs/testing.md): a headless server, a builder bot, then a breaker bot that
-# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its world hash matches the
+# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its game hash matches the
 # server's (and, for the pilot, the server never had to correct its prediction).
 synctest() {
   dotnet build IslandWar.csproj
@@ -55,7 +55,7 @@ synctest() {
   wait_for_line "$logs/server.log" "listening on port"
   "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=builder --team=red >"$logs/builder.log" 2>&1 &
   builder=$!
-  wait_for_line "$logs/builder.log" "built the tower"
+  wait_for_line "$logs/builder.log" "built the tower and the crate"
   "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=breaker --team=red >"$logs/breaker.log" 2>&1 &
   breaker=$!
   "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=pilot --team=blue >"$logs/pilot.log" 2>&1 &

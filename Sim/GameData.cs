@@ -1,4 +1,5 @@
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
@@ -11,7 +12,7 @@ namespace IslandWar.Sim;
 /// The tunables from <c>data/</c>. The server sends its raw JSON to each client on join, so clients
 /// generate the same island and predict movement with the same numbers as the server.
 /// </summary>
-public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson, string WeaponsJson, string PresetsJson)
+public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson, string WeaponsJson, string PresetsJson, string StructuresJson)
 {
     public IslandSettings Terrain { get; } = IslandSettings.FromJson(TerrainJson);
 
@@ -25,6 +26,9 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
 
     public IReadOnlyDictionary<string, MatchPreset> Presets { get; } = MatchPreset.AllFromJson(PresetsJson);
 
+    /// <summary>The kinds of structure players can place.</summary>
+    public ObjectKinds Kinds { get; } = ObjectKinds.FromJson(StructuresJson);
+
     public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
 
     /// <summary>Reads every data file through <paramref name="read"/>, which gets a file name such as <c>terrain.json</c>.</summary>
@@ -34,7 +38,8 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         read("net.json"),
         read("plane.json"),
         read("weapons.json"),
-        read("presets.json"));
+        read("presets.json"),
+        read("structures.json"));
 
     /// <summary>
     /// Where a player appears, standing on the top block of their team's island. Slot 0 is the centre;

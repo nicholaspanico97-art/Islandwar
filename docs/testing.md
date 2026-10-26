@@ -136,25 +136,25 @@ Each client logs `rebuilt the world: seed 1337 plus N edits, hash ... matches th
 The plan's sync test: bot A builds a tower, bot B bombs it, and every world must end identical. It
 starts a headless server (developer mode, `practice` preset, so no match starts and resets the world) and
 three headless bots on port 7790:
-- The **builder** joins and builds a 5-block tower two blocks east of the island centre, then waits
-  until the tower has been both broken and bombed.
-- Once the tower is up, two more join late. The **breaker** (also Red) checks the tower is in the world it
-  rebuilt (late join), tries to break the builder's top block (team build protection must refuse it), then
+- The **builder** joins, builds a 5-block tower two blocks east of the island centre and places a crate
+  (a structure) four blocks west of it, then waits until the tower has been both broken and bombed.
+- Once the tower is up, two more join late. The **breaker** (also Red) checks the tower and the crate are
+  in the world it rebuilt (late join), tries to break the builder's top block (team build protection must refuse it), then
   adds two planks of its own and breaks the upper one (allowed).
 - The **pilot** flies to the plane, gets in, takes off, flies a bombing pattern back over the island,
   drops when the bomb's predicted impact is on the tower, checks the crater took tower blocks, and gets
   out. It predicts every tick like a real client and fails if the server ever corrects it by more than
   0.05 blocks.
 
-Each bot then asks the server for its world hash. Expected output ends with:
+Each bot then asks the server for its game hash (world and structures). Expected output ends with:
 
 ```
-[bot builder] PASS: world hash <h>, server <h>
-[bot breaker] PASS: world hash <h2>, server <h2>
-[bot pilot] bombs away at height 52.0, ... blocks short of the tower
-[bot pilot] bomb hit (...); tower blocks 3 -> 0
+[bot builder] PASS: game hash <h>, server <h>
+[bot breaker] PASS: game hash <h2>, server <h2>
+[bot pilot] bombs away at height 116.0, ... blocks short of the target
+[bot pilot] bomb hit (...); tower blocks 6 -> 3
 [bot pilot] got out at height ...; largest correction from the server 0.0000 blocks
-[bot pilot] PASS: world hash <h>, server <h>
+[bot pilot] PASS: game hash <h>, server <h>
 Sync test PASSED
 ```
 
@@ -287,20 +287,20 @@ Three scenarios, one after the other:
   `red-leaver` (developer mode would otherwise grant Blue). Then Blue's `conceder` votes to concede and
   everyone must see `Red wins (Concede)`.
 
-Every bot finishes by comparing world hashes with the server. Expected output ends with:
+Every bot finishes by comparing game hashes (world and structures) with the server. Expected output ends with:
 
 ```
 [bot watcher] stages seen: Countdown -> phase 1 -> phase 2 -> phase 3 -> Ended
-[bot watcher] PASS: world hash <h>, server <h>
+[bot watcher] PASS: game hash <h>, server <h>
 ...
 [bot nuker] Red won by nuking the enemy island; pressing E
-[bot nuker] PASS: world hash <h2>, server <h2>
+[bot nuker] PASS: game hash <h2>, server <h2>
 [bot defender] the match ended: Red wins (NukeHit)
-[bot defender] PASS: world hash <h2>, server <h2>
+[bot defender] PASS: game hash <h2>, server <h2>
 ...
 [bot returner] came back as 'red-leaver' on Red
 [bot returner] the match ended: Red wins (Concede)
-[bot returner] PASS: world hash <h3>, server <h3>
+[bot returner] PASS: game hash <h3>, server <h3>
 Match test PASSED
 ```
 
@@ -402,4 +402,36 @@ godot --path . --resolution 960x540 --write-movie nuke.avi -- --connect=127.0.0.
 The terrain tunables are in `data/terrain.json` (outline, regions, ore, trees) and `data/view.json`
 (draw distance, fog). The generator's unit tests print the generation time and the ore and tree densities:
 `dotnet test tests/IslandWar.Sim.Tests --logger "console;verbosity=detailed" --filter IslandGenerator`.
+
+## M3: foundations (server systems, structures, team state)
+
+The server game now runs in Sim (`Sim/Server`) and is unit-tested without the engine:
+`dotnet test tests/IslandWar.Sim.Tests` runs `ServerTests` and `StructureTests` (joins, rejoin, concede,
+edits and protection, placing, removing and bombing structures, late join, team state privacy) with a fake
+transport. The bot tests above check the same server over the network; the sync test now also places a
+crate and checks a late joiner gets it.
+
+To try structures by hand:
+
+```sh
+./build.sh server --port=7777 --preset=practice --dev
+./build.sh client
+./build.sh client
+```
+
+Join one client to each team. Check, in order:
+1. The hotbar has three more slots after the blocks, marked with an inner frame: Crate (8), Depot (9) and
+   Workshop (0). Select one: a see-through box shows where it would go, green if it fits and red if not
+   (no room, nothing to stand on, or you're standing in it). It turns with you in quarter turns.
+2. Right click places it: it appears for both players, as a coloured box with a band in your team's colour
+   and its name above. The server logs `peer <id> placed a Depot (object <n>) at (...) for Red`.
+3. Aim at it: the prompt line shows its team, name and health. Its blocks can't be broken one by one.
+   Left click takes the whole structure down; a teammate's can't be taken down while they're online.
+4. Bomb it from the plane (the enemy's, over their half): each bomb takes 50 health off every structure in
+   the blast, and the box darkens; the crater leaves it standing. At 0 it's destroyed, its blocks vanish
+   with the crater, and the server logs `Depot <n> (Blue) was destroyed`.
+5. Start a third client: it gets the structures, and its log says `plus N edits and M objects` and
+   `matches the server`.
+6. Hold Tab: the scoreboard's footer shows your team's structures standing and its stock (`nothing yet`
+   until resources exist).
 

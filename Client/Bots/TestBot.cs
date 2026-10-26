@@ -89,12 +89,12 @@ public abstract partial class TestBot : Node
     }
 
     /// <summary>
-    /// Asks the server for its world hash; the bot passes if it equals its own. The reply shares the
+    /// Asks the server for its game hash (world and objects); the bot passes if it equals its own. The reply shares the
     /// reliable channel with edits, so it arrives after every edit the server sent before it.
     /// </summary>
     protected void CompareWithServer()
     {
-        Log("asking the server for its world hash");
+        Log("asking the server for its game hash");
         Net.Replicator.RequestHash();
     }
 
@@ -114,7 +114,7 @@ public abstract partial class TestBot : Node
 
     private void OnServerHash(ulong serverHash)
     {
-        ulong mine = World.ComputeHash();
-        Finish(mine == serverHash, $"world hash {mine:x16}, server {serverHash:x16}");
+        ulong mine = Net.ComputeHash();
+        Finish(mine == serverHash, $"game hash {mine:x16}, server {serverHash:x16}");
     }
 }

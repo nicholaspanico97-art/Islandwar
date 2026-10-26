@@ -13,6 +13,7 @@ public sealed class Sessions
 
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
+    private readonly TeamStates _teams;
 
     /// <summary>Connected peers that haven't said hello yet, with when they connected.</summary>
     private readonly Dictionary<int, ulong> _pending = new();
@@ -27,10 +28,11 @@ public sealed class Sessions
     private readonly Dictionary<string, int> _playerIds = new();
     private int _nextPlayerId = 1;
 
-    public Sessions(ServerState state, Vehicles vehicles)
+    public Sessions(ServerState state, Vehicles vehicles, TeamStates teams)
     {
         _state = state;
         _vehicles = vehicles;
+        _teams = teams;
     }
 
     /// <summary>Someone left after saying hello; the match system checks whether that settles a concede vote.</summary>
@@ -90,8 +92,9 @@ public sealed class Sessions
 
         players[peer] = new ServerPlayer(peer, name, team, token, playerId, _state.NextSpawn(team), _state.Data.Net);
         _state.Net.SendWorld(peer, _state.CurrentWorld());
+        _teams.SendTo(players[peer]);
         _state.BroadcastRoster();
-        _state.Log($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' (player {playerId}) on {team}; sent the world with {_state.World.Deltas.All().Count()} edits");
+        _state.Log($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' (player {playerId}) on {team}; sent the world with {_state.World.Deltas.All().Count()} edits and {_state.Objects.Count} objects");
     }
 
     public void Left(int peer)

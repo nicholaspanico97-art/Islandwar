@@ -19,13 +19,17 @@ public sealed class GameServer
     private readonly Weapons _weapons;
     private readonly Building _building;
     private readonly Replication _replication;
+    private readonly Structures _structures;
+    private readonly TeamStates _teams;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
         State = new ServerState(data, options, net, log);
         _vehicles = new Vehicles(State);
-        _weapons = new Weapons(State);
-        _sessions = new Sessions(State, _vehicles);
+        _structures = new Structures(State, _vehicles);
+        _teams = new TeamStates(State);
+        _weapons = new Weapons(State, _structures);
+        _sessions = new Sessions(State, _vehicles, _teams);
         _match = new MatchSystem(State);
         _movement = new Movement(State, _vehicles, _weapons);
         _building = new Building(State, _vehicles);
@@ -69,16 +73,27 @@ public sealed class GameServer
 
     public void ConcedeVote(int peer, bool vote) => _match.ConcedeVote(peer, vote);
 
-    public void HashRequested(int peer) => State.Net.SendHash(peer, World.ComputeHash());
+    public void HashRequested(int peer) => State.Net.SendHash(peer, State.ComputeHash());
+
+    public void PlaceRequested(int peer, string kind, BlockPos origin, int facing) => _structures.PlaceRequested(peer, kind, origin, facing);
+
+    public void RemoveRequested(int peer, int objectId) => _structures.RemoveRequested(peer, objectId);
+
+    /// <summary>The teams' shared state, for systems (and tests) that change it.</summary>
+    public TeamStates Teams => _teams;
+
+    public Structures Structures => _structures;
 
     /// <summary>
-    /// A fair start: the island regenerated from the seed, planes back on their moorings, bombs gone, everyone
-    /// on foot at their team's spawn. Every client gets the fresh world, the same way a late joiner would.
+    /// A fair start: the island regenerated from the seed, structures gone, teams back to nothing, planes back
+    /// on their moorings, bombs gone, everyone on foot at their team's spawn. Every client gets the fresh world, the same way a late joiner would.
     /// </summary>
     private void ResetWorld()
     {
         State.World = IslandGenerator.Generate(State.Data.Terrain, State.Options.Seed);
         _weapons.Reset();
+        _structures.Reset();
+        _teams.Reset();
         _vehicles.ResetToMoorings();
         State.ResetSpawns();
         WorldInit fresh = State.CurrentWorld();
@@ -86,6 +101,7 @@ public sealed class GameServer
         {
             player.Respawn(State.NextSpawn(player.Team));
             State.Net.SendWorld(peer, fresh);
+            _teams.SendTo(player);
         }
     }
 }

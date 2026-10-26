@@ -9,14 +9,16 @@ namespace IslandWar.Sim.Server;
 public sealed class Weapons
 {
     private readonly ServerState _state;
+    private readonly Structures _structures;
 
     /// <summary>When each team last dropped its nuke, on the match clock; null for not yet this match.</summary>
     private readonly Dictionary<Team, float?> _lastNukeDrop = new() { [Team.Red] = null, [Team.Blue] = null };
     private int _nextBombId = 1;
 
-    public Weapons(ServerState state)
+    public Weapons(ServerState state, Structures structures)
     {
         _state = state;
+        _structures = structures;
     }
 
     /// <summary>Seconds until a team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
@@ -101,7 +103,13 @@ public sealed class Weapons
         VoxelWorld world = _state.World;
         bool harmless = !hit.InWater && Protection.IsHomeGround(bomb.Team, hit.Position.X, world.SizeX, _state.Data.Terrain.IslandCount);
         IReadOnlyList<VoxelEdit> crater = harmless ? Array.Empty<VoxelEdit>() : BombFlight.Explode(world, bomb.CraterRadius, hit);
-        _state.Net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList()), bomb.CraterRadius, bomb.Nuke, harmless));
+
+        // Structures don't crater: they lose health, and the ones destroyed go with the crater.
+        int damage = bomb.Nuke ? _state.Rules.Bomb.NukeStructureDamage : _state.Rules.Bomb.StructureDamage;
+        BlastResult structures = harmless || hit.Block is not { } centre ? BlastResult.None : _structures.Blast(centre, bomb.CraterRadius, damage);
+        List<VoxelEdit> edits = crater.Concat(structures.Edits).ToList();
+        _state.Net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(edits), bomb.CraterRadius, bomb.Nuke, harmless));
+        _structures.Announce(structures);
         string what = bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}";
         _state.Log(hit.InWater ? $"[server] {what} splashed into the sea"
             : harmless ? $"[server] {what} landed on {bomb.Team}'s own half: no crater (no friendly fire)"

@@ -3,14 +3,26 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using IslandWar.Client.Voxels;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Client.Ui;
 
+/// <summary>One hotbar slot: a block to place, or a kind of structure.</summary>
+public readonly record struct HotbarItem(Block Block, ObjectKind? Kind = null)
+{
+    public bool IsStructure => Kind is not null;
+
+    public string Label => Kind?.Name ?? Block.ToString();
+
+    public Color Color => Kind is { } kind ? new Color(kind.Color) : BlockColors.Of(Block);
+}
+
 /// <summary>
-/// Row of block slots along the bottom of the screen. Every block type a player may place gets a slot, so
-/// new block types appear here automatically. Number keys pick a slot, the mouse wheel cycles.
+/// Row of slots along the bottom of the screen: every block type a player may place, then every kind of
+/// structure the server offers, so new ones appear here automatically. Number keys pick a slot (0 is the
+/// tenth), the mouse wheel cycles. Structure slots are marked with a frame inside the swatch.
 /// </summary>
 public partial class Hotbar : HBoxContainer
 {
@@ -22,18 +34,24 @@ public partial class Hotbar : HBoxContainer
     private readonly List<Panel> _slots = new();
     private int _selected;
 
-    public IReadOnlyList<Block> Blocks { get; } = Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().ToArray();
+    /// <summary>Kinds of structure to offer after the blocks; none in the offline sandbox.</summary>
+    public IReadOnlyList<ObjectKind> Kinds { get; init; } = Array.Empty<ObjectKind>();
 
-    public Block Selected => Blocks[_selected];
+    public IReadOnlyList<HotbarItem> Items { get; private set; } = Array.Empty<HotbarItem>();
+
+    public HotbarItem Selected => Items[_selected];
 
     public override void _Ready()
     {
         Name = "Hotbar";
         MouseFilter = MouseFilterEnum.Ignore;
         AddThemeConstantOverride("separation", 6);
-        for (int i = 0; i < Blocks.Count; i++)
+        Items = Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().Select(b => new HotbarItem(b))
+            .Concat(Kinds.Select(k => new HotbarItem(Block.Structure, k)))
+            .ToArray();
+        for (int i = 0; i < Items.Count; i++)
         {
-            AddChild(CreateSlot(i, Blocks[i]));
+            AddChild(CreateSlot(i, Items[i]));
         }
 
         // Anchor after the slots exist so the preset can size the row, then lift it off the screen edge.
@@ -47,15 +65,15 @@ public partial class Hotbar : HBoxContainer
     {
         if (@event.IsActionPressed(InputActions.HotbarNext))
         {
-            Select((_selected + 1) % Blocks.Count);
+            Select((_selected + 1) % Items.Count);
         }
         else if (@event.IsActionPressed(InputActions.HotbarPrevious))
         {
-            Select((_selected + Blocks.Count - 1) % Blocks.Count);
+            Select((_selected + Items.Count - 1) % Items.Count);
         }
         else
         {
-            for (int i = 0; i < Math.Min(Blocks.Count, InputActions.HotbarKeys); i++)
+            for (int i = 0; i < Math.Min(Items.Count, InputActions.HotbarKeys); i++)
             {
                 if (@event.IsActionPressed(InputActions.HotbarSlot(i)))
                 {
@@ -71,13 +89,20 @@ public partial class Hotbar : HBoxContainer
         Refresh();
     }
 
-    private Panel CreateSlot(int index, Block block)
+    private Panel CreateSlot(int index, HotbarItem item)
     {
-        var slot = new Panel { CustomMinimumSize = new Vector2(SlotSize, SlotSize), MouseFilter = MouseFilterEnum.Ignore, TooltipText = block.ToString() };
-        var swatch = new ColorRect { Color = BlockColors.Of(block), MouseFilter = MouseFilterEnum.Ignore };
+        var slot = new Panel { CustomMinimumSize = new Vector2(SlotSize, SlotSize), MouseFilter = MouseFilterEnum.Ignore, TooltipText = item.Label };
+        var swatch = new ColorRect { Color = item.Color, MouseFilter = MouseFilterEnum.Ignore };
         swatch.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 8);
         slot.AddChild(swatch);
-        var number = new Label { Text = (index + 1).ToString(), Position = new Vector2(4, 0) };
+        if (item.IsStructure)
+        {
+            var inner = new ReferenceRect { BorderColor = new Color(1, 1, 1, 0.8f), BorderWidth = 2, EditorOnly = false, MouseFilter = MouseFilterEnum.Ignore };
+            inner.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 14);
+            slot.AddChild(inner);
+        }
+
+        var number = new Label { Text = index < InputActions.HotbarKeys ? ((index + 1) % 10).ToString() : "", Position = new Vector2(4, 0) };
         number.AddThemeColorOverride("font_outline_color", Colors.Black);
         number.AddThemeConstantOverride("outline_size", 4);
         slot.AddChild(number);

@@ -41,6 +41,12 @@ public partial class Replicator : Node
     /// <summary>Server: a player sets or clears their vote to concede.</summary>
     public event Action<int, bool>? ConcedeVoteReceived;
 
+    /// <summary>Server: a player asks to place a structure (peer id, kind, footprint origin, facing).</summary>
+    public event Action<int, string, BlockPos, int>? PlaceRequested;
+
+    /// <summary>Server: a player asks to remove a structure (peer id, object id).</summary>
+    public event Action<int, int>? RemoveRequested;
+
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
 
@@ -65,6 +71,15 @@ public partial class Replicator : Node
     /// <summary>Client: a bomb exploded, with its crater.</summary>
     public event Action<Explosion>? ExplosionReceived;
 
+    /// <summary>Client: objects that appeared or changed (packed).</summary>
+    public event Action<byte[]>? ObjectsReceived;
+
+    /// <summary>Client: an object is gone.</summary>
+    public event Action<int>? ObjectRemoved;
+
+    /// <summary>Client: our team's state (packed).</summary>
+    public event Action<byte[]>? TeamStateReceived;
+
     public override void _Ready()
     {
         Name = "Replicator";
@@ -83,11 +98,16 @@ public partial class Replicator : Node
 
     public void SetConcedeVote(bool vote) => RpcId(ServerId, MethodName.ReceiveConcedeVote, vote);
 
+    public void RequestPlace(string kind, BlockPos origin, int facing) =>
+        RpcId(ServerId, MethodName.ReceivePlaceRequest, kind, origin.X, origin.Y, origin.Z, facing);
+
+    public void RequestRemove(int objectId) => RpcId(ServerId, MethodName.ReceiveRemoveRequest, objectId);
+
     // ---- Server to client ----
 
     public void SendWorld(int peer, WorldInit world) =>
         RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson,
-            world.Data.WeaponsJson, world.Data.PresetsJson, world.EditsData, (long)world.Hash, world.DevMode, world.PresetName);
+            world.Data.WeaponsJson, world.Data.PresetsJson, world.Data.StructuresJson, world.EditsData, world.ObjectsData, (long)world.Hash, world.DevMode, world.PresetName);
 
     public void BroadcastRoster(byte[] roster) => Rpc(MethodName.ReceiveRoster, roster);
 
@@ -112,6 +132,13 @@ public partial class Replicator : Node
     public void SendSnapshot(int peer, byte[] data) => RpcId(peer, MethodName.ReceiveSnapshot, data);
 
     public void SendHash(int peer, ulong hash) => RpcId(peer, MethodName.ReceiveHash, (long)hash);
+
+    // Objects share the reliable channel with edits: a structure's footprint blocks arrive before the object.
+    public void BroadcastObjects(byte[] objects) => Rpc(MethodName.ReceiveObjects, objects);
+
+    public void BroadcastObjectRemoved(int id) => Rpc(MethodName.ReceiveObjectRemoved, id);
+
+    public void SendTeamState(int peer, byte[] state) => RpcId(peer, MethodName.ReceiveTeamState, state);
 
     // ---- Receivers ----
 
@@ -144,8 +171,9 @@ public partial class Replicator : Node
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, string presetsJson,
-        byte[] edits, long hash, bool devMode, string presetName) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson), edits, (ulong)hash, devMode, presetName));
+        string structuresJson, byte[] edits, byte[] objects, long hash, bool devMode, string presetName) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson, structuresJson),
+            edits, objects, (ulong)hash, devMode, presetName));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveHello(string name, int team, string token)
@@ -164,6 +192,33 @@ public partial class Replicator : Node
             ConcedeVoteReceived?.Invoke(Multiplayer.GetRemoteSenderId(), vote);
         }
     }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceivePlaceRequest(string kind, int x, int y, int z, int facing)
+    {
+        if (Multiplayer.IsServer())
+        {
+            PlaceRequested?.Invoke(Multiplayer.GetRemoteSenderId(), kind, new BlockPos(x, y, z), facing);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveRemoveRequest(int objectId)
+    {
+        if (Multiplayer.IsServer())
+        {
+            RemoveRequested?.Invoke(Multiplayer.GetRemoteSenderId(), objectId);
+        }
+    }
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveObjects(byte[] objects) => ObjectsReceived?.Invoke(objects);
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveObjectRemoved(int id) => ObjectRemoved?.Invoke(id);
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveTeamState(byte[] state) => TeamStateReceived?.Invoke(state);
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveRoster(byte[] roster) => RosterReceived?.Invoke(roster);

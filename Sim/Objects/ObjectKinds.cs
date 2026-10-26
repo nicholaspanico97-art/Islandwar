@@ -1,0 +1,67 @@
+namespace IslandWar.Sim.Objects;
+
+/// <summary>A size in blocks.</summary>
+public sealed record Size3
+{
+    public int X { get; init; } = 1;
+    public int Y { get; init; } = 1;
+    public int Z { get; init; } = 1;
+}
+
+/// <summary>One kind of object players can place, from <c>data/structures.json</c>.</summary>
+public sealed record ObjectKind
+{
+    /// <summary>Stable name used on the wire and in saves; never rename one.</summary>
+    public string Id { get; init; } = "";
+
+    /// <summary>What players see.</summary>
+    public string Name { get; init; } = "";
+
+    /// <summary>The blocks it fills, facing north (facing 0). Facing east or west swaps X and Z.</summary>
+    public Size3 Size { get; init; } = new();
+
+    public int MaxHealth { get; init; } = 100;
+
+    /// <summary>How clients draw it until there are models, as <c>#rrggbb</c>.</summary>
+    public string Color { get; init; } = "#808080";
+}
+
+/// <summary>Every placeable kind, by id.</summary>
+public sealed class ObjectKinds
+{
+    /// <summary>The largest a structure can be along any side, in blocks.</summary>
+    public const int MaxSide = 16;
+
+    private readonly Dictionary<string, ObjectKind> _byId;
+
+    public ObjectKinds(IEnumerable<ObjectKind> kinds)
+    {
+        _byId = new Dictionary<string, ObjectKind>(StringComparer.Ordinal);
+        foreach (ObjectKind kind in kinds)
+        {
+            if (kind.Id.Length == 0 || kind.Name.Length == 0 || !_byId.TryAdd(kind.Id, kind))
+            {
+                throw new InvalidDataException($"structures.json: every kind needs a unique id and a name ('{kind.Id}').");
+            }
+
+            if (kind.Size.X is < 1 or > MaxSide || kind.Size.Y is < 1 or > MaxSide || kind.Size.Z is < 1 or > MaxSide || kind.MaxHealth <= 0)
+            {
+                throw new InvalidDataException($"structures.json: '{kind.Id}' needs sides of 1 to {MaxSide} blocks and positive max_health.");
+            }
+        }
+
+        All = _byId.Values.ToArray();
+    }
+
+    /// <summary>In the order the data file lists them (the hotbar's order).</summary>
+    public IReadOnlyList<ObjectKind> All { get; }
+
+    public ObjectKind? Get(string id) => _byId.TryGetValue(id, out ObjectKind? kind) ? kind : null;
+
+    public static ObjectKinds FromJson(string json) => new(DataJson.Parse<KindsFile>(json, "structures.json").Kinds);
+
+    private sealed record KindsFile
+    {
+        public IReadOnlyList<ObjectKind> Kinds { get; init; } = Array.Empty<ObjectKind>();
+    }
+}

@@ -6,6 +6,9 @@
   "crater_radius": 4,
   // The phase-3 nuke stub: landing anywhere on the enemy island wins the match.
   "nuke_crater_radius": 9,
+  // Structures don't crater: each one the blast reaches loses this much health (see structures.json).
+  "structure_damage": 50,
+  "nuke_structure_damage": 1000,
   "cooldown_seconds": 1.0,
   "drop_height": 0.5,
   "max_lifetime_seconds": 30.0

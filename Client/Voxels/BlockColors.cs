@@ -16,6 +16,7 @@ public static class BlockColors
         Block.Wood => new Color(0.36f, 0.25f, 0.14f),
         Block.Leaves => new Color(0.18f, 0.42f, 0.16f),
         Block.Ore => new Color(0.78f, 0.45f, 0.20f),
+        Block.Structure => new Color(0.25f, 0.25f, 0.27f), // hidden under the structure's own model
         _ => new Color(1, 0, 1), // magenta: a new block type without a colour yet
     };
 }

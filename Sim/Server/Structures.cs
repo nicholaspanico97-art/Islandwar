@@ -1,0 +1,187 @@
+using System.Numerics;
+using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
+using IslandWar.Sim.Players;
+using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Voxels;
+
+namespace IslandWar.Sim.Server;
+
+/// <summary>
+/// Structures: placing and removing them on request, and bomb damage. A structure's footprint blocks travel
+/// to clients as ordinary edits, before the object itself, so every client's world and objects agree.
+/// </summary>
+public sealed class Structures
+{
+    private readonly ServerState _state;
+    private readonly Vehicles _vehicles;
+
+    /// <summary>Object ids are never reused, even across matches.</summary>
+    private int _nextId = 1;
+
+    public Structures(ServerState state, Vehicles vehicles)
+    {
+        _state = state;
+        _vehicles = vehicles;
+    }
+
+    public void PlaceRequested(int peer, string kindId, BlockPos origin, int facing)
+    {
+        if (!_state.Players.TryGetValue(peer, out ServerPlayer? player))
+        {
+            return;
+        }
+
+        ObjectKind? kind = _state.Data.Kinds.Get(kindId);
+        string? reason = kind is null ? "unknown kind"
+            : player.Pawn.InPlane ? "flying a plane"
+            : !player.TrySpendEdit() ? "too many edits"
+            : !InReach(player, GameObject.FootprintOf(kind, origin, facing)) ? "out of reach"
+            : ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, facing, Blockers())
+              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way" : null);
+        if (reason is not null)
+        {
+            _state.Log($"[server] rejected peer {peer} placing {kindId} at {origin}: {reason}");
+            return;
+        }
+
+        var placed = new GameObject(_nextId++, kind!.Id, player.Team, player.PlayerId, origin, facing, kind.MaxHealth);
+        foreach (BlockPos cell in placed.Footprint(kind))
+        {
+            Apply(new VoxelEdit(cell, Block.Structure, placed.Owner));
+        }
+
+        _state.Objects.Set(placed);
+        _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { placed }));
+        _state.Log($"[server] peer {peer} placed a {kind.Name} (object {placed.Id}) at {origin} for {player.Team}");
+    }
+
+    public void RemoveRequested(int peer, int objectId)
+    {
+        if (!_state.Players.TryGetValue(peer, out ServerPlayer? player) || _state.Objects.Get(objectId) is not { } target)
+        {
+            return;
+        }
+
+        ObjectKind kind = _state.Objects.KindOf(target);
+        string? reason = player.Pawn.InPlane ? "flying a plane"
+            : !player.TrySpendEdit() ? "too many edits"
+            : !InReach(player, target.Footprint(kind)) ? "out of reach"
+            : !Protection.MayBreak(target.Owner, player.PlayerId, player.Team, _state.IsOnline) ? "a teammate built that"
+            : null;
+        if (reason is not null)
+        {
+            _state.Log($"[server] rejected peer {peer} removing object {objectId}: {reason}");
+            return;
+        }
+
+        foreach (VoxelEdit edit in Clear(target))
+        {
+            _state.Net.BroadcastEdit(edit);
+        }
+
+        _state.Net.BroadcastObjectRemoved(target.Id);
+        _state.Log($"[server] peer {peer} removed {kind.Name} {target.Id}");
+    }
+
+    /// <summary>
+    /// Takes <paramref name="damage"/> off every structure with a block within <paramref name="radius"/> of
+    /// <paramref name="centre"/>. Destroyed ones are cleared from the world at once; their footprints are
+    /// returned to go out with the explosion, and <see cref="Announce"/> then tells clients about the objects.
+    /// </summary>
+    public BlastResult Blast(BlockPos centre, int radius, int damage)
+    {
+        long reach = (long)radius * radius + radius;
+        var damaged = new List<GameObject>();
+        var destroyed = new List<GameObject>();
+        var edits = new List<VoxelEdit>();
+        foreach (GameObject target in _state.Objects.All.ToList())
+        {
+            ObjectKind kind = _state.Objects.KindOf(target);
+            if (!target.Footprint(kind).Any(b => Squared(b, centre) <= reach))
+            {
+                continue;
+            }
+
+            GameObject hurt = target with { Health = target.Health - damage };
+            if (hurt.Health > 0)
+            {
+                _state.Objects.Set(hurt);
+                damaged.Add(hurt);
+                continue;
+            }
+
+            edits.AddRange(Clear(target));
+            destroyed.Add(target);
+        }
+
+        return new BlastResult(damaged, destroyed, edits);
+    }
+
+    /// <summary>Sends what a blast did to objects, after the explosion message carrying the cleared blocks.</summary>
+    public void Announce(BlastResult result)
+    {
+        if (result.Damaged.Count > 0)
+        {
+            _state.Net.BroadcastObjects(WireFormat.EncodeObjects(result.Damaged));
+        }
+
+        foreach (GameObject gone in result.Destroyed)
+        {
+            _state.Net.BroadcastObjectRemoved(gone.Id);
+            _state.Log($"[server] {_state.Objects.Kinds.Get(gone.Kind)?.Name ?? gone.Kind} {gone.Id} ({gone.Team}) was destroyed");
+        }
+
+        foreach (GameObject hurt in result.Damaged)
+        {
+            _state.Log($"[server] {_state.Objects.Kinds.Get(hurt.Kind)?.Name ?? hurt.Kind} {hurt.Id} ({hurt.Team}) is down to {hurt.Health} health");
+        }
+    }
+
+    /// <summary>No objects (a fresh match; the new world has none of their blocks either).</summary>
+    public void Reset() => _state.Objects.Clear();
+
+    /// <summary>Removes an object and empties its footprint, returning the edits made.</summary>
+    private List<VoxelEdit> Clear(GameObject target)
+    {
+        var edits = new List<VoxelEdit>();
+        foreach (BlockPos cell in target.Footprint(_state.Objects.KindOf(target)))
+        {
+            var edit = new VoxelEdit(cell, Block.Air);
+            if (_state.World.ApplyEdit(edit))
+            {
+                edits.Add(edit);
+            }
+        }
+
+        _state.Objects.Remove(target.Id);
+        return edits;
+    }
+
+    private void Apply(VoxelEdit edit)
+    {
+        if (_state.World.ApplyEdit(edit))
+        {
+            _state.Net.BroadcastEdit(edit);
+        }
+    }
+
+    private bool InReach(ServerPlayer player, IEnumerable<BlockPos> footprint)
+    {
+        Vector3 eye = player.Pawn.Player.Position + Vector3.UnitY * _state.Data.Player.EyeHeight;
+        return footprint.Any(b => BuildRules.InReach(_state.Data.Player, eye, b));
+    }
+
+    private IEnumerable<Vector3> Blockers() =>
+        _state.Players.Values.Where(p => !p.Pawn.InPlane && !p.Pawn.Player.Flying).Select(p => p.Pawn.Player.Position);
+
+    private static long Squared(BlockPos a, BlockPos b) =>
+        (long)(a.X - b.X) * (a.X - b.X) + (long)(a.Y - b.Y) * (a.Y - b.Y) + (long)(a.Z - b.Z) * (a.Z - b.Z);
+}
+
+/// <summary>What one blast did to structures.</summary>
+/// <param name="Edits">The destroyed structures' footprints, already cleared from the world.</param>
+public sealed record BlastResult(IReadOnlyList<GameObject> Damaged, IReadOnlyList<GameObject> Destroyed, IReadOnlyList<VoxelEdit> Edits)
+{
+    public static readonly BlastResult None = new(Array.Empty<GameObject>(), Array.Empty<GameObject>(), Array.Empty<VoxelEdit>());
+}

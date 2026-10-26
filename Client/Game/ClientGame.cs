@@ -6,6 +6,7 @@ using IslandWar.Client.Ui;
 using IslandWar.Client.Voxels;
 using IslandWar.Sim;
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
@@ -37,6 +38,7 @@ public partial class ClientGame : Node3D
     private readonly Dictionary<int, BombModel> _bombs = new();
     private Scenery _scenery = null!;
     private GodotVoxelView _view = null!;
+    private ObjectViews _objects = null!;
     private BlockHighlight _highlight = null!;
     private Bombsight _bombsight = null!;
     private BombImpact? _aim;
@@ -81,6 +83,8 @@ public partial class ClientGame : Node3D
         AddChild(_scenery);
         _view = new GodotVoxelView { World = World, Settings = view, Focus = ToGodot(Spawn.Player.Position) };
         AddChild(_view);
+        _objects = new ObjectViews { Objects = Link?.Objects };
+        AddChild(_objects);
         _highlight = new BlockHighlight();
         AddChild(_highlight);
         _bombsight = new Bombsight();
@@ -96,7 +100,7 @@ public partial class ClientGame : Node3D
         _previous = Spawn;
         _camera = new CameraRig();
         AddChild(_camera);
-        _hud = new GameHud();
+        _hud = new GameHud { StructureKinds = Link?.Objects?.Kinds.All ?? Array.Empty<ObjectKind>() };
         AddChild(_hud);
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
@@ -264,8 +268,10 @@ public partial class ClientGame : Node3D
             Vector3 feet = ToGodot(_previous.Player.Position).Lerp(ToGodot(State.Player.Position), fraction) + _renderOffset;
             _camera.FirstPerson(feet + Vector3.Up * Settings.EyeHeight, _yaw, _pitch);
             DrawAround(feet, flying: false);
-            _hud.ShowOnFoot(CanGetIn(planes) ? "Press E to fly the plane" : null);
+            _hud.ShowOnFoot(CanGetIn(planes) ? "Press E to fly the plane" : AimedStructure());
         }
+
+        ShowPlacement();
 
         ShowPlanes(planes, delta);
         ShowIdentity();
@@ -318,7 +324,7 @@ public partial class ClientGame : Node3D
         _hud.Scoreboard.Visible = Input.IsActionPressed(InputActions.Scoreboard);
         if (_hud.Scoreboard.Visible)
         {
-            _hud.Scoreboard.ShowRoster(Link.Roster.Values.ToList(), Multiplayer.GetUniqueId(), preset.ConcedeFraction);
+            _hud.Scoreboard.ShowRoster(Link.Roster.Values.ToList(), Multiplayer.GetUniqueId(), preset.ConcedeFraction, TeamSummary());
         }
         if (MatchText.Announcement(_lastMatch, match, preset) is { } news)
         {
@@ -408,6 +414,12 @@ public partial class ClientGame : Node3D
 
     private void Break()
     {
+        if (Aim() is { } aimed && Link?.Objects?.At(aimed.Block) is { } structure)
+        {
+            RemoveStructure(structure);
+            return;
+        }
+
         if (Aim() is not { } hit || !BuildRules.CanBreak(World, hit.Block))
         {
             return;
@@ -427,15 +439,103 @@ public partial class ClientGame : Node3D
 
     private void Place()
     {
+        if (_hud.Hotbar.Selected.Kind is { } kind)
+        {
+            PlaceStructure(kind);
+            return;
+        }
+
         // Flying turns collisions off, so the player's own box doesn't block placement then. Other players
         // and planes are left to the server, which knows where they really are.
         System.Numerics.Vector3[] blockers = State.Player.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { State.Player.Position };
-        if (Aim() is { } hit && BuildRules.CanPlace(World, Settings, hit.Before, _hud.Hotbar.Selected, blockers))
+        if (Aim() is { } hit && BuildRules.CanPlace(World, Settings, hit.Before, _hud.Hotbar.Selected.Block, blockers))
         {
             // Predict the same owner the server will record, so its confirmation changes nothing.
             BlockOwner me = Link is null ? default : new BlockOwner(Link.MyPlayerId, Link.MyTeam);
-            Predict(new VoxelEdit(hit.Before, _hud.Hotbar.Selected, me));
+            Predict(new VoxelEdit(hit.Before, _hud.Hotbar.Selected.Block, me));
         }
+    }
+
+    /// <summary>Where the selected structure would go: against the face aimed at, turned the way we look.</summary>
+    private (ObjectKind Kind, BlockPos Origin, int Facing, string? WhyNot)? Placement()
+    {
+        if (State.InPlane || _hud.Hotbar.Selected.Kind is not { } kind || Aim() is not { } hit)
+        {
+            return null;
+        }
+
+        int facing = ObjectRules.FacingFor(_yaw);
+        BlockPos origin = ObjectRules.OriginFor(kind, hit.Before, facing);
+        System.Numerics.Vector3[] blockers = State.Player.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { State.Player.Position };
+        return (kind, origin, facing, ObjectRules.WhyNot(World, Settings, kind, origin, facing, blockers));
+    }
+
+    private void ShowPlacement()
+    {
+        if (Placement() is { } placement)
+        {
+            _objects.ShowPreview(placement.Kind, placement.Origin, placement.Facing, placement.WhyNot is null);
+        }
+        else
+        {
+            _objects.ShowPreview(null, default, 0, false);
+        }
+    }
+
+    private void PlaceStructure(ObjectKind kind)
+    {
+        if (Link is null || Placement() is not { } placement)
+        {
+            return;
+        }
+
+        if (placement.WhyNot is { } reason)
+        {
+            _hud.Toast($"Can't place a {kind.Name} there: {reason}.");
+            return;
+        }
+
+        Link.RequestPlace(kind.Id, placement.Origin, placement.Facing);
+    }
+
+    private void RemoveStructure(GameObject structure)
+    {
+        // Team build protection covers structures like blocks: say why instead of asking in vain.
+        if (!Protection.MayBreak(structure.Owner, Link!.MyPlayerId, Link.MyTeam, id => Link.Roster.Values.Any(p => p.PlayerId == id)))
+        {
+            string who = Link.Roster.Values.FirstOrDefault(p => p.PlayerId == structure.OwnerPlayerId).Name ?? "A teammate";
+            _hud.Toast($"{who} built that. Teammates' structures are protected.");
+            return;
+        }
+
+        Link.RequestRemove(structure.Id);
+    }
+
+    /// <summary>The name, team and health of the structure under the crosshair, for the prompt line.</summary>
+    private string? AimedStructure()
+    {
+        if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } structure)
+        {
+            return null;
+        }
+
+        ObjectKind kind = objects.KindOf(structure);
+        return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}   (left click to take it down)";
+    }
+
+    /// <summary>Our team's structures and stock, for the scoreboard.</summary>
+    private string TeamSummary()
+    {
+        if (Link?.Objects is not { } objects)
+        {
+            return "";
+        }
+
+        int standing = objects.All.Count(o => o.Team == Link.MyTeam);
+        string stock = Link.TeamState is { Stock.Count: > 0 } state
+            ? string.Join(", ", state.Stock.Select(s => $"{s.Key} {s.Value}"))
+            : "nothing yet";
+        return $"Your team: {standing} structure{(standing == 1 ? "" : "s")} standing. Stock: {stock}.";
     }
 
     /// <summary>Applies an edit at once. Online, the server confirms it or sends back the real block.</summary>

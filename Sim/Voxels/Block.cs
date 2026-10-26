@@ -29,4 +29,10 @@ public enum Block : ushort
     /// decided with the resources. Natural only: players can't place it.
     /// </summary>
     Ore = 9,
+
+    /// <summary>
+    /// A block filled by a structure (see <c>GameObject</c>). Never placed or broken on its own: it comes and
+    /// goes with its structure, and craters leave it standing (bombs damage the structure instead).
+    /// </summary>
+    Structure = 10,
 }

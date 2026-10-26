@@ -1,5 +1,6 @@
 using System.Numerics;
 using IslandWar.Sim.Match;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
@@ -197,6 +198,59 @@ public static class WireFormat
         return edits;
     });
 
+    /// <summary>Whole objects (new or changed), each with its named values.</summary>
+    public static byte[] EncodeObjects(IReadOnlyCollection<GameObject> objects) => Encode(writer =>
+    {
+        writer.Write(objects.Count);
+        foreach (GameObject obj in objects)
+        {
+            writer.Write(obj.Id);
+            writer.Write(obj.Kind);
+            writer.Write((byte)obj.Team);
+            writer.Write(obj.OwnerPlayerId);
+            writer.Write(checked((ushort)obj.Origin.X));
+            writer.Write(checked((ushort)obj.Origin.Y));
+            writer.Write(checked((ushort)obj.Origin.Z));
+            writer.Write((byte)obj.Facing);
+            writer.Write(obj.Health);
+            WriteValues(writer, obj.Values);
+        }
+    });
+
+    public static IReadOnlyList<GameObject> DecodeObjects(byte[] data) => Decode(data, reader =>
+    {
+        int count = reader.ReadInt32();
+        if (count < 0 || count > data.Length)
+        {
+            throw new InvalidDataException($"Object list claims {count} objects.");
+        }
+
+        var objects = new GameObject[count];
+        for (int i = 0; i < count; i++)
+        {
+            int id = reader.ReadInt32();
+            string kind = reader.ReadString();
+            var team = (Team)reader.ReadByte();
+            int owner = reader.ReadInt32();
+            var origin = new BlockPos(reader.ReadUInt16(), reader.ReadUInt16(), reader.ReadUInt16());
+            int facing = reader.ReadByte();
+            int health = reader.ReadInt32();
+            objects[i] = new GameObject(id, kind, team, owner, origin, facing & 3, health) { Values = ReadValues(reader, data.Length) };
+        }
+
+        return objects;
+    });
+
+    /// <summary>One team's state, for that team's players only.</summary>
+    public static byte[] EncodeTeamState(TeamState state) => Encode(writer =>
+    {
+        writer.Write((byte)state.Team);
+        WriteValues(writer, state.Stock);
+    });
+
+    public static TeamState DecodeTeamState(byte[] data) => Decode(data, reader =>
+        new TeamState((Team)reader.ReadByte()) { Stock = ReadValues(reader, data.Length) });
+
     /// <summary>Every connected player's name and team.</summary>
     public static byte[] EncodeRoster(IReadOnlyCollection<RosterEntry> roster) => Encode(writer =>
     {
@@ -264,6 +318,33 @@ public static class WireFormat
         writer.Write(v.X);
         writer.Write(v.Y);
         writer.Write(v.Z);
+    }
+
+    private static void WriteValues(BinaryWriter writer, IReadOnlyDictionary<string, int> values)
+    {
+        writer.Write(checked((ushort)values.Count));
+        foreach ((string name, int value) in values)
+        {
+            writer.Write(name);
+            writer.Write(value);
+        }
+    }
+
+    private static IReadOnlyDictionary<string, int> ReadValues(BinaryReader reader, int messageLength)
+    {
+        int count = reader.ReadUInt16();
+        if (count > messageLength)
+        {
+            throw new InvalidDataException($"Value list claims {count} values.");
+        }
+
+        var values = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < count; i++)
+        {
+            values[reader.ReadString()] = reader.ReadInt32();
+        }
+
+        return values;
     }
 
     private static Vector3 Read(BinaryReader reader) => new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
