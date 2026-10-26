@@ -16,7 +16,7 @@ public partial class ExplosionEffect : Node3D
     private OmniLight3D _flash = null!;
     private float _age;
 
-    /// <summary>The effect's size in blocks (the warmup crater radius); a bigger crater shows in the ground.</summary>
+    /// <summary>The crater radius in blocks; the effect scales with it.</summary>
     public float Radius { get; init; } = 4;
 
     public bool InWater { get; init; }

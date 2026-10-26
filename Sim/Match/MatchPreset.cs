@@ -35,6 +35,12 @@ public sealed record MatchPreset
     /// </summary>
     public int[] CraterRadiusByPhase { get; init; } = { 0, 3, 5 };
 
+    /// <summary>
+    /// Each team gets a nuke when phase 3 starts, then another this many minutes after dropping one. The stub
+    /// until the research and enrichment pipeline (M4).
+    /// </summary>
+    public float NukeCooldownMinutes { get; init; } = 4;
+
     public float Phase2StartSeconds => Phase2StartMinutes * 60;
 
     public float Phase3StartSeconds => Phase3StartMinutes * 60;
@@ -54,7 +60,7 @@ public sealed record MatchPreset
 
     public void Validate(string name)
     {
-        if (MaxPlayersPerTeam <= 0 || MaxTeamImbalance < 0 || MinPlayersPerTeam <= 0 || CountdownSeconds < 0 || ResultsSeconds < 0)
+        if (MaxPlayersPerTeam <= 0 || MaxTeamImbalance < 0 || MinPlayersPerTeam <= 0 || CountdownSeconds < 0 || ResultsSeconds < 0 || NukeCooldownMinutes < 0)
         {
             throw new InvalidDataException($"Preset '{name}' in presets.json has a value out of range.");
         }

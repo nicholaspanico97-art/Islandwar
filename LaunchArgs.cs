@@ -57,9 +57,9 @@ public sealed record LaunchArgs
                 "--preset" => result with { Preset = Required(key, value) },
                 "--name" => result with { Name = Required(key, value) },
                 "--team" => result with { Team = value is "red" or "blue" ? value : throw new ArgumentException("--team must be red or blue.") },
-                "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" ? value : throw new ArgumentException("--bot must be builder, breaker, pilot or watcher.") },
+                "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" or "nuker" or "defender" ? value : throw new ArgumentException("--bot must be builder, breaker, pilot, watcher, nuker or defender.") },
                 _ => throw new ArgumentException(
-                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue or --bot=builder|breaker|pilot|watcher."),
+                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue or --bot=builder|breaker|pilot|watcher|nuker|defender."),
             };
         }
 

@@ -7,7 +7,7 @@
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
 #   .\build.ps1 synctest  (headless server + three bot clients; fails unless every world matches)
-#   .\build.ps1 matchtest (headless server on the fast test preset + two bots following a whole match)
+#   .\build.ps1 matchtest (two headless scenarios: a whole fast match, then a nuke winning one)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -79,25 +79,35 @@ function Invoke-SyncTest {
   Write-Host "Sync test PASSED"
 }
 
-# The automated match test (docs/testing.md): a whole match on the fast test preset, followed by one
-# watcher bot per team. Each exits 0 only if the stages, the world reset and the hashes all check out.
-function Invoke-MatchTest {
-  $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-matchtest"
-  New-Item -ItemType Directory -Force $logs | Out-Null
-  Get-ChildItem $logs | Remove-Item
-  $port = 7791
-  $server = Start-Godot "server" @("--server", "--port=$port", "--preset=test")
+# One match-test scenario: a server with the given arguments and one bot per team. Returns the bot
+# processes after they've finished.
+function Invoke-MatchScenario([string]$Name, [int]$Port, [string[]]$ServerArgs, [string]$RedBot, [string]$BlueBot) {
+  $server = Start-Godot "$Name-server" (@("--server", "--port=$Port") + $ServerArgs)
   $bots = @()
   try {
-    Wait-ForLine "server" "listening on port"
-    $bots += Start-Godot "red" @("--connect=127.0.0.1:$port", "--bot=watcher", "--team=red", "--name=red-watcher")
-    $bots += Start-Godot "blue" @("--connect=127.0.0.1:$port", "--bot=watcher", "--team=blue", "--name=blue-watcher")
-    $bots | Wait-Process -Timeout 120
+    Wait-ForLine "$Name-server" "listening on port"
+    $bots += Start-Godot "$Name-red" @("--connect=127.0.0.1:$Port", "--bot=$RedBot", "--team=red", "--name=red-$RedBot")
+    $bots += Start-Godot "$Name-blue" @("--connect=127.0.0.1:$Port", "--bot=$BlueBot", "--team=blue", "--name=blue-$BlueBot")
+    $bots | Wait-Process -Timeout 150
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }
 
-  Get-Content (Join-Path $logs "red.log"), (Join-Path $logs "blue.log") | Select-String "^\[bot" | ForEach-Object { $_.Line }
+  # Write-Host, not plain output: anything else a PowerShell function prints becomes part of its return value.
+  Get-Content (Join-Path $logs "$Name-red.log"), (Join-Path $logs "$Name-blue.log") | Select-String "^\[bot" | ForEach-Object { Write-Host $_.Line }
+  return $bots
+}
+
+# The automated match test (docs/testing.md). First a whole match on the fast test preset, followed by a
+# watcher bot per team: stages, world reset and hashes. Then a nuke match: Red's nuker flies over and
+# nukes Blue's core in phase 3, and both bots must see Red win by core hit.
+function Invoke-MatchTest {
+  $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-matchtest"
+  New-Item -ItemType Directory -Force $logs | Out-Null
+  Get-ChildItem $logs | Remove-Item
+  $bots = @(Invoke-MatchScenario "flow" 7791 @("--preset=test") "watcher" "watcher")
+  # Developer mode lets the nuker noclip to its plane.
+  $bots += @(Invoke-MatchScenario "nuke" 7792 @("--preset=nuketest", "--dev") "nuker" "defender")
   if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
     Write-Host "Match test FAILED. Logs: $logs"
     exit 1

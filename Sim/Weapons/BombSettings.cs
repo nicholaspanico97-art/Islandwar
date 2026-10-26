@@ -15,6 +15,18 @@ public sealed record BombSettings
     /// </summary>
     public int CraterRadius { get; init; } = 4;
 
+    /// <summary>
+    /// Bombs only destroy core blocks within this fraction of their crater radius: the core is hardened, so
+    /// raids chip it rather than wipe it. Nukes ignore this.
+    /// </summary>
+    public float CoreBlastFactor { get; init; } = 0.5f;
+
+    /// <summary>The nuke's crater radius. It ignores the core's hardening.</summary>
+    public int NukeCraterRadius { get; init; } = 9;
+
+    /// <summary>A nuke landing within this many blocks of the enemy core's footprint counts as a hit.</summary>
+    public float NukeHitMargin { get; init; } = 3;
+
     /// <summary>Seconds between drops from the same plane.</summary>
     public float CooldownSeconds { get; init; } = 1;
 
@@ -28,7 +40,8 @@ public sealed record BombSettings
     {
         BombSettings settings = DataJson.Parse<BombSettings>(json, "weapons.json");
         if (settings.Gravity <= 0 || settings.Drag < 0 || settings.CraterRadius <= 0 || settings.CooldownSeconds < 0
-            || settings.DropHeight < 0 || settings.MaxLifetimeSeconds <= 0)
+            || settings.DropHeight < 0 || settings.MaxLifetimeSeconds <= 0
+            || settings.CoreBlastFactor < 0 || settings.CoreBlastFactor > 1 || settings.NukeCraterRadius <= 0 || settings.NukeHitMargin < 0)
         {
             throw new InvalidDataException("weapons.json has a value out of range.");
         }

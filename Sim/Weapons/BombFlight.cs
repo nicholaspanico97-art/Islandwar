@@ -63,8 +63,9 @@ public static class BombFlight
     /// Destroys the crater (nothing for a splash in the sea) and returns the edits made. The radius comes from
     /// the match phase when the bomb was dropped (see MatchFlow.CraterRadius).
     /// </summary>
-    public static IReadOnlyList<VoxelEdit> Explode(VoxelWorld world, int craterRadius, BombImpact impact) =>
-        impact.Block is { } centre ? Craters.Blast(world, centre, craterRadius) : Array.Empty<VoxelEdit>();
+    /// <param name="coreFactor">How much of the radius reaches core blocks (BombSettings.CoreBlastFactor; 1 for a nuke).</param>
+    public static IReadOnlyList<VoxelEdit> Explode(VoxelWorld world, int craterRadius, BombImpact impact, float coreFactor = 1) =>
+        impact.Block is { } centre ? Craters.Blast(world, centre, craterRadius, coreFactor) : Array.Empty<VoxelEdit>();
 
     /// <summary>
     /// Where a bomb dropped now would land, or null if it's still falling after <paramref name="maxSteps"/>.

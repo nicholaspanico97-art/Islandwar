@@ -51,6 +51,7 @@ public partial class ClientGame : Node3D
     private bool _wantsFlying;
     private bool _usePressed;
     private bool _firePressed;
+    private bool _nukePressed;
     private MatchStatus _lastMatch;
 
     public VoxelWorld World { get; init; } = null!;
@@ -106,8 +107,8 @@ public partial class ClientGame : Node3D
         _bombs.Remove(explosion.BombId, out BombModel? bomb);
         bomb?.QueueFree();
         Vector3 at = ToGodot(explosion.Position);
-        AddChild(new ExplosionEffect { Position = at, Radius = Rules.Bomb.CraterRadius, InWater = explosion.InWater });
-        _camera.Shake(at.DistanceTo(ToGodot(State.Player.Position)), Rules.Bomb.CraterRadius);
+        AddChild(new ExplosionEffect { Position = at, Radius = explosion.CraterRadius, InWater = explosion.InWater });
+        _camera.Shake(at.DistanceTo(ToGodot(State.Player.Position)), explosion.CraterRadius);
     }
 
     /// <summary>
@@ -183,6 +184,10 @@ public partial class ClientGame : Node3D
             {
                 _firePressed = true;
             }
+            else if (@event.IsActionPressed(InputActions.Place))
+            {
+                _nukePressed = true;
+            }
         }
         else if (@event.IsActionPressed(InputActions.ToggleFly) && (Link?.DevMode ?? true))
         {
@@ -231,7 +236,7 @@ public partial class ClientGame : Node3D
             Quaternion rotation = ToGodot(from.Rotation).Slerp(ToGodot(State.Plane.Rotation), fraction);
             Plane(State.PlaneId).ShowState(position, rotation, State.Plane.Throttle, delta);
             _camera.Chase(position, rotation, delta);
-            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus());
+            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus() + (Link is null ? "" : "\n" + MatchText.Nuke(Link.NukeReadyIn)));
         }
         else
         {
@@ -281,6 +286,9 @@ public partial class ClientGame : Node3D
         int red = Link.Roster.Values.Count(p => p.Team == Team.Red);
         int blue = Link.Roster.Values.Count(p => p.Team == Team.Blue);
         _hud.ShowMatch(MatchText.Status(match, preset, red, blue));
+        IReadOnlyList<CoreSite> cores = Link.Cores;
+        _hud.ShowCores(cores.Count < 2 ? "" : MatchText.Cores(
+            cores[Team.Red.IslandIndex()].StandingBlocks(World), cores[Team.Blue.IslandIndex()].StandingBlocks(World), cores[0].TotalBlocks));
         if (MatchText.Announcement(_lastMatch, match, preset) is { } news)
         {
             Color colour = match.Stage == MatchStage.Ended && match.Winner != Team.None ? TeamColors.Of(match.Winner).Lightened(0.3f) : Colors.Gold;
@@ -344,6 +352,12 @@ public partial class ClientGame : Node3D
 
             buttons |= InputButtons.Fire;
             _firePressed = false;
+        }
+
+        if (_nukePressed)
+        {
+            buttons |= InputButtons.FireNuke;
+            _nukePressed = false;
         }
 
         return new PlayerInput(0, move.X, move.Y, _yaw, _pitch, buttons);
@@ -421,13 +435,13 @@ public partial class ClientGame : Node3D
         }
     }
 
-    private void ShowBombs(IReadOnlyDictionary<int, BombState> bombs)
+    private void ShowBombs(IReadOnlyDictionary<int, (BombState State, bool Nuke)> bombs)
     {
-        foreach ((int id, BombState bomb) in bombs)
+        foreach ((int id, (BombState bomb, bool nuke)) in bombs)
         {
             if (!_bombs.TryGetValue(id, out BombModel? model))
             {
-                model = new BombModel();
+                model = new BombModel { Nuke = nuke };
                 _others.AddChild(model);
                 _bombs[id] = model;
             }

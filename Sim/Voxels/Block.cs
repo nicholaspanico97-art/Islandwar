@@ -12,4 +12,7 @@ public enum Block : ushort
     Grass = 3,
     Sand = 4,
     Planks = 5,
+
+    /// <summary>The industrial core (see CoreSite). Can't be broken or placed by hand; bombs only chip it.</summary>
+    Core = 6,
 }

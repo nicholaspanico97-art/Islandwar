@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using IslandWar.Client.Voxels;
+using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Client.Ui;
 
 /// <summary>
-/// Row of block slots along the bottom of the screen. Every placeable block type gets a slot, so new
-/// block types appear here automatically. Number keys pick a slot, the mouse wheel cycles.
+/// Row of block slots along the bottom of the screen. Every block type a player may place gets a slot, so
+/// new block types appear here automatically. Number keys pick a slot, the mouse wheel cycles.
 /// </summary>
 public partial class Hotbar : HBoxContainer
 {
@@ -21,7 +22,7 @@ public partial class Hotbar : HBoxContainer
     private readonly List<Panel> _slots = new();
     private int _selected;
 
-    public IReadOnlyList<Block> Blocks { get; } = Enum.GetValues<Block>().Where(b => b != Block.Air).Order().ToArray();
+    public IReadOnlyList<Block> Blocks { get; } = Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().ToArray();
 
     public Block Selected => Blocks[_selected];
 

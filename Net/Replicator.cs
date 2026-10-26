@@ -13,11 +13,14 @@ namespace IslandWar.Net;
 /// <param name="PresetName">The match preset, one of <see cref="GameData.Presets"/>.</param>
 public sealed record WorldInit(int Seed, GameData Data, byte[] EditsData, ulong Hash, bool DevMode, string PresetName);
 
-/// <summary>A bomb left a plane at server tick <see cref="Tick"/>. Clients simulate its fall from here.</summary>
-public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState State);
+/// <summary>A bomb (or the nuke) left a plane at server tick <see cref="Tick"/>. Clients simulate its fall from here.</summary>
+public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState State, bool Nuke = false);
 
-/// <summary>A bomb hit something. <see cref="EditsData"/> is the crater, packed with <c>WireFormat.EncodeEdits</c> (empty in the sea).</summary>
-public sealed record Explosion(int BombId, System.Numerics.Vector3 Position, bool InWater, byte[] EditsData);
+/// <summary>
+/// A bomb hit something. <see cref="EditsData"/> is the crater, packed with <c>WireFormat.EncodeEdits</c>
+/// (empty in the sea); <see cref="CraterRadius"/> sizes the effect.
+/// </summary>
+public sealed record Explosion(int BombId, System.Numerics.Vector3 Position, bool InWater, byte[] EditsData, int CraterRadius = 4, bool Nuke = false);
 
 /// <summary>
 /// The one node that sends and receives game messages. Godot calls an RPC on the node at the same path on
@@ -99,10 +102,10 @@ public partial class Replicator : Node
     // Drops and explosions are reliable and share channel 0 with edits, so a crater never arrives before
     // the edits that came first, and a hash reply follows every crater.
     public void BroadcastBombDrop(BombDrop drop) =>
-        Rpc(MethodName.ReceiveBombDrop, drop.Id, drop.OwnerPeerId, (long)drop.Tick, ToGodot(drop.State.Position), ToGodot(drop.State.Velocity));
+        Rpc(MethodName.ReceiveBombDrop, drop.Id, drop.OwnerPeerId, (long)drop.Tick, ToGodot(drop.State.Position), ToGodot(drop.State.Velocity), drop.Nuke);
 
     public void BroadcastExplosion(Explosion explosion) =>
-        Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData);
+        Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData, explosion.CraterRadius, explosion.Nuke);
 
     /// <summary>Tells every client the block at a position.</summary>
     public void BroadcastEdit(VoxelEdit edit) =>
@@ -166,12 +169,12 @@ public partial class Replicator : Node
     private void ReceiveKick(string reason) => Kicked?.Invoke(reason);
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveBombDrop(int id, int owner, long tick, Vector3 position, Vector3 velocity) =>
-        BombDropped?.Invoke(new BombDrop(id, owner, (uint)tick, new BombState(ToSim(position), ToSim(velocity))));
+    private void ReceiveBombDrop(int id, int owner, long tick, Vector3 position, Vector3 velocity, bool nuke) =>
+        BombDropped?.Invoke(new BombDrop(id, owner, (uint)tick, new BombState(ToSim(position), ToSim(velocity)), nuke));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits) =>
-        ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits));
+    private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits, int craterRadius, bool nuke) =>
+        ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits, craterRadius, nuke));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveEdit(int x, int y, int z, int block) =>

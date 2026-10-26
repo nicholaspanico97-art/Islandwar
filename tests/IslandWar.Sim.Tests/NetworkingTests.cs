@@ -169,7 +169,7 @@ public class WireFormatTests
     [Fact]
     public void HostileInputValuesAreClamped()
     {
-        var input = new PlayerInput(1, 50, float.NaN, float.PositiveInfinity, 9, (InputButtons)0xFF);
+        var input = new PlayerInput(1, 50, float.NaN, float.PositiveInfinity, 9, (InputButtons)0xFF); // includes an unknown bit 128
 
         PlayerInput decoded = Assert.Single(WireFormat.DecodeInputs(WireFormat.EncodeInputs(new[] { input })));
 
@@ -177,7 +177,7 @@ public class WireFormatTests
         Assert.Equal(0, decoded.MoveZ);
         Assert.Equal(0, decoded.Yaw);
         Assert.Equal(MathF.PI / 2, decoded.Pitch, 4);
-        Assert.Equal(InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire, decoded.Buttons);
+        Assert.Equal(InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire | InputButtons.FireNuke, decoded.Buttons);
     }
 
     [Theory]

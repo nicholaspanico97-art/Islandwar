@@ -114,6 +114,22 @@ public static class MatchFlow
     };
 
     /// <summary>
+    /// Seconds until a team may drop its nuke: 0 when ready, negative when nukes aren't available at all
+    /// (outside phase 3). The first nuke comes with phase 3, the next a cooldown after each drop.
+    /// </summary>
+    /// <param name="lastDropSeconds">Match clock time of the team's last nuke drop, or null for none yet.</param>
+    public static float NukeReadyIn(MatchStatus status, MatchPreset preset, float? lastDropSeconds)
+    {
+        if (!status.Playing || status.Phase < 3)
+        {
+            return -1;
+        }
+
+        float availableAt = lastDropSeconds is { } last ? last + preset.NukeCooldownMinutes * 60 : preset.Phase3StartSeconds;
+        return Math.Max(0, availableAt - status.StageSeconds);
+    }
+
+    /// <summary>
     /// The crater radius a bomb dropped now would make; 0 means bombs are locked. During play it follows the
     /// phase. Warmup is practice, so bombs work with the warmup radius; after the result, nothing.
     /// </summary>

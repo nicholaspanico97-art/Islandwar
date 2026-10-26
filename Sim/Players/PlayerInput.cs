@@ -19,6 +19,9 @@ public enum InputButtons : byte
 
     /// <summary>Drop a bomb (left click in a plane). Set on one tick, acted on once, like <see cref="Use"/>.</summary>
     Fire = 32,
+
+    /// <summary>Drop the team's nuke (right click in a plane, phase 3). One tick, acted on once.</summary>
+    FireNuke = 64,
 }
 
 /// <summary>

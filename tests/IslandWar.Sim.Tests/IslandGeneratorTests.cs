@@ -41,7 +41,11 @@ public class IslandGeneratorTests
 
             Assert.True(middle > Settings.SeaLevel, $"island {island} surface {middle} should be above sea level {Settings.SeaLevel}");
             Assert.Equal(Block.Grass, world.Get(new BlockPos(x, middle, z)));
-            Assert.Equal(Block.Air, world.Get(new BlockPos(x, middle + 1, z)));
+
+            // Just outside the core's footprint the natural ground is open to the sky.
+            int outside = x + Settings.CoreSize;
+            int ground = IslandGenerator.SurfaceHeight(Settings, world, 7, outside, z);
+            Assert.Equal(Block.Air, world.Get(new BlockPos(outside, ground + 1, z)));
         }
 
         Assert.Equal(Settings.SeaLevel - Settings.SeabedDepth, IslandGenerator.SurfaceHeight(Settings, world, 7, 0, 0));

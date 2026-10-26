@@ -5,11 +5,14 @@ public static class Craters
 {
     /// <summary>
     /// Removes every solid block within <paramref name="radius"/> of <paramref name="center"/>, except the
-    /// unbreakable bottom layer.
+    /// unbreakable bottom layer. Core blocks are hardened: they only go within
+    /// <paramref name="radius"/> x <paramref name="coreFactor"/>.
     /// </summary>
     /// <returns>The edits that were applied, in a fixed order (Y, then Z, then X).</returns>
-    public static IReadOnlyList<VoxelEdit> Blast(VoxelWorld world, BlockPos center, int radius)
+    public static IReadOnlyList<VoxelEdit> Blast(VoxelWorld world, BlockPos center, int radius, float coreFactor = 1)
     {
+        float coreRadius = radius * coreFactor;
+        float coreRadiusSquared = coreRadius * coreRadius;
         var edits = new List<VoxelEdit>();
         if (radius < 0)
         {
@@ -29,6 +32,11 @@ public static class Craters
                     }
 
                     var edit = new VoxelEdit(new BlockPos(center.X + dx, center.Y + dy, center.Z + dz), Block.Air);
+                    if (dx * dx + dy * dy + dz * dz > coreRadiusSquared && world.Get(edit.Position) == Block.Core)
+                    {
+                        continue;
+                    }
+
                     if (world.ApplyEdit(edit))
                     {
                         edits.Add(edit);

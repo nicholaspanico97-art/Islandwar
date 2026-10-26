@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using IslandWar.Net;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
@@ -11,11 +12,17 @@ using IslandWar.Sim.Weapons;
 namespace IslandWar.Client.Bots;
 
 /// <summary>
-/// The plane bot for the automated test. It joins Blue, flies (noclip) to Blue's parked plane, presses E,
-/// takes off, crosses to Red's island and bombs the builder's tower, aiming with the same impact
-/// prediction as the bombsight, then gets out. It predicts every tick like a real client. It passes if the bomb took
-/// blocks off the tower, the server's corrections to its prediction stayed tiny, and its world matches
-/// the server's.
+/// The plane bot for the automated tests, predicting every tick like a real client. It flies (noclip) to
+/// its team's parked plane, presses E, takes off and crosses to the other island, aiming with the same
+/// impact prediction as the bombsight:
+/// <list type="bullet">
+/// <item><b>pilot</b> (sync test, Blue) bombs the builder's tower on Red's island. It passes if the bomb
+/// took tower blocks.</item>
+/// <item><b>nuker</b> (nuke test) waits for the match to start, then drops its team's nuke on the enemy
+/// core when it's ready. It passes if that ends the match with its team winning.</item>
+/// </list>
+/// Either way it also needs the server's corrections to its prediction to stay tiny, and its world to
+/// match the server's.
 /// </summary>
 public partial class PilotBot : TestBot
 {
@@ -46,7 +53,7 @@ public partial class PilotBot : TestBot
 
     private enum Phase { Waiting, Approach, Boarding, TakeOff, Rotate, Attack, Falling, Leaving }
 
-    private PredictedPlayer _player = null!;
+    private PredictedPlayer? _player;
     private Phase _phase;
     private int _phaseTicks;
     private float _maxCorrection;
@@ -56,21 +63,35 @@ public partial class PilotBot : TestBot
 
     public PawnState Spawn { get; init; }
 
+    private bool Nuker => Role == "nuker";
+
     private PlaneSettings Plane => Net.Data!.Plane;
 
     private BombSettings Bomb => Net.Data!.Bomb;
 
     protected override void Start()
     {
-        _player = new PredictedPlayer(Spawn);
         Net.OwnStateReceived += OnServerState;
         Net.Exploded += OnExplosion;
-        Enter(Phase.Approach, "flying to the plane");
+        if (!Nuker)
+        {
+            _player = new PredictedPlayer(Spawn);
+            Enter(Phase.Approach, "flying to the plane");
+            return;
+        }
+
+        // The match start resets the world and respawns everyone, so the nuker starts from its new spawn.
+        Net.Joined += spawn =>
+        {
+            _player = new PredictedPlayer(spawn, Net.LastSentSeq);
+            Enter(Phase.Approach, $"on {Net.MyTeam}; the match started, flying to the plane");
+        };
+        Log("waiting for the match to start");
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_phase == Phase.Waiting)
+        if (_phase == Phase.Waiting || _player is null)
         {
             return;
         }
@@ -82,6 +103,11 @@ public partial class PilotBot : TestBot
 
     private void OnServerState(PawnState server, uint ack)
     {
+        if (_player is null)
+        {
+            return;
+        }
+
         bool wasInPlane = _player.State.InPlane;
         float correction = _player.Reconcile(World, Net.Data!.Rules, server, ack, Net.Data.Net.TickSeconds);
 
@@ -96,6 +122,27 @@ public partial class PilotBot : TestBot
     {
         if (_phase != Phase.Falling)
         {
+            return;
+        }
+
+        if (Nuker)
+        {
+            if (!explosion.Nuke)
+            {
+                return;
+            }
+
+            Log($"the nuke hit ({explosion.Position.X:0.0}, {explosion.Position.Y:0.0}, {explosion.Position.Z:0.0})");
+            WaitUntil(() => Net.Match.Stage == MatchStage.Ended, () =>
+            {
+                if (Net.Match.Winner != Net.MyTeam || Net.Match.Reason != EndReason.CoreDestroyed)
+                {
+                    Finish(false, $"expected a {Net.MyTeam} win by core hit, got {Net.Match.Winner} ({Net.Match.Reason})");
+                    return;
+                }
+
+                Enter(Phase.Leaving, $"{Net.MyTeam} won by nuking the core; pressing E");
+            });
             return;
         }
 
@@ -117,7 +164,7 @@ public partial class PilotBot : TestBot
 
     private PlayerInput Decide()
     {
-        PawnState me = _player.State;
+        PawnState me = _player!.State;
         switch (_phase)
         {
             case Phase.Approach:
@@ -157,7 +204,7 @@ public partial class PilotBot : TestBot
             case Phase.Rotate:
                 if (_phaseTicks >= RotateTicks)
                 {
-                    Enter(Phase.Attack, me.Plane.OnGround ? "still on the ground after rotating" : "airborne; heading for the tower");
+                    Enter(Phase.Attack, me.Plane.OnGround ? "still on the ground after rotating" : $"airborne; heading for the {(Nuker ? "enemy core" : "tower")}");
                 }
 
                 return Input(InputButtons.Sprint, pitch: 1);
@@ -195,19 +242,20 @@ public partial class PilotBot : TestBot
     /// <summary>Flies at the tower and drops when the bomb would land on it.</summary>
     private PlayerInput Attack(PlaneState plane)
     {
-        Vector3 target = TowerTarget();
+        Vector3 target = Target();
         BombImpact? impact = BombFlight.PredictImpact(World, Bomb, Net.Data!.Rules.SeaLevel, BombFlight.Drop(Bomb, plane), Net.Data.Net.TickSeconds, 600);
-        bool onTarget = impact is { } hit && Horizontal(hit.Position - target).Length() < AimTolerance;
+        bool armed = !Nuker || Net.NukeReadyIn == 0;
+        bool onTarget = armed && impact is { } hit && Horizontal(hit.Position - target).Length() < AimTolerance;
         if (_phaseTicks % 300 == 0)
         {
             string miss = impact is { } i ? $"{Horizontal(i.Position - target).Length():0.0}" : "none";
             Log($"attacking: at ({plane.Position.X:0}, {plane.Position.Y:0}, {plane.Position.Z:0}), heading {plane.Heading:0.00}, "
-                + $"speed {plane.Airspeed:0.0}, {Horizontal(target - plane.Position).Length():0} blocks from the tower, bomb would miss by {miss}");
+                + $"speed {plane.Airspeed:0.0}, {Horizontal(target - plane.Position).Length():0} blocks from the target, would miss by {miss}{(armed ? "" : ", nuke not ready")}");
         }
         if (onTarget)
         {
             _towerBefore = TowerBlocks();
-            Enter(Phase.Falling, $"bombs away at height {plane.Position.Y:0.0}, {Horizontal(target - plane.Position).Length():0.0} blocks short of the tower");
+            Enter(Phase.Falling, $"{(Nuker ? "nuke" : "bombs")} away at height {plane.Position.Y:0.0}, {Horizontal(target - plane.Position).Length():0.0} blocks short of the target");
         }
 
         return Autopilot(plane, onTarget);
@@ -220,7 +268,7 @@ public partial class PilotBot : TestBot
     /// </summary>
     private PlayerInput Autopilot(PlaneState plane, bool fire)
     {
-        Vector3 toTarget = Horizontal(TowerTarget() - plane.Position);
+        Vector3 toTarget = Horizontal(Target() - plane.Position);
         float distance = toTarget.Length();
         float headingError = MathF.IEEERemainder(MathF.Atan2(-toTarget.X, -toTarget.Z) - plane.Heading, 2 * MathF.PI);
 
@@ -246,11 +294,19 @@ public partial class PilotBot : TestBot
         InputButtons throttle = plane.Airspeed < AttackSpeed - 1 ? InputButtons.Sprint
             : plane.Airspeed > AttackSpeed + 1 ? InputButtons.Descend
             : InputButtons.None;
-        return new PlayerInput(0, roll, pitchInput, 0, 0, throttle | (fire ? InputButtons.Fire : InputButtons.None));
+        InputButtons trigger = !fire ? InputButtons.None : Nuker ? InputButtons.FireNuke : InputButtons.Fire;
+        return new PlayerInput(0, roll, pitchInput, 0, 0, throttle | trigger);
     }
 
-    private Vector3 TowerTarget()
+    /// <summary>The builder's tower for the pilot; the top of the enemy core for the nuker.</summary>
+    private Vector3 Target()
     {
+        if (Nuker)
+        {
+            CoreSite core = Net.Cores[Net.MyTeam.Other().IslandIndex()];
+            return core.Centre with { Y = core.BaseY + core.Height };
+        }
+
         (int x, int z) = TowerColumn;
         return new Vector3(x + 0.5f, World.HighestSolid(x, z)!.Value + 1, z + 0.5f);
     }

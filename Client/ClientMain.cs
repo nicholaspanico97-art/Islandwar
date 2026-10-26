@@ -120,7 +120,8 @@ public partial class ClientMain : Node
             _botStarted = true;
             _session!.AddChild(Args.Bot switch
             {
-                "pilot" => new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn },
+                "pilot" or "nuker" => new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn },
+                "defender" => new DefenderBot { Net = net, Role = Args.Bot },
                 "watcher" => new MatchBot { Net = net, Role = Args.Bot },
                 _ => (TestBot)new SyncBot { Net = net, Role = Args.Bot },
             });

@@ -8,7 +8,7 @@
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
 #   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
-#   ./build.sh matchtest          headless server on the fast test preset + two bots following a whole match
+#   ./build.sh matchtest          two headless scenarios: a whole fast match, then a nuke winning one
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -72,26 +72,41 @@ synctest() {
   echo "Sync test PASSED"
 }
 
-# The automated match test (docs/testing.md): a whole match on the fast test preset, followed by one
-# watcher bot per team. Each exits 0 only if the stages, the world reset and the hashes all check out.
-matchtest() {
-  dotnet build IslandWar.csproj
-  local logs port=7791 red blue red_status=0 blue_status=0
-  logs="$(mktemp -d)"
-  "$GODOT" --headless --path . -- --server --port=$port --preset=test >"$logs/server.log" 2>&1 &
+# One match-test scenario: name, port, red bot, blue bot, then server arguments. Sets scenario_failed=1 if
+# either bot fails.
+match_scenario() {
+  local name=$1 port=$2 red_bot=$3 blue_bot=$4 red blue red_status=0 blue_status=0
+  shift 4
+  "$GODOT" --headless --path . -- --server --port=$port "$@" >"$logs/$name-server.log" 2>&1 &
   server_pid=$!  # global: the EXIT trap runs after this function returns
   trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
-  wait_for_line "$logs/server.log" "listening on port"
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=watcher --team=red --name=red-watcher >"$logs/red.log" 2>&1 &
+  wait_for_line "$logs/$name-server.log" "listening on port"
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=$red_bot --team=red --name=red-$red_bot >"$logs/$name-red.log" 2>&1 &
   red=$!
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=watcher --team=blue --name=blue-watcher >"$logs/blue.log" 2>&1 &
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=$blue_bot --team=blue --name=blue-$blue_bot >"$logs/$name-blue.log" 2>&1 &
   blue=$!
   wait "$red" || red_status=$?
   wait "$blue" || blue_status=$?
+  kill "$server_pid" 2>/dev/null || true
 
-  grep -h "^\[bot" "$logs/red.log" "$logs/blue.log" || true
+  grep -h "^\[bot" "$logs/$name-red.log" "$logs/$name-blue.log" || true
   if [ "$red_status" -ne 0 ] || [ "$blue_status" -ne 0 ]; then
+    scenario_failed=1
+  fi
+}
+
+# The automated match test (docs/testing.md). First a whole match on the fast test preset, followed by a
+# watcher bot per team: stages, world reset and hashes. Then a nuke match: Red's nuker flies over and
+# nukes Blue's core in phase 3, and both bots must see Red win by core hit.
+matchtest() {
+  dotnet build IslandWar.csproj
+  logs="$(mktemp -d)"
+  scenario_failed=0
+  match_scenario flow 7791 watcher watcher --preset=test
+  # Developer mode lets the nuker noclip to its plane.
+  match_scenario nuke 7792 nuker defender --preset=nuketest --dev
+  if [ "$scenario_failed" -ne 0 ]; then
     echo "Match test FAILED. Logs: $logs"
     exit 1
   fi

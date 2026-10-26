@@ -45,17 +45,20 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     public void ApplyTickRate() => Engine.PhysicsTicksPerSecond = Net.TickRate;
 
     /// <summary>
-    /// Where a player appears, standing on the top block of their team's island. Slot 0 is the centre;
-    /// later slots go round a small ring so players joining together don't stand inside each other.
+    /// Where a player appears, standing on the top block of their team's island, on a ring around the core
+    /// so players joining together don't stand inside each other (or on the core).
     /// </summary>
     public PlayerState SpawnIn(VoxelWorld world, Team team, int slot = 0)
     {
-        const int ringRadius = 3;
         const int ringSlots = 8;
         (int x, int z) = Terrain.IslandCentre(world.SizeX, world.SizeZ, team.IslandIndex());
-        if (slot > 0)
+
+        // With a core in the middle, everyone spawns on a ring just outside it; without one, slot 0 is the centre.
+        int ringRadius = Terrain.CoreSize > 0 ? Terrain.CoreSize / 2 + 3 : 3;
+        if (slot > 0 || Terrain.CoreSize > 0)
         {
-            double angle = 2 * Math.PI * ((slot - 1) % ringSlots) / ringSlots;
+            int ringSlot = Terrain.CoreSize > 0 ? slot : slot - 1;
+            double angle = 2 * Math.PI * (ringSlot % ringSlots) / ringSlots;
             x += (int)Math.Round(ringRadius * Math.Cos(angle));
             z += (int)Math.Round(ringRadius * Math.Sin(angle));
         }

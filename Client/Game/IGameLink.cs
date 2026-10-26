@@ -24,8 +24,14 @@ public interface IGameLink
     /// <summary>Every plane by id, already interpolated. The one the local player flies is drawn from prediction instead.</summary>
     IReadOnlyDictionary<int, RemotePlane> SampleRemotePlanes();
 
-    /// <summary>Falling bombs by id, positioned for this frame.</summary>
-    IReadOnlyDictionary<int, BombState> SampleBombs();
+    /// <summary>Falling bombs (and nukes) by id, positioned for this frame.</summary>
+    IReadOnlyDictionary<int, (BombState State, bool Nuke)> SampleBombs();
+
+    /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
+    float NukeReadyIn { get; }
+
+    /// <summary>Each island's core site, by island index.</summary>
+    IReadOnlyList<CoreSite> Cores { get; }
 
     /// <summary>The server allows noclip flying (developer mode).</summary>
     bool DevMode { get; }

@@ -13,7 +13,7 @@ public partial class GameHud : CanvasLayer
         "WASD move, Space jump, Shift sprint. Left click break, right click place. 1-5 or wheel: block. E: get in your team's plane. Esc frees the mouse.";
 
     private const string FlyingHelp =
-        "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Left click: drop a bomb. Mouse looks around. E: get out.";
+        "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Left click: bomb. Right click: nuke (phase 3). Mouse looks around. E: get out.";
 
     private Crosshair _crosshair = null!;
     private Label _help = null!;
@@ -21,6 +21,7 @@ public partial class GameHud : CanvasLayer
     private Label _flight = null!;
     private Label _identity = null!;
     private Label _match = null!;
+    private Label _cores = null!;
     private Label _bannerTitle = null!;
     private Label _bannerDetail = null!;
     private double _bannerSecondsLeft;
@@ -54,6 +55,12 @@ public partial class GameHud : CanvasLayer
         _match.GrowHorizontal = Control.GrowDirection.Both;
         _match.OffsetTop = 34;
         _match.AddThemeFontSizeOverride("font_size", 18);
+
+        _cores = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
+        _cores.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
+        _cores.GrowHorizontal = Control.GrowDirection.Both;
+        _cores.OffsetTop = 58;
+        _cores.AddThemeFontSizeOverride("font_size", 18);
 
         _bannerTitle = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
         _bannerTitle.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
@@ -92,6 +99,9 @@ public partial class GameHud : CanvasLayer
 
     /// <summary>The match line under the help text: stage, phase and clock.</summary>
     public void ShowMatch(string text) => _match.Text = text;
+
+    /// <summary>Both cores' health, under the match line. Empty hides it.</summary>
+    public void ShowCores(string text) => _cores.Text = text;
 
     /// <summary>A big announcement in the middle of the screen for a few seconds.</summary>
     public void Announce(string title, string detail, Color colour, double seconds = 5)

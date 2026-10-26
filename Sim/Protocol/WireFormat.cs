@@ -16,7 +16,11 @@ public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotP
 /// The server's view of the match, every player and every plane at one tick. <see cref="AckSeq"/> is the
 /// last input the server has processed from the client receiving this snapshot.
 /// </summary>
-public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes, MatchStatus Match = default);
+/// <param name="NukeReadyIn">
+/// Seconds until the receiving client's team can drop its nuke: 0 when ready, negative when nukes aren't
+/// available at all (outside phase 3).
+/// </param>
+public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes, MatchStatus Match = default, float NukeReadyIn = -1);
 
 /// <summary>
 /// Byte layouts for messages sent often or in bulk. Little-endian. Decoders treat the bytes as untrusted:
@@ -28,7 +32,7 @@ public static class WireFormat
     public const int MaxPlayersPerSnapshot = 255;
     public const int MaxPlanesPerSnapshot = 255;
 
-    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire;
+    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire | InputButtons.FireNuke;
 
     public static byte[] EncodeInputs(IReadOnlyList<PlayerInput> inputs)
     {
@@ -91,6 +95,7 @@ public static class WireFormat
             writer.Write(snapshot.Match.StageSeconds);
             writer.Write((byte)snapshot.Match.Winner);
             writer.Write((byte)snapshot.Match.Reason);
+            writer.Write(snapshot.NukeReadyIn);
             writer.Write((byte)snapshot.Players.Count);
             foreach (PlayerSnapshot player in snapshot.Players)
             {
@@ -127,6 +132,7 @@ public static class WireFormat
         uint tick = reader.ReadUInt32();
         uint ack = reader.ReadUInt32();
         var match = new MatchStatus((MatchStage)reader.ReadByte(), reader.ReadByte(), reader.ReadSingle(), (Team)reader.ReadByte(), (EndReason)reader.ReadByte());
+        float nukeReadyIn = reader.ReadSingle();
         int count = reader.ReadByte();
         var players = new PlayerSnapshot[count];
         for (int i = 0; i < count; i++)
@@ -154,7 +160,7 @@ public static class WireFormat
             planes[i] = new PlaneSnapshot(id, state, pilot, team);
         }
 
-        return new Snapshot(tick, ack, players, planes, match);
+        return new Snapshot(tick, ack, players, planes, match, nukeReadyIn);
     });
 
     /// <summary>Block edits, 8 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>

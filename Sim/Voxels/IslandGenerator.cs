@@ -22,7 +22,65 @@ public static class IslandGenerator
             }
         }
 
+        foreach (CoreSite core in CoreSites(settings, seed))
+        {
+            BuildCore(world, settings, seed, core);
+        }
+
         return world;
+    }
+
+    /// <summary>
+    /// Where each island's core goes: centred on the island, standing one block above the highest ground
+    /// under its footprint. Empty when the settings have no cores.
+    /// </summary>
+    public static IReadOnlyList<CoreSite> CoreSites(IslandSettings settings, int seed)
+    {
+        if (settings.CoreSize == 0)
+        {
+            return Array.Empty<CoreSite>();
+        }
+
+        int sizeX = settings.ChunksX * Chunk.Size;
+        int sizeZ = settings.ChunksZ * Chunk.Size;
+        int half = settings.CoreSize / 2;
+        var sites = new CoreSite[settings.IslandCount];
+        for (int island = 0; island < sites.Length; island++)
+        {
+            (int cx, int cz) = settings.IslandCentre(sizeX, sizeZ, island);
+            int top = 0;
+            for (int z = cz - half; z <= cz + half; z++)
+            {
+                for (int x = cx - half; x <= cx + half; x++)
+                {
+                    top = Math.Max(top, SurfaceHeight(settings, sizeX, sizeZ, seed, x, z));
+                }
+            }
+
+            sites[island] = new CoreSite(island, cx - half, top + 1, cz - half, settings.CoreSize, settings.CoreHeight);
+        }
+
+        return sites;
+    }
+
+    /// <summary>Levels the ground under the core with stone, then stacks the core blocks on it.</summary>
+    private static void BuildCore(VoxelWorld world, IslandSettings settings, int seed, CoreSite core)
+    {
+        for (int z = core.MinZ; z < core.MinZ + core.Size; z++)
+        {
+            for (int x = core.MinX; x < core.MinX + core.Size; x++)
+            {
+                for (int y = SurfaceHeight(settings, world, seed, x, z) + 1; y < core.BaseY; y++)
+                {
+                    world.SetGenerated(new BlockPos(x, y, z), Block.Stone);
+                }
+
+                for (int y = core.BaseY; y < core.BaseY + core.Height; y++)
+                {
+                    world.SetGenerated(new BlockPos(x, y, z), Block.Core);
+                }
+            }
+        }
     }
 
     /// <summary>Rebuilds the current world for a late joiner: terrain from the seed, then the deltas.</summary>
@@ -37,18 +95,21 @@ public static class IslandGenerator
         return world;
     }
 
-    /// <summary>Height of the top solid block in a column.</summary>
-    public static int SurfaceHeight(IslandSettings settings, VoxelWorld world, int seed, int x, int z)
+    /// <summary>Height of the top solid block of the natural terrain in a column (before cores and edits).</summary>
+    public static int SurfaceHeight(IslandSettings settings, VoxelWorld world, int seed, int x, int z) =>
+        SurfaceHeight(settings, world.SizeX, world.SizeZ, seed, x, z);
+
+    private static int SurfaceHeight(IslandSettings settings, int sizeX, int sizeZ, int seed, int x, int z)
     {
         int seabed = settings.SeaLevel - settings.SeabedDepth;
 
         // With two islands, the east one is the west one mirrored, so neither team gets better ground.
-        if (settings.IslandSpacing > 0 && x >= world.SizeX / 2)
+        if (settings.IslandSpacing > 0 && x >= sizeX / 2)
         {
-            x = world.SizeX - 1 - x;
+            x = sizeX - 1 - x;
         }
 
-        (int centreX, int centreZ) = settings.IslandCentre(world.SizeX, world.SizeZ, 0);
+        (int centreX, int centreZ) = settings.IslandCentre(sizeX, sizeZ, 0);
         long dx = x - centreX;
         long dz = z - centreZ;
         long radius = settings.IslandRadius;

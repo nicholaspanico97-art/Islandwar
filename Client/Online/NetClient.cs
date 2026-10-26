@@ -50,6 +50,12 @@ public partial class NetClient : Node, IGameLink
     /// <summary>The match preset the server runs, once the world has arrived.</summary>
     public MatchPreset? Preset { get; private set; }
 
+    /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
+    public float NukeReadyIn { get; private set; } = -1;
+
+    /// <summary>Each island's core site (index = Team.IslandIndex), from the seed.</summary>
+    public IReadOnlyList<CoreSite> Cores { get; private set; } = Array.Empty<CoreSite>();
+
     /// <summary>The newest input number sent, so a new prediction after a world reset can carry on from it.</summary>
     public uint LastSentSeq { get; private set; }
 
@@ -130,18 +136,18 @@ public partial class NetClient : Node, IGameLink
     /// Falling bombs, simulated here from their drop. Other players' bombs are shown at the same delay as
     /// their planes; our own at the present, to line up with our predicted plane.
     /// </summary>
-    public IReadOnlyDictionary<int, BombState> SampleBombs()
+    public IReadOnlyDictionary<int, (BombState State, bool Nuke)> SampleBombs()
     {
         if (Data is null || World is null)
         {
-            return new Dictionary<int, BombState>();
+            return new Dictionary<int, (BombState, bool)>();
         }
 
         int me = Multiplayer.GetUniqueId();
         double delayed = _serverTick - Data.Net.InterpolationDelayTicks;
         return _bombs.ToDictionary(
             b => b.Key,
-            b => b.Value.At(b.Value.Drop.OwnerPeerId == me ? _serverTick : delayed, World, Data.Rules, Data.Net.TickSeconds));
+            b => (b.Value.At(b.Value.Drop.OwnerPeerId == me ? _serverTick : delayed, World, Data.Rules, Data.Net.TickSeconds), b.Value.Drop.Nuke));
     }
 
     private IReadOnlyDictionary<int, T> Sample<T>(Dictionary<int, InterpolationBuffer<T>> buffers)
@@ -165,6 +171,7 @@ public partial class NetClient : Node, IGameLink
         Data.ApplyTickRate();
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
+        Cores = IslandGenerator.CoreSites(Data.Terrain, init.Seed);
         ulong hash = World.ComputeHash();
         WorldMatchedServer = hash == init.Hash;
         if (WorldMatchedServer)
@@ -236,6 +243,7 @@ public partial class NetClient : Node, IGameLink
         }
 
         Match = snapshot.Match;
+        NukeReadyIn = snapshot.NukeReadyIn;
 
         // Follow the server's clock, but only jump when it has drifted, so remote players move evenly.
         if (Math.Abs(_serverTick - snapshot.Tick) > Data!.Net.SnapshotIntervalTicks * 2)

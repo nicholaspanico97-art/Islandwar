@@ -41,7 +41,7 @@ public static class MatchText
 
         if (now.Stage == MatchStage.Ended && before.Stage != MatchStage.Ended)
         {
-            return (Result(now), Reason(now.Reason));
+            return (Result(now), Reason(now));
         }
 
         return null;
@@ -49,13 +49,23 @@ public static class MatchText
 
     public static string Result(MatchStatus match) => match.Winner == Team.None ? "Draw" : $"{match.Winner} team wins";
 
-    private static string Reason(EndReason reason) => reason switch
+    private static string Reason(MatchStatus match) => match.Reason switch
     {
         EndReason.TimeLimit => "The time limit was reached.",
-        EndReason.CoreDestroyed => "An industrial core was destroyed.",
-        EndReason.Concede => "A team conceded.",
+        EndReason.CoreDestroyed => $"{match.Winner}'s nuke hit the {match.Winner.Other()} core.",
+        EndReason.Concede => $"{match.Winner.Other()} conceded.",
         _ => "",
     };
+
+    /// <summary>Both cores' health, for the line under the match status.</summary>
+    public static string Cores(int red, int blue, int total) =>
+        total == 0 ? "" : $"Red core {100 * red / total}%    Blue core {100 * blue / total}%";
+
+    /// <summary>The nuke line in the flight readout.</summary>
+    public static string Nuke(float readyIn) =>
+        readyIn < 0 ? "Nuke: phase 3"
+        : readyIn == 0 ? "NUKE READY: right click over the enemy core"
+        : $"Nuke in {Clock(readyIn)}";
 
     private static string Clock(float seconds)
     {

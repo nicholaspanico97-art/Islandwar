@@ -2,13 +2,25 @@ using Godot;
 
 namespace IslandWar.Client.Game;
 
-/// <summary>A falling bomb: a dark body with tail fins, nose pointed along its flight.</summary>
+/// <summary>A falling bomb: a dark body with tail fins, nose pointed along its flight. The nuke is twice the size, with a yellow band.</summary>
 public partial class BombModel : Node3D
 {
+    public bool Nuke { get; init; }
+
     public override void _Ready()
     {
-        Name = "Bomb";
+        Name = Nuke ? "Nuke" : "Bomb";
         var metal = new StandardMaterial3D { AlbedoColor = new Color(0.18f, 0.2f, 0.18f) };
+        if (Nuke)
+        {
+            Scale = Vector3.One * 2;
+            AddChild(new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { TopRadius = 0.19f, BottomRadius = 0.19f, Height = 0.15f },
+                RotationDegrees = new Vector3(90, 0, 0),
+                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.95f, 0.8f, 0.1f) },
+            });
+        }
         // Built along -Z so LookAt points the nose where it's going.
         AddChild(new MeshInstance3D
         {

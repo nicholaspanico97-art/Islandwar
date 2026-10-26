@@ -36,6 +36,10 @@ public partial class ServerMain : Node
     private readonly Dictionary<Team, int> _spawnSlots = new() { [Team.Red] = 0, [Team.Blue] = 0 };
     private MatchPreset _preset = null!;
     private MatchStatus _match = MatchStatus.Warmup;
+    private IReadOnlyList<CoreSite> _cores = Array.Empty<CoreSite>();
+
+    /// <summary>When each team last dropped its nuke, on the match clock; null for not yet this match.</summary>
+    private readonly Dictionary<Team, float?> _lastNukeDrop = new() { [Team.Red] = null, [Team.Blue] = null };
     private GameData _data = null!;
     private GameRules _rules = null!;
     private Replicator _net = null!;
@@ -69,6 +73,7 @@ public partial class ServerMain : Node
         _rules = _data.Rules;
         _seed = Args.Seed ?? _data.Terrain.DefaultSeed;
         World = IslandGenerator.Generate(_data.Terrain, _seed);
+        _cores = IslandGenerator.CoreSites(_data.Terrain, _seed);
         GD.Print($"[server] generated island: seed {_seed}, {World.SizeX}x{World.SizeY}x{World.SizeZ} blocks, hash {World.ComputeHash():x16}");
 
         // One plane per team, parked off its own island. Ids start at 1; 0 means "no plane".
@@ -137,6 +142,11 @@ public partial class ServerMain : Node
                     {
                         TryDropBomb(peer, plane);
                     }
+
+                    if (input.Has(InputButtons.FireNuke))
+                    {
+                        TryDropNuke(peer, plane);
+                    }
                 }
 
                 player.Processed(input);
@@ -173,10 +183,27 @@ public partial class ServerMain : Node
         }
 
         plane.LastDropTick = _tick;
-        var bomb = new ServerBomb(_nextBombId++, peer, _tick, BombFlight.Drop(_rules.Bomb, plane.State), radius);
+        Drop(peer, plane, radius, nuke: false);
+    }
+
+    /// <summary>Drops the team's nuke if it's phase 3, the team has one ready, and the plane is airborne.</summary>
+    private void TryDropNuke(int peer, ServerPlane plane)
+    {
+        if (plane.State.OnGround || MatchFlow.NukeReadyIn(_match, _preset, _lastNukeDrop[plane.Team]) != 0)
+        {
+            return;
+        }
+
+        _lastNukeDrop[plane.Team] = _match.StageSeconds;
+        Drop(peer, plane, _rules.Bomb.NukeCraterRadius, nuke: true);
+    }
+
+    private void Drop(int peer, ServerPlane plane, int craterRadius, bool nuke)
+    {
+        var bomb = new ServerBomb(_nextBombId++, peer, _tick, BombFlight.Drop(_rules.Bomb, plane.State), craterRadius, plane.Team, nuke);
         _bombs.Add(bomb);
-        _net.BroadcastBombDrop(new BombDrop(bomb.Id, peer, bomb.SpawnTick, bomb.State));
-        GD.Print($"[server] peer {peer} dropped bomb {bomb.Id} at {bomb.State.Position}");
+        _net.BroadcastBombDrop(new BombDrop(bomb.Id, peer, bomb.SpawnTick, bomb.State, nuke));
+        GD.Print($"[server] peer {peer} ({plane.Team}) dropped {(nuke ? "THE NUKE" : "bomb")} {bomb.Id} at {bomb.State.Position}");
     }
 
     /// <summary>Moves every falling bomb one tick and explodes the ones that hit something.</summary>
@@ -197,11 +224,19 @@ public partial class ServerMain : Node
             bomb.State = next;
             if (impact is { } hit)
             {
-                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, bomb.CraterRadius, hit);
-                _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList())));
+                int[] coresBefore = _cores.Select(c => c.StandingBlocks(World)).ToArray();
+                float coreFactor = bomb.Nuke ? 1 : _rules.Bomb.CoreBlastFactor;
+                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, bomb.CraterRadius, hit, coreFactor);
+                _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList()), bomb.CraterRadius, bomb.Nuke));
                 GD.Print(hit.InWater
-                    ? $"[server] bomb {bomb.Id} splashed into the sea"
-                    : $"[server] bomb {bomb.Id} hit {hit.Block}: crater of {crater.Count} blocks");
+                    ? $"[server] {(bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}")} splashed into the sea"
+                    : $"[server] {(bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}")} hit {hit.Block}: crater of {crater.Count} blocks");
+                LogCoreDamage(coresBefore);
+                if (bomb.Nuke)
+                {
+                    CheckNukeHit(bomb, hit);
+                }
+
                 _bombs.RemoveAt(i);
             }
             else if (_tick - bomb.SpawnTick > maxTicks)
@@ -219,7 +254,8 @@ public partial class ServerMain : Node
         PlaneSnapshot[] planes = _planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId, p.Team)).ToArray();
         foreach ((int peer, ServerPlayer player) in _players)
         {
-            _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes, _match)));
+            float nukeReadyIn = MatchFlow.NukeReadyIn(_match, _preset, _lastNukeDrop[player.Team]);
+            _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes, _match, nukeReadyIn)));
         }
     }
 
@@ -260,6 +296,10 @@ public partial class ServerMain : Node
     {
         World = IslandGenerator.Generate(_data.Terrain, _seed);
         _bombs.Clear();
+        foreach (Team team in Teams.Playing)
+        {
+            _lastNukeDrop[team] = null;
+        }
         foreach (ServerPlane plane in _planes.Values)
         {
             plane.State = _data.PlaneSpawnIn(World, plane.Team);
@@ -447,6 +487,33 @@ public partial class ServerMain : Node
         return reason is null;
     }
 
+    private void LogCoreDamage(int[] before)
+    {
+        for (int i = 0; i < _cores.Count; i++)
+        {
+            int now = _cores[i].StandingBlocks(World);
+            if (now < before[i])
+            {
+                Team team = i == Team.Blue.IslandIndex() ? Team.Blue : Team.Red;
+                GD.Print($"[server] {team} core: {now}/{_cores[i].TotalBlocks} blocks ({100 * now / _cores[i].TotalBlocks}%)");
+            }
+        }
+    }
+
+    /// <summary>A nuke that lands on the enemy core wins the match for the team that dropped it.</summary>
+    private void CheckNukeHit(ServerBomb nuke, BombImpact hit)
+    {
+        Team enemy = nuke.Team.Other();
+        if (!_match.Playing || _cores.Count <= enemy.IslandIndex() || !_cores[enemy.IslandIndex()].IsHitBy(hit.Position, _rules.Bomb.NukeHitMargin))
+        {
+            GD.Print($"[server] {nuke.Team}'s nuke missed the {enemy} core");
+            return;
+        }
+
+        _match = MatchFlow.End(_match, nuke.Team, EndReason.CoreDestroyed);
+        GD.Print($"[server] {nuke.Team}'s nuke hit the {enemy} core: {nuke.Team} wins");
+    }
+
     private sealed class ServerPlane
     {
         public ServerPlane(int id, Team team, PlaneState state)
@@ -472,14 +539,21 @@ public partial class ServerMain : Node
 
     private sealed class ServerBomb
     {
-        public ServerBomb(int id, int ownerPeerId, uint spawnTick, BombState state, int craterRadius)
+        public ServerBomb(int id, int ownerPeerId, uint spawnTick, BombState state, int craterRadius, Team team, bool nuke)
         {
             Id = id;
             OwnerPeerId = ownerPeerId;
             SpawnTick = spawnTick;
             State = state;
             CraterRadius = craterRadius;
+            Team = team;
+            Nuke = nuke;
         }
+
+        /// <summary>The team whose plane dropped it.</summary>
+        public Team Team { get; }
+
+        public bool Nuke { get; }
 
         /// <summary>Set by the match phase when the bomb was dropped.</summary>
         public int CraterRadius { get; }
