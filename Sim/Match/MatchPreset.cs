@@ -41,6 +41,12 @@ public sealed record MatchPreset
     /// </summary>
     public float NukeCooldownMinutes { get; init; } = 4;
 
+    /// <summary>
+    /// Free building for practice and the automated tests: blocks place without items, mine at once and give
+    /// nothing, as in Minecraft's creative mode. Real matches gather and carry everything.
+    /// </summary>
+    public bool Creative { get; init; }
+
     /// <summary>A team concedes once this share of its players (rounded up) have voted to.</summary>
     public float ConcedeFraction { get; init; } = 0.66f;
 

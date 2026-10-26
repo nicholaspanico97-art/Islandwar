@@ -53,6 +53,7 @@ public partial class ServerMain : Node, IServerTransport
         _net.ConcedeVoteReceived += _game.ConcedeVote;
         _net.PlaceRequested += _game.PlaceRequested;
         _net.RemoveRequested += _game.RemoveRequested;
+        _net.TransferRequested += _game.TransferRequested;
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateServer(Args.Port, MaxClients);
@@ -109,4 +110,6 @@ public partial class ServerMain : Node, IServerTransport
     public void BroadcastObjectRemoved(int id) => _net.BroadcastObjectRemoved(id);
 
     public void SendTeamState(int peer, byte[] state) => _net.SendTeamState(peer, state);
+
+    public void SendBackpack(int peer, byte[] backpack) => _net.SendBackpack(peer, backpack);
 }

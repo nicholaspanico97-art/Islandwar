@@ -37,6 +37,12 @@ public partial class Hotbar : HBoxContainer
     /// <summary>Kinds of structure to offer after the blocks; none in the offline sandbox.</summary>
     public IReadOnlyList<ObjectKind> Kinds { get; init; } = Array.Empty<ObjectKind>();
 
+    /// <summary>The blocks to offer; every placeable block when null (creative).</summary>
+    public IReadOnlyList<Block>? Blocks { get; init; }
+
+    private readonly List<Label> _counts = new();
+    private string _shownCounts = "";
+
     public IReadOnlyList<HotbarItem> Items { get; private set; } = Array.Empty<HotbarItem>();
 
     public HotbarItem Selected => Items[_selected];
@@ -46,7 +52,7 @@ public partial class Hotbar : HBoxContainer
         Name = "Hotbar";
         MouseFilter = MouseFilterEnum.Ignore;
         AddThemeConstantOverride("separation", 6);
-        Items = Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().Select(b => new HotbarItem(b))
+        Items = (Blocks ?? Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().ToArray()).Select(b => new HotbarItem(b))
             .Concat(Kinds.Select(k => new HotbarItem(Block.Structure, k)))
             .ToArray();
         for (int i = 0; i < Items.Count; i++)
@@ -83,6 +89,27 @@ public partial class Hotbar : HBoxContainer
         }
     }
 
+    /// <summary>
+    /// How many of each slot's block the player carries, or null to show no counts (creative). A slot with
+    /// none left is dimmed.
+    /// </summary>
+    public void ShowCounts(Func<HotbarItem, int?> count)
+    {
+        int?[] counts = Items.Select(count).ToArray();
+        string shown = string.Join(",", counts);
+        if (shown == _shownCounts)
+        {
+            return;
+        }
+
+        _shownCounts = shown;
+        for (int i = 0; i < counts.Length; i++)
+        {
+            _counts[i].Text = counts[i] is { } n ? n.ToString() : "";
+            _slots[i].Modulate = counts[i] == 0 ? new Color(1, 1, 1, 0.45f) : Colors.White;
+        }
+    }
+
     public void Select(int index)
     {
         _selected = index;
@@ -106,6 +133,11 @@ public partial class Hotbar : HBoxContainer
         number.AddThemeColorOverride("font_outline_color", Colors.Black);
         number.AddThemeConstantOverride("outline_size", 4);
         slot.AddChild(number);
+        var count = new Label { HorizontalAlignment = HorizontalAlignment.Right, Position = new Vector2(4, SlotSize - 26), Size = new Vector2(SlotSize - 8, 22) };
+        count.AddThemeColorOverride("font_outline_color", Colors.Black);
+        count.AddThemeConstantOverride("outline_size", 4);
+        slot.AddChild(count);
+        _counts.Add(count);
         _slots.Add(slot);
         return slot;
     }

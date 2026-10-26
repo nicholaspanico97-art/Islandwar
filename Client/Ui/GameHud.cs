@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using IslandWar.Sim.Objects;
+using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Vehicles;
 
 namespace IslandWar.Client.Ui;
@@ -12,7 +13,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint | Left click break, right click place, number keys or wheel pick a block or structure | E plane | Tab scores | Esc mouse";
+        "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | E plane, storage | Tab scores";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
@@ -37,18 +38,26 @@ public partial class GameHud : CanvasLayer
     /// <summary>Kinds of structure for the hotbar, after the blocks.</summary>
     public IReadOnlyList<ObjectKind> StructureKinds { get; init; } = System.Array.Empty<ObjectKind>();
 
+    /// <summary>Blocks for the hotbar; every placeable one when null (creative).</summary>
+    public IReadOnlyList<Block>? HotbarBlocks { get; init; }
+
+    public StoragePanel Storage { get; private set; } = null!;
+
+    private ProgressBar _mining = null!;
+    private Label _backpack = null!;
+
     public override void _Ready()
     {
         Name = "Hud";
         _crosshair = new Crosshair();
         AddChild(_crosshair);
-        Hotbar = new Hotbar { Kinds = StructureKinds };
+        Hotbar = new Hotbar { Kinds = StructureKinds, Blocks = HotbarBlocks };
         AddChild(Hotbar);
         _help = Outlined(new Label { Position = new Vector2(12, 8) });
 
         _prompt = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
         _prompt.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterBottom);
-        _prompt.OffsetTop = -110;
+        _prompt.OffsetTop = -130;
         _prompt.GrowHorizontal = Control.GrowDirection.Both;
         _prompt.AddThemeFontSizeOverride("font_size", 22);
 
@@ -74,6 +83,22 @@ public partial class GameHud : CanvasLayer
 
         Scoreboard = new Scoreboard();
         AddChild(Scoreboard);
+        Storage = new StoragePanel();
+        AddChild(Storage);
+
+        _mining = new ProgressBar { MinValue = 0, MaxValue = 1, ShowPercentage = false, Visible = false, CustomMinimumSize = new Vector2(120, 8) };
+        _mining.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center, Control.LayoutPresetMode.Minsize);
+        _mining.OffsetTop = 22;
+        _mining.OffsetBottom = 30;
+        _mining.OffsetLeft = -60;
+        _mining.OffsetRight = 60;
+        AddChild(_mining);
+
+        _backpack = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
+        _backpack.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterBottom);
+        _backpack.GrowHorizontal = Control.GrowDirection.Both;
+        _backpack.OffsetTop = -100;
+        _backpack.AddThemeFontSizeOverride("font_size", 16);
 
         _bannerTitle = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
         _bannerTitle.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
@@ -148,6 +173,16 @@ public partial class GameHud : CanvasLayer
         _bannerSecondsLeft = seconds;
     }
 
+    /// <summary>How far through mining the block under the crosshair, 0 to 1; null hides the bar.</summary>
+    public void ShowMining(float? fraction)
+    {
+        _mining.Visible = fraction is not null;
+        _mining.Value = fraction ?? 0;
+    }
+
+    /// <summary>The line above the hotbar about what you carry; empty hides it.</summary>
+    public void ShowBackpack(string text) => _backpack.Text = text;
+
     /// <summary>Who and which side you are, top right.</summary>
     public void ShowIdentity(string text, Color colour)
     {
@@ -161,6 +196,7 @@ public partial class GameHud : CanvasLayer
         _help.Text = OnFootHelp;
         _crosshair.Visible = true;
         Hotbar.Visible = true;
+        _backpack.Visible = true;
         _flight.Visible = false;
         _prompt.Visible = prompt is not null;
         _prompt.Text = prompt ?? "";
@@ -173,6 +209,8 @@ public partial class GameHud : CanvasLayer
         _help.Text = FlyingHelp;
         _crosshair.Visible = false;
         Hotbar.Visible = false;
+        _backpack.Visible = false;
+        _mining.Visible = false;
         _prompt.Visible = false;
         _flight.Visible = true;
         bool stalling = !plane.OnGround && plane.Airspeed < settings.StallSpeed;

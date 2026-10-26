@@ -68,6 +68,12 @@ public sealed class ServerState
 
     public float TickSeconds => Data.Net.TickSeconds;
 
+    /// <summary>Seconds since the server started, by its tick.</summary>
+    public double Seconds => Tick * (double)Data.Net.TickSeconds;
+
+    /// <summary>The preset builds freely (practice, tests): no items needed or gathered, instant mining.</summary>
+    public bool Creative => Preset.Creative;
+
     public int Count(Team team) => Players.Values.Count(p => p.Team == team);
 
     public bool IsOnline(int playerId) => Players.Values.Any(p => p.PlayerId == playerId);

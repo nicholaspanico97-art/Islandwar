@@ -44,6 +44,7 @@
   },
   "practice": {
     // Never starts a match: endless warmup with everything allowed. The bot sync test uses it.
+    "creative": true,
     "max_players_per_team": 12,
     "max_team_imbalance": 12,
     "min_players_per_team": 1000,
@@ -57,6 +58,7 @@
   },
   "test": {
     // A whole match in about 20 seconds, for the automated match test.
+    "creative": true,
     "max_players_per_team": 4,
     "max_team_imbalance": 1,
     "min_players_per_team": 1,
@@ -70,6 +72,7 @@
   },
   "nuketest": {
     // Phase 3 (and the nuke) after 3 seconds, for the automated nuke test.
+    "creative": true,
     "max_players_per_team": 4,
     "max_team_imbalance": 1,
     "min_players_per_team": 1,

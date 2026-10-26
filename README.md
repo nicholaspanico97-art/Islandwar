@@ -27,8 +27,11 @@ broken by hand, and your own bombs don't crater your own half), and the big isla
 sketch (`docs/island-sketch.png`): two 600 x 300 mirrored islands with mountains full of ore, hills,
 forests and grassland facing the strait, streamed in around the camera; and the foundations: the server
 game moved into plain C# systems (unit-tested without the engine), generic replicated objects with
-placeable structures that bombs damage and destroy, and per-team state sent only to that team. Next:
-resources against the developer's tech tree.
+placeable structures that bombs damage and destroy, and per-team state sent only to that team.
+
+The economy is being built era by era from the developer's draft, starting with the Stone Age. Done so far:
+items, a personal backpack, hold-to-mine with block hardness, ore kinds (copper, tin, iron, coal) and clay,
+and team storage whose contents make the team's stock. Next: crafting, the furnace, then research and eras.
 
 ## Versions
 

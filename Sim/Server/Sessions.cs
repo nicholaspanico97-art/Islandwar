@@ -1,3 +1,4 @@
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 
 namespace IslandWar.Sim.Server;
@@ -14,25 +15,27 @@ public sealed class Sessions
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
     private readonly TeamStates _teams;
+    private readonly Inventory _inventory;
 
     /// <summary>Connected peers that haven't said hello yet, with when they connected.</summary>
     private readonly Dictionary<int, ulong> _pending = new();
 
     /// <summary>
     /// Seats of players who left during this match, by identity token, so they come back to the same team
-    /// with the same name. Forgotten when the server returns to warmup.
+    /// with the same name and what they were carrying. Forgotten when the server returns to warmup.
     /// </summary>
-    private readonly Dictionary<string, (string Name, Team Team)> _departed = new();
+    private readonly Dictionary<string, (string Name, Team Team, IReadOnlyDictionary<string, int> Backpack)> _departed = new();
 
     /// <summary>Lasting player ids by identity token, for block ownership. Ids start at 1; 0 means nobody.</summary>
     private readonly Dictionary<string, int> _playerIds = new();
     private int _nextPlayerId = 1;
 
-    public Sessions(ServerState state, Vehicles vehicles, TeamStates teams)
+    public Sessions(ServerState state, Vehicles vehicles, TeamStates teams, Inventory inventory)
     {
         _state = state;
         _vehicles = vehicles;
         _teams = teams;
+        _inventory = inventory;
     }
 
     /// <summary>Someone left after saying hello; the match system checks whether that settles a concede vote.</summary>
@@ -60,7 +63,7 @@ public sealed class Sessions
             token = "";
         }
 
-        (string Name, Team Team) seat = ("", Team.None);
+        (string Name, Team Team, IReadOnlyDictionary<string, int> Backpack) seat = ("", Team.None, ItemCounts.None);
         bool returning = token.Length > 0 && _departed.Remove(token, out seat);
         if (returning)
         {
@@ -90,9 +93,10 @@ public sealed class Sessions
             _playerIds[token] = playerId;
         }
 
-        players[peer] = new ServerPlayer(peer, name, team, token, playerId, _state.NextSpawn(team), _state.Data.Net);
+        players[peer] = new ServerPlayer(peer, name, team, token, playerId, _state.NextSpawn(team), _state.Data.Net) { Backpack = returning ? seat.Backpack : ItemCounts.None };
         _state.Net.SendWorld(peer, _state.CurrentWorld());
         _teams.SendTo(players[peer]);
+        _inventory.SendBackpack(players[peer]);
         _state.BroadcastRoster();
         _state.Log($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' (player {playerId}) on {team}; sent the world with {_state.World.Deltas.All().Count()} edits and {_state.Objects.Count} objects");
     }
@@ -114,7 +118,7 @@ public sealed class Sessions
         // Keep their seat for this match in case they come back.
         if (player.Token.Length > 0 && _state.Match.Stage != MatchStage.Warmup)
         {
-            _departed[player.Token] = (player.Name, player.Team);
+            _departed[player.Token] = (player.Name, player.Team, player.Backpack);
         }
 
         _state.BroadcastRoster();

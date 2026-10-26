@@ -156,11 +156,11 @@ public class IslandGeneratorTests
                 for (int y = 1; y <= map.Surface(x, z); y++)
                 {
                     Block block = world.Get(new BlockPos(x, y, z));
-                    bool rock = block is Block.Stone or Block.Ore;
+                    bool rock = block == Block.Stone || BlockNames.IsOre(block);
                     mountainStone += mountain && rock ? 1 : 0;
-                    mountainOre += mountain && block == Block.Ore ? 1 : 0;
+                    mountainOre += mountain && BlockNames.IsOre(block) ? 1 : 0;
                     plainStone += plain && rock ? 1 : 0;
-                    plainOre += plain && block == Block.Ore ? 1 : 0;
+                    plainOre += plain && BlockNames.IsOre(block) ? 1 : 0;
                 }
 
                 bool trunk = world.Get(new BlockPos(x, map.Surface(x, z) + 1, z)) == Block.Wood;

@@ -1,3 +1,4 @@
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
@@ -38,6 +39,12 @@ public sealed class ServerPlayer
     public int PlayerId { get; }
 
     public bool ConcedeVote { get; set; }
+
+    /// <summary>What they carry, by item id (sent only to them).</summary>
+    public IReadOnlyDictionary<string, int> Backpack { get; set; } = ItemCounts.None;
+
+    /// <summary>When they last mined a block, on the server clock, so mining can't go faster than hardness allows.</summary>
+    public double LastMinedSeconds { get; set; } = double.NegativeInfinity;
 
     /// <summary>Where this player appeared, and where they come back after falling off the map.</summary>
     public PlayerState Spawn { get; private set; }

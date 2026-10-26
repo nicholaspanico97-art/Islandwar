@@ -40,6 +40,25 @@ public sealed record IslandRegion
 }
 
 /// <summary>
+/// One kind of ore: how many stone clumps in a thousand hold it at the heart of the mountains and away from
+/// them (the chance blends between the two with the mountains' strength).
+/// </summary>
+public sealed record OreVein
+{
+    /// <summary>The ore's block name, such as <c>copper_ore</c>.</summary>
+    public string Block { get; init; } = "";
+
+    public int ChanceMountains { get; init; }
+
+    public int ChanceElsewhere { get; init; }
+
+    private Block? _kind;
+
+    /// <summary>The block itself (looked up once; the generator asks for it per block of stone).</summary>
+    public Block Kind => _kind ??= BlockNames.Parse(Block, "terrain.json");
+}
+
+/// <summary>
 /// Island terrain tunables. Loaded from <c>data/terrain.json</c>; never hardcode these. The map holds two
 /// identical islands side by side along X, the east one a mirror image of the west one, laid out from the
 /// developer's sketch (docs/island-sketch.png): the far ends are the mountains, the near ends face each
@@ -103,11 +122,11 @@ public sealed record IslandSettings
     /// <summary>Mountains, hills and forests, from the sketch.</summary>
     public IReadOnlyList<IslandRegion> Regions { get; init; } = Array.Empty<IslandRegion>();
 
-    /// <summary>Chance in a thousand that a clump of stone holds ore, at the heart of the mountains.</summary>
-    public int OreChanceMountains { get; init; } = 120;
+    /// <summary>The kinds of ore under the islands. A clump of stone holds at most one kind.</summary>
+    public IReadOnlyList<OreVein> Ores { get; init; } = Array.Empty<OreVein>();
 
-    /// <summary>Chance in a thousand that a clump of stone holds ore anywhere else on the island.</summary>
-    public int OreChanceElsewhere { get; init; } = 12;
+    /// <summary>Chance in a thousand that a clump of beach sand is clay.</summary>
+    public int ClayChance { get; init; } = 60;
 
     /// <summary>Ore comes in clumps of up to this many blocks across.</summary>
     public int OreClumpSize { get; init; } = 3;
@@ -182,6 +201,19 @@ public sealed record IslandSettings
             || Outline.Any(p => p.U is < 0 or > 1 || p.North is < 0 or > 1 || p.South is < 0 or > 1 || p.South < p.North))
         {
             throw new InvalidDataException("outline needs at least two points in order of u, with 0 <= north <= south <= 1 and u between 0 and 1.");
+        }
+
+        foreach (OreVein ore in Ores)
+        {
+            if (!BlockNames.IsOre(ore.Kind) || ore.Kind == Voxels.Block.Ore || ore.ChanceMountains is < 0 or > 1000 || ore.ChanceElsewhere is < 0 or > 1000)
+            {
+                throw new InvalidDataException($"ores: '{ore.Block}' needs to be an ore block, with chances of 0 to 1000.");
+            }
+        }
+
+        if (Ores.Sum(o => Math.Max(o.ChanceMountains, o.ChanceElsewhere)) > 1000 || ClayChance is < 0 or > 1000)
+        {
+            throw new InvalidDataException("ores: the chances may add up to at most 1000 (a clump holds one kind), and clay_chance must be 0 to 1000.");
         }
 
         foreach (IslandRegion region in Regions)

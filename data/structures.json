@@ -4,8 +4,9 @@
   // size is in blocks along x, y (up) and z, before turning; turning 90 degrees swaps x and z.
   // color is how clients draw it until there are models.
   "kinds": [
-    { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444" },
-    { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670" },
+    // capacity: how many items it stores (any mix). Stored items belong to the team and are lost with it.
+    { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444", "capacity": 200 },
+    { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670", "capacity": 1000 },
     { "id": "workshop", "name": "Workshop", "size": { "x": 4, "y": 3, "z": 2 }, "max_health": 150, "color": "#7a5c8c" },
   ]
 }

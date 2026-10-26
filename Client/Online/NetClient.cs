@@ -6,6 +6,7 @@ using Godot;
 using IslandWar.Client.Game;
 using IslandWar.Net;
 using IslandWar.Sim;
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
@@ -40,6 +41,12 @@ public partial class NetClient : Node, IGameLink
 
     /// <summary>Our team's shared state, as the server last said.</summary>
     public TeamState? TeamState { get; private set; }
+
+    /// <summary>What we carry, as the server last said.</summary>
+    public IReadOnlyDictionary<string, int> Backpack { get; private set; } = ItemCounts.None;
+
+    /// <summary>The server's preset builds freely: no items needed, instant mining.</summary>
+    public bool Creative => Preset?.Creative ?? false;
 
     /// <summary>True if the world rebuilt on join had the same hash as the server's.</summary>
     public bool WorldMatchedServer { get; private set; }
@@ -107,6 +114,7 @@ public partial class NetClient : Node, IGameLink
         Replicator.ObjectsReceived += OnObjects;
         Replicator.ObjectRemoved += OnObjectRemoved;
         Replicator.TeamStateReceived += OnTeamState;
+        Replicator.BackpackReceived += OnBackpack;
     }
 
     public override void _ExitTree()
@@ -122,6 +130,7 @@ public partial class NetClient : Node, IGameLink
         Replicator.ObjectsReceived -= OnObjects;
         Replicator.ObjectRemoved -= OnObjectRemoved;
         Replicator.TeamStateReceived -= OnTeamState;
+        Replicator.BackpackReceived -= OnBackpack;
     }
 
     public override void _Process(double delta)
@@ -148,6 +157,8 @@ public partial class NetClient : Node, IGameLink
     public void RequestPlace(string kind, BlockPos origin, int facing) => Replicator.RequestPlace(kind, origin, facing);
 
     public void RequestRemove(int objectId) => Replicator.RequestRemove(objectId);
+
+    public void RequestTransfer(int storageId, string item, int count, bool intoStorage) => Replicator.RequestTransfer(storageId, item, count, intoStorage);
 
     /// <summary>What we compare with the server's hash: our world and our objects.</summary>
     public ulong ComputeHash() => GameHash.Of(World!, Objects!);
@@ -255,6 +266,8 @@ public partial class NetClient : Node, IGameLink
     private void OnObjectRemoved(int id) => Objects?.Remove(id);
 
     private void OnTeamState(byte[] data) => TeamState = WireFormat.DecodeTeamState(data);
+
+    private void OnBackpack(byte[] data) => Backpack = WireFormat.DecodeCounts(data);
 
     private void OnExplosion(Explosion explosion)
     {

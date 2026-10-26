@@ -31,6 +31,7 @@ public partial class LocalSandbox : Node
             Terrain = data.Terrain,
             Rules = data.Rules,
             Net = data.Net,
+            Items = data.Items,
             Spawn = PawnState.OnFoot(data.SpawnIn(world, Team.Red)),
         });
     }

@@ -52,10 +52,18 @@
     { "kind": "forest", "u": 0.80, "v": 0.47, "radius_u": 0.10, "radius_v": 0.17, "tree_chance": 900 },
   ],
 
-  // Ore clumps: dense in the mountains, sparse everywhere else on the islands.
-  "ore_chance_mountains": 120,
-  "ore_chance_elsewhere": 12,
+  // Ore clumps: dense in the mountains, sparse everywhere else on the islands. Chances are per thousand
+  // clumps of stone, blending from chance_elsewhere to chance_mountains towards the mountains' heart. Tin
+  // is the scarce one: almost only in the mountains.
+  "ores": [
+    { "block": "copper_ore", "chance_mountains": 50, "chance_elsewhere": 8 },
+    { "block": "tin_ore", "chance_mountains": 25, "chance_elsewhere": 1 },
+    { "block": "iron_ore", "chance_mountains": 35, "chance_elsewhere": 3 },
+    { "block": "coal", "chance_mountains": 30, "chance_elsewhere": 6 },
+  ],
   "ore_clump_size": 3,
+  // Clay: clumps in the beach sand.
+  "clay_chance": 60,
 
   "tree_cell_size": 7,
   "grassland_tree_chance": 15,

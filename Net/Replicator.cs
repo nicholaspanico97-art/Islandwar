@@ -47,6 +47,9 @@ public partial class Replicator : Node
     /// <summary>Server: a player asks to remove a structure (peer id, object id).</summary>
     public event Action<int, int>? RemoveRequested;
 
+    /// <summary>Server: a player moves items between their backpack and a storage (peer id, storage id, item, count, into storage).</summary>
+    public event Action<int, int, string, int, bool>? TransferRequested;
+
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
 
@@ -80,6 +83,9 @@ public partial class Replicator : Node
     /// <summary>Client: our team's state (packed).</summary>
     public event Action<byte[]>? TeamStateReceived;
 
+    /// <summary>Client: our backpack (packed).</summary>
+    public event Action<byte[]>? BackpackReceived;
+
     public override void _Ready()
     {
         Name = "Replicator";
@@ -103,11 +109,14 @@ public partial class Replicator : Node
 
     public void RequestRemove(int objectId) => RpcId(ServerId, MethodName.ReceiveRemoveRequest, objectId);
 
+    public void RequestTransfer(int storageId, string item, int count, bool intoStorage) =>
+        RpcId(ServerId, MethodName.ReceiveTransferRequest, storageId, item, count, intoStorage);
+
     // ---- Server to client ----
 
     public void SendWorld(int peer, WorldInit world) =>
         RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson,
-            world.Data.WeaponsJson, world.Data.PresetsJson, world.Data.StructuresJson, world.EditsData, world.ObjectsData, (long)world.Hash, world.DevMode, world.PresetName);
+            world.Data.WeaponsJson, world.Data.PresetsJson, world.Data.StructuresJson, world.Data.ItemsJson, world.EditsData, world.ObjectsData, (long)world.Hash, world.DevMode, world.PresetName);
 
     public void BroadcastRoster(byte[] roster) => Rpc(MethodName.ReceiveRoster, roster);
 
@@ -140,6 +149,8 @@ public partial class Replicator : Node
 
     public void SendTeamState(int peer, byte[] state) => RpcId(peer, MethodName.ReceiveTeamState, state);
 
+    public void SendBackpack(int peer, byte[] backpack) => RpcId(peer, MethodName.ReceiveBackpack, backpack);
+
     // ---- Receivers ----
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = InputChannel)]
@@ -171,8 +182,8 @@ public partial class Replicator : Node
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, string presetsJson,
-        string structuresJson, byte[] edits, byte[] objects, long hash, bool devMode, string presetName) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson, structuresJson),
+        string structuresJson, string itemsJson, byte[] edits, byte[] objects, long hash, bool devMode, string presetName) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson, structuresJson, itemsJson),
             edits, objects, (ulong)hash, devMode, presetName));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -210,6 +221,18 @@ public partial class Replicator : Node
             RemoveRequested?.Invoke(Multiplayer.GetRemoteSenderId(), objectId);
         }
     }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveTransferRequest(int storageId, string item, int count, bool intoStorage)
+    {
+        if (Multiplayer.IsServer())
+        {
+            TransferRequested?.Invoke(Multiplayer.GetRemoteSenderId(), storageId, item, count, intoStorage);
+        }
+    }
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveBackpack(byte[] backpack) => BackpackReceived?.Invoke(backpack);
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveObjects(byte[] objects) => ObjectsReceived?.Invoke(objects);

@@ -1,4 +1,5 @@
 using System.Numerics;
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
@@ -15,6 +16,9 @@ public sealed class Structures
 {
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
+
+    /// <summary>Set once the inventory exists (it needs the team states, which need nothing).</summary>
+    public Inventory? Inventory { get; set; }
 
     /// <summary>Object ids are never reused, even across matches.</summary>
     private int _nextId = 1;
@@ -68,6 +72,8 @@ public sealed class Structures
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, target.Footprint(kind)) ? "out of reach"
             : !Protection.MayBreak(target.Owner, player.PlayerId, player.Team, _state.IsOnline) ? "a teammate built that"
+            : kind.IsStorage && ItemCounts.Contents(target).Count > 0 ? "it isn't empty"
+            : !_state.Creative && _state.Seconds - player.LastMinedSeconds < _state.Data.Items.StructureHardness - _state.Data.Items.MiningSlackSeconds ? "taking it down too fast"
             : null;
         if (reason is not null)
         {
@@ -75,6 +81,7 @@ public sealed class Structures
             return;
         }
 
+        player.LastMinedSeconds = _state.Seconds;
         foreach (VoxelEdit edit in Clear(target))
         {
             _state.Net.BroadcastEdit(edit);
@@ -130,6 +137,12 @@ public sealed class Structures
         {
             _state.Net.BroadcastObjectRemoved(gone.Id);
             _state.Log($"[server] {_state.Objects.Kinds.Get(gone.Kind)?.Name ?? gone.Kind} {gone.Id} ({gone.Team}) was destroyed");
+        }
+
+        // Whatever destroyed storage held is gone with it.
+        foreach (Team team in result.Destroyed.Select(o => o.Team).Distinct())
+        {
+            Inventory?.RecountStock(team);
         }
 
         foreach (GameObject hurt in result.Damaged)

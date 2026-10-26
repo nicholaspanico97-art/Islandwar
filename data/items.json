@@ -1,0 +1,40 @@
+{
+  // Items, and what each block gives when mined. Stone Age first pass: the developer's raw resources list
+  // will replace these. Hardness is the seconds it takes to mine a block by hand; tools come with crafting.
+  // How many items a player can carry, of any mix.
+  "backpack_capacity": 40,
+  // The server allows a mine this much faster than the block's hardness, for network timing.
+  "mining_slack_seconds": 0.25,
+  // Taking a whole structure down by hand takes this long.
+  "structure_hardness": 1.5,
+
+  // places: the block an item puts down when placed from the hotbar (none for raw materials).
+  "items": [
+    { "id": "log", "name": "Log", "color": "#5c4024", "places": "wood" },
+    { "id": "planks", "name": "Planks", "color": "#b88c54", "places": "planks" },
+    { "id": "stone", "name": "Stone", "color": "#808085", "places": "stone" },
+    { "id": "dirt", "name": "Dirt", "color": "#785436", "places": "dirt" },
+    { "id": "sand", "name": "Sand", "color": "#dbcc91", "places": "sand" },
+    { "id": "clay", "name": "Clay", "color": "#9ea3b3" },
+    { "id": "copper_ore", "name": "Copper ore", "color": "#cd783c" },
+    { "id": "tin_ore", "name": "Tin ore", "color": "#bec3cd" },
+    { "id": "iron_ore", "name": "Iron ore", "color": "#a06c5c" },
+    { "id": "coal", "name": "Coal", "color": "#28282a" },
+  ],
+
+  // Every natural or placeable block: seconds to mine by hand, and the item it drops (none for leaves).
+  "blocks": {
+    "stone": { "hardness": 1.5, "drops": "stone" },
+    "dirt": { "hardness": 0.5, "drops": "dirt" },
+    "grass": { "hardness": 0.6, "drops": "dirt" },
+    "sand": { "hardness": 0.5, "drops": "sand" },
+    "planks": { "hardness": 1.0, "drops": "planks" },
+    "wood": { "hardness": 2.0, "drops": "log" },
+    "leaves": { "hardness": 0.2 },
+    "copper_ore": { "hardness": 3.0, "drops": "copper_ore" },
+    "tin_ore": { "hardness": 3.0, "drops": "tin_ore" },
+    "iron_ore": { "hardness": 4.0, "drops": "iron_ore" },
+    "coal": { "hardness": 2.5, "drops": "coal" },
+    "clay": { "hardness": 0.8, "drops": "clay" },
+  }
+}

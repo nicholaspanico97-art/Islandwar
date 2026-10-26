@@ -21,6 +21,7 @@ public sealed class GameServer
     private readonly Replication _replication;
     private readonly Structures _structures;
     private readonly TeamStates _teams;
+    private readonly Inventory _inventory;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
@@ -28,11 +29,13 @@ public sealed class GameServer
         _vehicles = new Vehicles(State);
         _structures = new Structures(State, _vehicles);
         _teams = new TeamStates(State);
+        _inventory = new Inventory(State, _teams);
+        _structures.Inventory = _inventory;
         _weapons = new Weapons(State, _structures);
-        _sessions = new Sessions(State, _vehicles, _teams);
+        _sessions = new Sessions(State, _vehicles, _teams, _inventory);
         _match = new MatchSystem(State);
         _movement = new Movement(State, _vehicles, _weapons);
-        _building = new Building(State, _vehicles);
+        _building = new Building(State, _vehicles, _inventory);
         _replication = new Replication(State, _weapons);
 
         _match.Started += ResetWorld;
@@ -79,6 +82,11 @@ public sealed class GameServer
 
     public void RemoveRequested(int peer, int objectId) => _structures.RemoveRequested(peer, objectId);
 
+    public void TransferRequested(int peer, int storageId, string item, int count, bool intoStorage) =>
+        _inventory.TransferRequested(peer, storageId, item, count, intoStorage);
+
+    public Inventory Inventory => _inventory;
+
     /// <summary>The teams' shared state, for systems (and tests) that change it.</summary>
     public TeamStates Teams => _teams;
 
@@ -94,6 +102,7 @@ public sealed class GameServer
         _weapons.Reset();
         _structures.Reset();
         _teams.Reset();
+        _inventory.Reset();
         _vehicles.ResetToMoorings();
         State.ResetSpawns();
         WorldInit fresh = State.CurrentWorld();

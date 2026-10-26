@@ -50,8 +50,7 @@ public static class IslandGenerator
         int surface = map.Surface(x, z);
         Ground ground = map.GroundAt(x, z);
         bool rock = ground == Ground.Land && surface >= settings.SeaLevel + settings.RockLine;
-        int oreChance = settings.OreChanceElsewhere
-                        + (settings.OreChanceMountains - settings.OreChanceElsewhere) * map.Mountains(x, z) / One;
+        int mountains = map.Mountains(x, z);
         int mirror = map.Mirror(x);
 
         for (int y = 0; y <= surface; y++)
@@ -71,10 +70,14 @@ public static class IslandGenerator
                 block = y > surface - settings.DirtDepth - 1 ? Block.Dirt : Block.Stone;
             }
 
-            // Ore only under the islands, and never in the unbreakable bottom layer.
-            if (block == Block.Stone && ground != Ground.Sea && y > VoxelWorld.UnbreakableLayer && IsOre(settings, seed, oreChance, x, y, z))
+            // Ore only under the islands, and never in the unbreakable bottom layer; clay only in beach sand.
+            if (block == Block.Stone && ground != Ground.Sea && y > VoxelWorld.UnbreakableLayer)
             {
-                block = Block.Ore;
+                block = OreAt(settings, seed, mountains, x, y, z);
+            }
+            else if (block == Block.Sand && ground == Ground.Beach && InClump(settings, seed + 22, settings.ClayChance, x, y, z))
+            {
+                block = Block.Clay;
             }
 
             world.SetGenerated(new BlockPos(x, y, z), block);
@@ -85,12 +88,32 @@ public static class IslandGenerator
         }
     }
 
-    /// <summary>Stone is split into clumps; a clump holds ore by chance, and then most of its blocks are ore.</summary>
-    private static bool IsOre(IslandSettings settings, int seed, int clumpChance, int x, int y, int z)
+    /// <summary>
+    /// Stone is split into clumps; one roll per clump picks at most one kind of ore (each kind takes its share
+    /// of the thousand, by how deep in the mountains the column is), and then most of the clump's blocks are it.
+    /// </summary>
+    private static Block OreAt(IslandSettings settings, int seed, int mountains, int x, int y, int z)
     {
         int size = settings.OreClumpSize;
-        return Noise.Hash(x / size, y / size, z / size, seed + 20) % 1000 < clumpChance
-               && Noise.Hash(x, y, z, seed + 21) % 1000 < OreInClump;
+        int roll = Noise.Hash(x / size, y / size, z / size, seed + 20) % 1000;
+        foreach (OreVein ore in settings.Ores)
+        {
+            int chance = ore.ChanceElsewhere + (ore.ChanceMountains - ore.ChanceElsewhere) * mountains / One;
+            if (roll < chance)
+            {
+                return Noise.Hash(x, y, z, seed + 21) % 1000 < OreInClump ? ore.Kind : Block.Stone;
+            }
+
+            roll -= chance;
+        }
+
+        return Block.Stone;
+    }
+
+    private static bool InClump(IslandSettings settings, int seed, int chance, int x, int y, int z)
+    {
+        int size = settings.OreClumpSize;
+        return Noise.Hash(x / size, y / size, z / size, seed) % 1000 < chance && Noise.Hash(x, y, z, seed + 1) % 1000 < OreInClump;
     }
 
     /// <summary>

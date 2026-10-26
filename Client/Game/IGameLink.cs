@@ -69,4 +69,13 @@ public interface IGameLink
 
     /// <summary>Asks the server to take a structure away.</summary>
     void RequestRemove(int objectId);
+
+    /// <summary>What we carry, by item id, as the server last said.</summary>
+    IReadOnlyDictionary<string, int> Backpack { get; }
+
+    /// <summary>The server builds freely (practice, tests): no items needed, instant mining.</summary>
+    bool Creative { get; }
+
+    /// <summary>Moves items between our backpack and one of our team's storage structures.</summary>
+    void RequestTransfer(int storageId, string item, int count, bool intoStorage);
 }

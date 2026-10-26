@@ -5,6 +5,7 @@ using Godot;
 using IslandWar.Client.Ui;
 using IslandWar.Client.Voxels;
 using IslandWar.Sim;
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
@@ -57,6 +58,11 @@ public partial class ClientGame : Node3D
     private bool _nukePressed;
     private MatchStatus _lastMatch;
 
+    /// <summary>The block being mined (hold to mine), and for how long it has been.</summary>
+    private BlockPos? _miningAt;
+    private double _miningSeconds;
+    private bool _miningRefused;
+
     public VoxelWorld World { get; init; } = null!;
 
     public IslandSettings Terrain { get; init; } = null!;
@@ -65,12 +71,18 @@ public partial class ClientGame : Node3D
 
     public NetSettings Net { get; init; } = null!;
 
+    /// <summary>Items, what each block drops and how long it takes to mine.</summary>
+    public ItemSettings Items { get; init; } = null!;
+
     /// <summary>Where the local player starts. The server's spawn when online.</summary>
     public PawnState Spawn { get; init; }
 
     public IGameLink? Link { get; init; }
 
     private PlayerSettings Settings => Rules.Player;
+
+    /// <summary>Building is free (the offline sandbox, practice and tests): no items, instant mining.</summary>
+    private bool Creative => Link?.Creative ?? true;
 
     private PawnState State => _player.State;
 
@@ -100,8 +112,21 @@ public partial class ClientGame : Node3D
         _previous = Spawn;
         _camera = new CameraRig();
         AddChild(_camera);
-        _hud = new GameHud { StructureKinds = Link?.Objects?.Kinds.All ?? Array.Empty<ObjectKind>() };
+        _hud = new GameHud
+        {
+            StructureKinds = Link?.Objects?.Kinds.All ?? Array.Empty<ObjectKind>(),
+
+            // Out of creative, the hotbar offers the blocks some item places; how many you have shows on each.
+            HotbarBlocks = Creative ? null : Items.Items.Select(Items.BlockPlacedBy).OfType<Block>().Order().ToArray(),
+        };
         AddChild(_hud);
+        _hud.Storage.TransferClicked += (item, count, into) =>
+        {
+            if (_hud.Storage.StorageId is { } id)
+            {
+                Link?.RequestTransfer(id, item, count, into);
+            }
+        };
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -179,6 +204,11 @@ public partial class ClientGame : Node3D
                 _pitch = Mathf.Clamp(_pitch + pitch, -Mathf.Pi / 2 + 0.01f, Mathf.Pi / 2 - 0.01f);
             }
         }
+        else if (_hud.Storage.StorageId is not null && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse)))
+        {
+            CloseStorage();
+            GetViewport().SetInputAsHandled();
+        }
         else if (@event.IsActionPressed(InputActions.ReleaseMouse))
         {
             Input.MouseMode = Input.MouseModeEnum.Visible;
@@ -188,13 +218,17 @@ public partial class ClientGame : Node3D
             // While the mouse is free, a click only recaptures it; it doesn't edit.
             if (@event is InputEventMouseButton { Pressed: true })
             {
-                Input.MouseMode = Input.MouseModeEnum.Captured;
+                CloseStorage();
                 GetViewport().SetInputAsHandled();
             }
         }
         else if (@event.IsActionPressed(InputActions.Use))
         {
-            _usePressed = true;
+            // E on our team's storage opens it; anywhere else it's for the plane.
+            if (State.InPlane || !TryOpenStorage())
+            {
+                _usePressed = true;
+            }
         }
         else if (@event.IsActionPressed(InputActions.Concede) && Link is not null)
         {
@@ -218,8 +252,9 @@ public partial class ClientGame : Node3D
             // Noclip is a developer convenience: the sandbox always allows it, a server only in developer mode.
             _wantsFlying = !_wantsFlying;
         }
-        else if (@event.IsActionPressed(InputActions.Break))
+        else if (@event.IsActionPressed(InputActions.Break) && Creative)
         {
+            // Out of creative, mining is holding the button (see Mine).
             Break();
         }
         else if (@event.IsActionPressed(InputActions.Place))
@@ -272,6 +307,8 @@ public partial class ClientGame : Node3D
         }
 
         ShowPlacement();
+        Mine(delta);
+        ShowInventory();
 
         ShowPlanes(planes, delta);
         ShowIdentity();
@@ -414,27 +451,172 @@ public partial class ClientGame : Node3D
 
     private void Break()
     {
-        if (Aim() is { } aimed && Link?.Objects?.At(aimed.Block) is { } structure)
-        {
-            RemoveStructure(structure);
-            return;
-        }
-
-        if (Aim() is not { } hit || !BuildRules.CanBreak(World, hit.Block))
+        if (Aim() is not { } hit)
         {
             return;
         }
 
-        // Team build protection: the server would refuse, so say why instead of flickering the block.
-        BlockOwner owner = World.OwnerOf(hit.Block);
-        if (Link is not null && !Protection.MayBreak(owner, Link.MyPlayerId, Link.MyTeam, id => Link.Roster.Values.Any(p => p.PlayerId == id)))
+        if (WhyCantMine(hit.Block) is { } reason)
         {
-            string who = Link.Roster.Values.FirstOrDefault(p => p.PlayerId == owner.PlayerId).Name ?? "A teammate";
-            _hud.Toast($"{who} built that. Teammates' blocks are protected.");
+            if (reason.Length > 0)
+            {
+                _hud.Toast(reason);
+            }
+
+            return;
+        }
+
+        if (Link?.Objects?.At(hit.Block) is { } structure)
+        {
+            Link.RequestRemove(structure.Id);
             return;
         }
 
         Predict(new VoxelEdit(hit.Block, Block.Air));
+    }
+
+    /// <summary>
+    /// Why a block (or the structure it's part of) can't be mined: null if it can, a message to show if the
+    /// server would refuse (team build protection, a full store), or empty if there's simply nothing to mine.
+    /// </summary>
+    private string? WhyCantMine(BlockPos block)
+    {
+        bool online(int id) => Link!.Roster.Values.Any(p => p.PlayerId == id);
+        string nameOf(int id) => Link!.Roster.Values.FirstOrDefault(p => p.PlayerId == id).Name ?? "A teammate";
+        if (Link?.Objects?.At(block) is { } structure)
+        {
+            if (!Protection.MayBreak(structure.Owner, Link.MyPlayerId, Link.MyTeam, online))
+            {
+                return $"{nameOf(structure.OwnerPlayerId)} built that. Teammates' structures are protected.";
+            }
+
+            return Link.Objects.KindOf(structure).IsStorage && ItemCounts.Contents(structure).Count > 0
+                ? $"Empty the {Link.Objects.KindOf(structure).Name} before taking it down."
+                : null;
+        }
+
+        if (!BuildRules.CanBreak(World, block))
+        {
+            return "";
+        }
+
+        // Team build protection: the server would refuse, so say why instead of flickering the block.
+        BlockOwner owner = World.OwnerOf(block);
+        return Link is not null && !Protection.MayBreak(owner, Link.MyPlayerId, Link.MyTeam, online)
+            ? $"{nameOf(owner.PlayerId)} built that. Teammates' blocks are protected."
+            : null;
+    }
+
+    /// <summary>Seconds to mine a block by hand: its hardness, or the structure time for part of a structure.</summary>
+    private float HardnessOf(BlockPos block) =>
+        Link?.Objects?.At(block) is not null ? Items.StructureHardness : Items.RuleFor(World.Get(block))?.Hardness ?? 0;
+
+    /// <summary>
+    /// Hold to mine: while the button is held on the same block, time builds up to its hardness and then it
+    /// breaks; looking away starts over. Creative mining is a click instead (see _UnhandledInput).
+    /// </summary>
+    private void Mine(double delta)
+    {
+        bool holding = !Creative && !State.InPlane && Input.MouseMode == Input.MouseModeEnum.Captured
+                       && Input.IsActionPressed(InputActions.Break);
+        if (!holding || Aim() is not { } hit)
+        {
+            _miningAt = null;
+            _hud.ShowMining(null);
+            return;
+        }
+
+        if (_miningAt != hit.Block)
+        {
+            _miningAt = hit.Block;
+            _miningSeconds = 0;
+            string? reason = WhyCantMine(hit.Block);
+            _miningRefused = reason is not null;
+            if (reason is { Length: > 0 })
+            {
+                _hud.Toast(reason);
+            }
+        }
+
+        if (_miningRefused)
+        {
+            _hud.ShowMining(null);
+            return;
+        }
+
+        _miningSeconds += delta;
+        float hardness = HardnessOf(hit.Block);
+        _hud.ShowMining(hardness > 0 ? Mathf.Min(1, (float)(_miningSeconds / hardness)) : 1);
+        if (_miningSeconds >= hardness)
+        {
+            Break();
+            _miningAt = null;
+        }
+    }
+
+    /// <summary>Hotbar counts, the backpack line, and the storage window if it's open.</summary>
+    private void ShowInventory()
+    {
+        if (Creative || Link is null)
+        {
+            _hud.Hotbar.ShowCounts(_ => null);
+            _hud.ShowBackpack("");
+        }
+        else
+        {
+            IReadOnlyDictionary<string, int> backpack = Link.Backpack;
+            _hud.Hotbar.ShowCounts(slot => slot.IsStructure ? null : Items.ItemPlacing(slot.Block) is { } item ? backpack.Of(item.Id) : 0);
+            string contents = string.Join(", ", backpack.Select(b => $"{Items.Item(b.Key)?.Name ?? b.Key} {b.Value}"));
+            _hud.ShowBackpack($"Backpack {backpack.Total()} / {Items.BackpackCapacity}{(contents.Length > 0 ? ":  " + contents : "")}");
+        }
+
+        if (_hud.Storage.StorageId is not { } id)
+        {
+            return;
+        }
+
+        // Close if it's gone (destroyed, or a new match) or we've walked away from it.
+        if (Link?.Objects?.Get(id) is not { } storage || !InReach(storage))
+        {
+            CloseStorage();
+            return;
+        }
+
+        ObjectKind kind = Link.Objects.KindOf(storage);
+        _hud.Storage.Show($"{storage.Team} {kind.Name}", Link.Creative ? ItemCounts.None : Link.Backpack, Items.BackpackCapacity,
+            ItemCounts.Contents(storage), kind.Capacity, Items);
+    }
+
+    /// <summary>Opens the storage under the crosshair if it's our team's; false if there isn't one.</summary>
+    private bool TryOpenStorage()
+    {
+        if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } storage
+            || !objects.KindOf(storage).IsStorage)
+        {
+            return false;
+        }
+
+        if (storage.Team != Link.MyTeam)
+        {
+            _hud.Toast("That's the other team's storage.");
+            return true;
+        }
+
+        _hud.Storage.Open(storage.Id);
+        Input.MouseMode = Input.MouseModeEnum.Visible;
+        return true;
+    }
+
+    private void CloseStorage()
+    {
+        _hud.Storage.Close();
+        Input.MouseMode = Input.MouseModeEnum.Captured;
+    }
+
+    private bool InReach(GameObject obj)
+    {
+        System.Numerics.Vector3 eye = State.Player.Position + System.Numerics.Vector3.UnitY * Settings.EyeHeight;
+        return obj.Footprint(Link!.Objects!.KindOf(obj)).Any(b => BuildRules.InReach(Settings, eye, b));
     }
 
     private void Place()
@@ -442,6 +624,13 @@ public partial class ClientGame : Node3D
         if (_hud.Hotbar.Selected.Kind is { } kind)
         {
             PlaceStructure(kind);
+            return;
+        }
+
+        Block block = _hud.Hotbar.Selected.Block;
+        if (!Creative && Items.ItemPlacing(block) is { } item && Link!.Backpack.Of(item.Id) == 0)
+        {
+            _hud.Toast($"No {item.Name.ToLowerInvariant()} in your backpack.");
             return;
         }
 
@@ -498,19 +687,6 @@ public partial class ClientGame : Node3D
         Link.RequestPlace(kind.Id, placement.Origin, placement.Facing);
     }
 
-    private void RemoveStructure(GameObject structure)
-    {
-        // Team build protection covers structures like blocks: say why instead of asking in vain.
-        if (!Protection.MayBreak(structure.Owner, Link!.MyPlayerId, Link.MyTeam, id => Link.Roster.Values.Any(p => p.PlayerId == id)))
-        {
-            string who = Link.Roster.Values.FirstOrDefault(p => p.PlayerId == structure.OwnerPlayerId).Name ?? "A teammate";
-            _hud.Toast($"{who} built that. Teammates' structures are protected.");
-            return;
-        }
-
-        Link.RequestRemove(structure.Id);
-    }
-
     /// <summary>The name, team and health of the structure under the crosshair, for the prompt line.</summary>
     private string? AimedStructure()
     {
@@ -520,7 +696,9 @@ public partial class ClientGame : Node3D
         }
 
         ObjectKind kind = objects.KindOf(structure);
-        return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}   (left click to take it down)";
+        string open = kind.IsStorage && structure.Team == Link.MyTeam ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open" : "";
+        string take = Creative ? "left click" : "hold left click";
+        return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}{open}   ({take} to take it down)";
     }
 
     /// <summary>Our team's structures and stock, for the scoreboard.</summary>

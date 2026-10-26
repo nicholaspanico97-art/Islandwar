@@ -22,6 +22,11 @@ public sealed record ObjectKind
 
     public int MaxHealth { get; init; } = 100;
 
+    /// <summary>How many items it stores, of any mix; 0 for a structure that isn't storage.</summary>
+    public int Capacity { get; init; }
+
+    public bool IsStorage => Capacity > 0;
+
     /// <summary>How clients draw it until there are models, as <c>#rrggbb</c>.</summary>
     public string Color { get; init; } = "#808080";
 }
@@ -44,9 +49,9 @@ public sealed class ObjectKinds
                 throw new InvalidDataException($"structures.json: every kind needs a unique id and a name ('{kind.Id}').");
             }
 
-            if (kind.Size.X is < 1 or > MaxSide || kind.Size.Y is < 1 or > MaxSide || kind.Size.Z is < 1 or > MaxSide || kind.MaxHealth <= 0)
+            if (kind.Size.X is < 1 or > MaxSide || kind.Size.Y is < 1 or > MaxSide || kind.Size.Z is < 1 or > MaxSide || kind.MaxHealth <= 0 || kind.Capacity < 0)
             {
-                throw new InvalidDataException($"structures.json: '{kind.Id}' needs sides of 1 to {MaxSide} blocks and positive max_health.");
+                throw new InvalidDataException($"structures.json: '{kind.Id}' needs sides of 1 to {MaxSide} blocks, positive max_health and a capacity of 0 or more.");
             }
         }
 

@@ -241,6 +241,11 @@ public static class WireFormat
         return objects;
     });
 
+    /// <summary>Item amounts by id (a player's backpack).</summary>
+    public static byte[] EncodeCounts(IReadOnlyDictionary<string, int> counts) => Encode(writer => WriteValues(writer, counts));
+
+    public static IReadOnlyDictionary<string, int> DecodeCounts(byte[] data) => Decode(data, reader => ReadValues(reader, data.Length));
+
     /// <summary>One team's state, for that team's players only.</summary>
     public static byte[] EncodeTeamState(TeamState state) => Encode(writer =>
     {

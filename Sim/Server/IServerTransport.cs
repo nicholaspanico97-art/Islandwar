@@ -38,6 +38,9 @@ public interface IServerTransport
 
     void BroadcastObjectRemoved(int id);
 
+    /// <summary>A player's backpack, packed with <see cref="WireFormat.EncodeCounts"/>, to that player only.</summary>
+    void SendBackpack(int peer, byte[] backpack);
+
     /// <summary>A team's state, packed with <see cref="WireFormat.EncodeTeamState"/>, to one of its players.</summary>
     void SendTeamState(int peer, byte[] state);
 }

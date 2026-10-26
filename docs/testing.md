@@ -435,3 +435,35 @@ Join one client to each team. Check, in order:
 6. Hold Tab: the scoreboard's footer shows your team's structures standing and its stock (`nothing yet`
    until resources exist).
 
+## Stone Age, piece 1: items, backpack, hold-to-mine and storage
+
+Use a real-match preset (not practice, which is creative and builds freely):
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+./build.sh client
+```
+
+Join one client to each team (the match starts after a 10-second countdown and resets the island; the
+quick preset's first minute has no bombs). Check, in order:
+1. The line above the hotbar says `Backpack 0 / 40`. The hotbar has only the blocks an item places (stone,
+   dirt, sand, planks, log), each with a count, dimmed at 0, then the three structures.
+2. Hold left click on the ground: a bar under the crosshair fills, and the block breaks when it's full
+   (dirt and sand about half a second, stone 1.5 s, logs 2 s, ores 3 to 4 s). Letting go or looking away
+   starts over. The item appears in the backpack line, and on the hotbar if it's placeable.
+3. Right click places a block from the backpack and the count goes down. With none, `No stone in your
+   backpack.` and nothing is placed.
+4. Find ore: copper (orange) and coal (black) here and there, much more in the mountains, where tin (pale
+   grey) and iron (rust) are. Clay (blue-grey) is in clumps in the beach sand. Ore can't be placed.
+5. Fill the backpack to 40: what you mine after that is lost (the server logs `... is lost`).
+6. Place a crate (slot 6) and press E on it: a window shows your backpack and the crate. `Put in` and `Take`
+   move a whole stack, as much as fits; `Put everything in` empties your backpack. E, Esc or a click outside
+   closes it; walking away closes it too.
+7. Hold Tab: the scoreboard's footer shows your team's stock, everything in its storage added up. The other
+   team's client shows only its own.
+8. The other team can't open your crate (`That's the other team's storage.`). A crate with anything in it
+   can't be taken down (`Empty the Crate before taking it down.`). Bomb it (from phase 2) and what it held
+   is gone from the stock.
+9. Quit a client mid-match and rejoin: the backpack is as you left it.
+

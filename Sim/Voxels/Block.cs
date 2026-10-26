@@ -25,8 +25,8 @@ public enum Block : ushort
     Leaves = 8,
 
     /// <summary>
-    /// Raw ore in the stone, dense in the mountains and sparse elsewhere. One kind for now; what it yields is
-    /// decided with the resources. Natural only: players can't place it.
+    /// Retired 2026-10-26 when ore split into kinds (copper, tin, iron, coal). Never generated or placeable;
+    /// the id stays taken because ids are never reused.
     /// </summary>
     Ore = 9,
 
@@ -35,4 +35,35 @@ public enum Block : ushort
     /// goes with its structure, and craters leave it standing (bombs damage the structure instead).
     /// </summary>
     Structure = 10,
+
+    // Stone Age resources (2026-10-26). Ores are natural only: players can't place them.
+    CopperOre = 11,
+    TinOre = 12,
+    IronOre = 13,
+    Coal = 14,
+
+    /// <summary>Found in clumps in the beach sand.</summary>
+    Clay = 15,
+}
+
+/// <summary>Block names as the data files write them: the enum name in snake_case (<c>copper_ore</c>).</summary>
+public static class BlockNames
+{
+    public static string Of(Block block) => System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(block.ToString());
+
+    public static Block Parse(string name, string file)
+    {
+        foreach (Block block in Enum.GetValues<Block>())
+        {
+            if (Of(block) == name)
+            {
+                return block;
+            }
+        }
+
+        throw new InvalidDataException($"{file}: '{name}' is not a block. Blocks are: {string.Join(", ", Enum.GetValues<Block>().Select(Of))}.");
+    }
+
+    /// <summary>Ores: natural blocks found in the stone, which players can mine but not place.</summary>
+    public static bool IsOre(Block block) => block is Block.Ore or Block.CopperOre or Block.TinOre or Block.IronOre or Block.Coal;
 }

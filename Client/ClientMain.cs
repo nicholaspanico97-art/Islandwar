@@ -145,6 +145,7 @@ public partial class ClientMain : Node
             Terrain = data.Terrain,
             Rules = data.Rules,
             Net = data.Net,
+            Items = data.Items,
             Spawn = spawn,
             Link = net,
         };
