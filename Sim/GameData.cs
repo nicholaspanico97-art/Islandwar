@@ -1,17 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using Godot;
-using IslandWar.Sim;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
-using FileAccess = Godot.FileAccess;
 
-namespace IslandWar;
+namespace IslandWar.Sim;
 
 /// <summary>
 /// The tunables from <c>data/</c>. The server sends its raw JSON to each client on join, so clients
@@ -33,16 +27,14 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
 
     public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
 
-    public static GameData Load() => new(
-        FileAccess.GetFileAsString("res://data/terrain.json"),
-        FileAccess.GetFileAsString("res://data/player.json"),
-        FileAccess.GetFileAsString("res://data/net.json"),
-        FileAccess.GetFileAsString("res://data/plane.json"),
-        FileAccess.GetFileAsString("res://data/weapons.json"),
-        FileAccess.GetFileAsString("res://data/presets.json"));
-
-    /// <summary>Makes Godot's physics tick match the simulation tick rate.</summary>
-    public void ApplyTickRate() => Engine.PhysicsTicksPerSecond = Net.TickRate;
+    /// <summary>Reads every data file through <paramref name="read"/>, which gets a file name such as <c>terrain.json</c>.</summary>
+    public static GameData Load(Func<string, string> read) => new(
+        read("terrain.json"),
+        read("player.json"),
+        read("net.json"),
+        read("plane.json"),
+        read("weapons.json"),
+        read("presets.json"));
 
     /// <summary>
     /// Where a player appears, standing on the top block of their team's island. Slot 0 is the centre;

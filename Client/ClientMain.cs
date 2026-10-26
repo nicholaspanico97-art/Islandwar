@@ -5,6 +5,7 @@ using IslandWar.Client.Online;
 using IslandWar.Client.Sandbox;
 using IslandWar.Client.Ui;
 using IslandWar.Net;
+using IslandWar.Sim;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 

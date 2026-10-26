@@ -1,5 +1,6 @@
 using Godot;
 using IslandWar.Client.Game;
+using IslandWar.Sim;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
@@ -18,7 +19,7 @@ public partial class LocalSandbox : Node
     {
         Name = "Sandbox";
 
-        GameData data = GameData.Load();
+        GameData data = GameFiles.LoadData();
         data.ApplyTickRate();
         int seed = Args.Seed ?? data.Terrain.DefaultSeed;
         VoxelWorld world = IslandGenerator.Generate(data.Terrain, seed);

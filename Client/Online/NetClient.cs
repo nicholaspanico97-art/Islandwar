@@ -5,6 +5,7 @@ using System.Linq;
 using Godot;
 using IslandWar.Client.Game;
 using IslandWar.Net;
+using IslandWar.Sim;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;

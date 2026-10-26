@@ -11,7 +11,7 @@ using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
-using Explosion = IslandWar.Net.Explosion;
+using Explosion = IslandWar.Sim.Protocol.Explosion;
 
 namespace IslandWar.Client.Game;
 

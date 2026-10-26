@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using IslandWar.Net;
+using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Vehicles;
