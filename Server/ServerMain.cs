@@ -4,23 +4,27 @@ using System.IO;
 using System.Linq;
 using Godot;
 using IslandWar.Net;
+using IslandWar.Sim;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Server;
 
 /// <summary>
-/// Dedicated server: owns the world and every player. Clients send only inputs and edit requests. The
-/// server runs each player's movement from their inputs, checks every edit against the build rules,
-/// and sends the results back as edits and snapshots.
+/// Dedicated server: owns the world, every player and every plane. Clients send only inputs and edit
+/// requests. The server runs each player (or the plane they fly) from their inputs, checks every edit
+/// against the build rules, and sends the results back as edits and snapshots.
 /// </summary>
 public partial class ServerMain : Node
 {
     private const int MaxClients = 32;
 
     private readonly Dictionary<int, ServerPlayer> _players = new();
+    private readonly Dictionary<int, ServerPlane> _planes = new();
     private GameData _data = null!;
+    private GameRules _rules = null!;
     private Replicator _net = null!;
     private int _seed;
     private int _joins;
@@ -35,11 +39,28 @@ public partial class ServerMain : Node
         // Same name as the client's root node, so RPC paths match (see Replicator).
         Name = "Game";
 
-        _data = GameData.Load();
+        try
+        {
+            _data = GameData.Load();
+        }
+        catch (InvalidDataException e)
+        {
+            GD.PushError($"[server] bad data file: {e.Message}");
+            SetPhysicsProcess(false);
+            GetTree().Quit(1);
+            return;
+        }
+
         _data.ApplyTickRate();
+        _rules = _data.Rules;
         _seed = Args.Seed ?? _data.Terrain.DefaultSeed;
         World = IslandGenerator.Generate(_data.Terrain, _seed);
         GD.Print($"[server] generated island: seed {_seed}, {World.SizeX}x{World.SizeY}x{World.SizeZ} blocks, hash {World.ComputeHash():x16}");
+
+        // M1c has one plane. Ids start at 1; 0 means "no plane".
+        var plane = new ServerPlane(1, _data.PlaneSpawnIn(World));
+        _planes[plane.Id] = plane;
+        GD.Print($"[server] plane {plane.Id} parked at {plane.State.Position}");
 
         _net = new Replicator();
         AddChild(_net);
@@ -66,23 +87,84 @@ public partial class ServerMain : Node
     {
         _tick++;
         NetSettings net = _data.Net;
-        foreach (ServerPlayer player in _players.Values)
+        foreach ((int peer, ServerPlayer player) in _players)
         {
-            player.Advance(World, _data.Player, net);
-            if (player.State.Position.Y < _data.Player.RespawnBelowY)
+            player.Refill(net);
+            while (player.TryTakeInput(out PlayerInput input))
             {
-                player.State = player.Spawn;
+                // Getting in or out happens before the input's movement, and the client replays it the same way.
+                if (input.Has(InputButtons.Use))
+                {
+                    ToggleSeat(peer, player);
+                }
+
+                player.Pawn = Pawn.Step(World, _rules, player.Pawn, input, net.TickSeconds);
+                if (player.Pawn.InPlane)
+                {
+                    _planes[player.Pawn.PlaneId].State = player.Pawn.Plane;
+                }
+
+                player.Processed(input);
             }
+
+            if (!player.Pawn.InPlane && player.Pawn.Player.Position.Y < _data.Player.RespawnBelowY)
+            {
+                player.Pawn = PawnState.OnFoot(player.Spawn);
+            }
+        }
+
+        // Planes nobody is flying still fall, coast and stop.
+        var idle = new PlayerInput(0, 0, 0, 0, 0, InputButtons.None);
+        foreach (ServerPlane plane in _planes.Values.Where(p => p.PilotPeerId == 0))
+        {
+            plane.State = PlaneFlight.Step(World, _rules.Plane, _rules.SeaLevel, plane.State, idle, net.TickSeconds);
         }
 
         if (_tick % net.SnapshotIntervalTicks == 0)
         {
-            PlayerSnapshot[] everyone = _players.Select(p => new PlayerSnapshot(p.Key, p.Value.State, p.Value.Yaw, p.Value.Pitch)).ToArray();
-            foreach ((int peer, ServerPlayer player) in _players)
-            {
-                _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, everyone)));
-            }
+            SendSnapshots();
         }
+    }
+
+    private void SendSnapshots()
+    {
+        PlayerSnapshot[] players = _players
+            .Select(p => new PlayerSnapshot(p.Key, p.Value.Pawn.Player, p.Value.Yaw, p.Value.Pitch, p.Value.Pawn.PlaneId))
+            .ToArray();
+        PlaneSnapshot[] planes = _planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId)).ToArray();
+        foreach ((int peer, ServerPlayer player) in _players)
+        {
+            _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes)));
+        }
+    }
+
+    /// <summary>Gets a pilot out, or a player into the nearest free plane in reach.</summary>
+    private void ToggleSeat(int peer, ServerPlayer player)
+    {
+        if (player.Pawn.InPlane)
+        {
+            ServerPlane plane = _planes[player.Pawn.PlaneId];
+            System.Numerics.Vector3 exit = VehicleRules.ExitPosition(World, _rules.Player, _rules.Plane, plane.State);
+            plane.PilotPeerId = 0;
+            plane.State = plane.State with { Throttle = 0 };
+            player.Pawn = PawnState.OnFoot(PlayerState.At(exit));
+            GD.Print($"[server] peer {peer} got out of plane {plane.Id}");
+            return;
+        }
+
+        System.Numerics.Vector3 feet = player.Pawn.Player.Position;
+        ServerPlane? nearest = _planes.Values
+            .Where(p => p.PilotPeerId == 0 && VehicleRules.InEnterRange(_rules.Plane, feet, p.State))
+            .OrderBy(p => System.Numerics.Vector3.DistanceSquared(feet, p.State.Position))
+            .FirstOrDefault();
+        if (nearest is null)
+        {
+            return;
+        }
+
+        nearest.PilotPeerId = peer;
+        player.Pawn = new PawnState(PlayerState.At(nearest.State.Position), nearest.Id, nearest.State);
+        GD.Print($"[server] peer {peer} got into plane {nearest.Id}");
     }
 
     private void Join(int peer)
@@ -95,7 +177,14 @@ public partial class ServerMain : Node
 
     private void Leave(int peer)
     {
-        _players.Remove(peer);
+        if (_players.Remove(peer, out ServerPlayer? player) && player.Pawn.InPlane)
+        {
+            // A pilot who disconnects leaves the plane to glide down on its own.
+            ServerPlane plane = _planes[player.Pawn.PlaneId];
+            plane.PilotPeerId = 0;
+            plane.State = plane.State with { Throttle = 0 };
+        }
+
         GD.Print($"[server] peer {peer} disconnected");
     }
 
@@ -123,7 +212,7 @@ public partial class ServerMain : Node
             return;
         }
 
-        if (Allowed(peer, player, edit, out string? reason) && World.ApplyEdit(edit))
+        if (Allowed(player, edit, out string? reason) && World.ApplyEdit(edit))
         {
             _net.BroadcastEdit(edit);
             GD.Print($"[server] peer {peer} set {edit.Position} to {edit.Block}");
@@ -142,19 +231,40 @@ public partial class ServerMain : Node
         }
     }
 
-    private bool Allowed(int peer, ServerPlayer player, VoxelEdit edit, out string? reason)
+    private bool Allowed(ServerPlayer player, VoxelEdit edit, out string? reason)
     {
         PlayerSettings settings = _data.Player;
-        System.Numerics.Vector3 eye = player.State.Position + System.Numerics.Vector3.UnitY * settings.EyeHeight;
-        IEnumerable<System.Numerics.Vector3> blockers = _players.Values.Where(p => !p.State.Flying).Select(p => p.State.Position);
+        PlayerState body = player.Pawn.Player;
+        System.Numerics.Vector3 eye = body.Position + System.Numerics.Vector3.UnitY * settings.EyeHeight;
+        IEnumerable<System.Numerics.Vector3> blockers = _players.Values
+            .Where(p => !p.Pawn.InPlane && !p.Pawn.Player.Flying)
+            .Select(p => p.Pawn.Player.Position);
 
         reason = !Enum.IsDefined(edit.Block) ? "unknown block type"
+            : player.Pawn.InPlane ? "flying a plane"
             : !player.TrySpendEdit() ? "too many edits"
             : !BuildRules.InReach(settings, eye, edit.Position) ? "out of reach"
             : edit.Block == Block.Air && !BuildRules.CanBreak(World, edit.Position) ? "can't break that"
             : edit.Block != Block.Air && !BuildRules.CanPlace(World, settings, edit.Position, edit.Block, blockers) ? "can't place there"
+            : edit.Block != Block.Air && _planes.Values.Any(p => BuildRules.OverlapsBox(p.State.Position, _rules.Plane.Width, _rules.Plane.Height, edit.Position)) ? "a plane is in the way"
             : null;
         return reason is null;
+    }
+
+    private sealed class ServerPlane
+    {
+        public ServerPlane(int id, PlaneState state)
+        {
+            Id = id;
+            State = state;
+        }
+
+        public int Id { get; }
+
+        public PlaneState State { get; set; }
+
+        /// <summary>The peer flying it, or 0.</summary>
+        public int PilotPeerId { get; set; }
     }
 
     /// <summary>One connected player as the server sees them.</summary>
@@ -168,14 +278,14 @@ public partial class ServerMain : Node
         public ServerPlayer(PlayerState spawn, NetSettings net)
         {
             Spawn = spawn;
-            State = spawn;
+            Pawn = PawnState.OnFoot(spawn);
             _editBudget = net.MaxEditsPerSecond;
         }
 
         /// <summary>Where this player appeared, and where they come back after falling off the map.</summary>
         public PlayerState Spawn { get; }
 
-        public PlayerState State { get; set; }
+        public PawnState Pawn { get; set; }
 
         /// <summary>The newest input processed, sent back in snapshots so the client can reconcile.</summary>
         public uint AckSeq { get; private set; }
@@ -198,22 +308,33 @@ public partial class ServerMain : Node
         }
 
         /// <summary>
-        /// Runs queued inputs for one tick. The budget grows by one input per tick up to the backlog limit,
-        /// so a client sending inputs faster than real time can't move faster than everyone else.
+        /// Called once per tick. The input budget grows by one input per tick up to the backlog limit, so a
+        /// client sending inputs faster than real time can't move faster than everyone else.
         /// </summary>
-        public void Advance(VoxelWorld world, PlayerSettings settings, NetSettings net)
+        public void Refill(NetSettings net)
         {
             _inputBudget = Math.Min(_inputBudget + 1, net.MaxInputBacklog);
             _editBudget = Math.Min(_editBudget + (float)net.MaxEditsPerSecond / net.TickRate, net.MaxEditsPerSecond);
-            while (_inputs.Count > 0 && _inputBudget >= 1)
+        }
+
+        public bool TryTakeInput(out PlayerInput input)
+        {
+            if (_inputs.Count == 0 || _inputBudget < 1)
             {
-                PlayerInput input = _inputs.Dequeue();
-                State = PlayerMovement.Step(world, settings, State, input, net.TickSeconds);
-                AckSeq = input.Seq;
-                Yaw = input.Yaw;
-                Pitch = input.Pitch;
-                _inputBudget--;
+                input = default;
+                return false;
             }
+
+            _inputBudget--;
+            input = _inputs.Dequeue();
+            return true;
+        }
+
+        public void Processed(PlayerInput input)
+        {
+            AckSeq = input.Seq;
+            Yaw = input.Yaw;
+            Pitch = input.Pitch;
         }
 
         public bool TrySpendEdit()

@@ -10,6 +10,12 @@ public enum InputButtons : byte
 
     /// <summary>The player wants to be flying. Sent as a state, not a toggle, so a lost packet can't flip it.</summary>
     Fly = 8,
+
+    /// <summary>
+    /// Get in or out of a plane. Set on the one tick the key went down; the server acts on it once, because
+    /// it runs each input sequence number once however many packets repeat it.
+    /// </summary>
+    Use = 16,
 }
 
 /// <summary>

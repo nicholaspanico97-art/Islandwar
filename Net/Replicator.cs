@@ -62,7 +62,7 @@ public partial class Replicator : Node
     // ---- Server to client ----
 
     public void SendWorld(int peer, WorldInit world) =>
-        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.EditsData, (long)world.Hash);
+        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson, world.EditsData, (long)world.Hash);
 
     /// <summary>Tells every client the block at a position.</summary>
     public void BroadcastEdit(VoxelEdit edit) =>
@@ -106,8 +106,8 @@ public partial class Replicator : Node
     }
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, byte[] edits, long hash) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson), edits, (ulong)hash));
+    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, byte[] edits, long hash) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson), edits, (ulong)hash));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveEdit(int x, int y, int z, int block) =>

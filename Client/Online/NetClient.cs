@@ -18,7 +18,8 @@ namespace IslandWar.Client.Online;
 /// </summary>
 public partial class NetClient : Node, IGameLink
 {
-    private readonly Dictionary<int, InterpolationBuffer> _others = new();
+    private readonly Dictionary<int, InterpolationBuffer<RemoteState>> _others = new();
+    private readonly Dictionary<int, InterpolationBuffer<RemotePlane>> _planes = new();
     private double _serverTick;
     private bool _joined;
 
@@ -32,13 +33,13 @@ public partial class NetClient : Node, IGameLink
     public bool WorldMatchedServer { get; private set; }
 
     /// <summary>The world is rebuilt and the server has placed us: the game can start here.</summary>
-    public event Action<PlayerState>? Joined;
+    public event Action<PawnState>? Joined;
 
     /// <summary>The server changed a block (or undid one of our predictions); it's already in <see cref="World"/>.</summary>
     public event Action<VoxelEdit>? WorldChanged;
 
-    /// <summary>The server's state for our player after it processed the given input.</summary>
-    public event Action<PlayerState, uint>? OwnStateReceived;
+    /// <summary>The server's state for our player (and the plane they fly) after it processed the given input.</summary>
+    public event Action<PawnState, uint>? OwnStateReceived;
 
     public override void _Ready()
     {
@@ -61,10 +62,14 @@ public partial class NetClient : Node, IGameLink
 
     public void SubmitEdit(VoxelEdit edit) => Replicator.RequestEdit(edit);
 
-    public IReadOnlyDictionary<int, RemoteState> SampleRemotePlayers()
+    public IReadOnlyDictionary<int, RemoteState> SampleRemotePlayers() => Sample(_others);
+
+    public IReadOnlyDictionary<int, RemotePlane> SampleRemotePlanes() => Sample(_planes);
+
+    private IReadOnlyDictionary<int, T> Sample<T>(Dictionary<int, InterpolationBuffer<T>> buffers)
     {
         double renderTick = _serverTick - (Data?.Net.InterpolationDelayTicks ?? 0);
-        return _others.Where(o => !o.Value.IsEmpty).ToDictionary(o => o.Key, o => o.Value.Sample(renderTick));
+        return buffers.Where(b => !b.Value.IsEmpty).ToDictionary(b => b.Key, b => b.Value.Sample(renderTick));
     }
 
     private void OnWorld(WorldInit init)
@@ -118,36 +123,58 @@ public partial class NetClient : Node, IGameLink
         }
 
         int me = Multiplayer.GetUniqueId();
+        Dictionary<int, PlaneSnapshot> planes = snapshot.Planes.ToDictionary(p => p.Id);
         foreach (PlayerSnapshot player in snapshot.Players)
         {
             if (player.PeerId == me)
             {
+                PawnState pawn = planes.TryGetValue(player.PlaneId, out PlaneSnapshot plane)
+                    ? new PawnState(player.State, plane.Id, plane.State)
+                    : PawnState.OnFoot(player.State);
                 if (!_joined)
                 {
                     _joined = true;
-                    Joined?.Invoke(player.State);
+                    Joined?.Invoke(pawn);
                 }
                 else
                 {
-                    OwnStateReceived?.Invoke(player.State, snapshot.AckSeq);
+                    OwnStateReceived?.Invoke(pawn, snapshot.AckSeq);
                 }
 
                 continue;
             }
 
-            if (!_others.TryGetValue(player.PeerId, out InterpolationBuffer? buffer))
-            {
-                buffer = new InterpolationBuffer();
-                _others[player.PeerId] = buffer;
-            }
-
-            buffer.Add(snapshot.Tick, new RemoteState(player.State.Position, player.Yaw, player.Pitch, player.State.Flying));
+            Buffer(_others, player.PeerId, InterpolationBuffers.ForPlayer)
+                .Add(snapshot.Tick, new RemoteState(player.State.Position, player.Yaw, player.Pitch, player.State.Flying, player.PlaneId != 0));
         }
 
-        HashSet<int> present = snapshot.Players.Select(p => p.PeerId).ToHashSet();
-        foreach (int gone in _others.Keys.Where(peer => !present.Contains(peer)).ToList())
+        foreach (PlaneSnapshot plane in snapshot.Planes)
         {
-            _others.Remove(gone);
+            Buffer(_planes, plane.Id, InterpolationBuffers.ForPlane)
+                .Add(snapshot.Tick, new RemotePlane(plane.State.Position, plane.State.Rotation, plane.State.Throttle, plane.PilotPeerId));
+        }
+
+        Prune(_others, snapshot.Players.Select(p => p.PeerId).ToHashSet());
+        Prune(_planes, planes.Keys.ToHashSet());
+    }
+
+    private static InterpolationBuffer<T> Buffer<T>(Dictionary<int, InterpolationBuffer<T>> buffers, int id, Func<InterpolationBuffer<T>> create)
+    {
+        if (!buffers.TryGetValue(id, out InterpolationBuffer<T>? buffer))
+        {
+            buffer = create();
+            buffers[id] = buffer;
+        }
+
+        return buffer;
+    }
+
+    /// <summary>Forgets players who left and planes that are gone.</summary>
+    private static void Prune<T>(Dictionary<int, InterpolationBuffer<T>> buffers, HashSet<int> present)
+    {
+        foreach (int gone in buffers.Keys.Where(id => !present.Contains(id)).ToList())
+        {
+            buffers.Remove(gone);
         }
     }
 }

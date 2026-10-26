@@ -4,9 +4,10 @@ using IslandWar.Sim.Voxels;
 namespace IslandWar.Sim.Players;
 
 /// <summary>
-/// The local player's predicted movement. Each tick's input is applied at once and kept until the server
-/// acknowledges it. When a server state arrives, the prediction restarts from it and replays the inputs
-/// the server hasn't processed yet, so the player only sees a correction when client and server disagree.
+/// The local player's predicted movement, on foot or flying. Each tick's input is applied at once and kept
+/// until the server acknowledges it. When a server state arrives, the prediction restarts from it and
+/// replays the inputs the server hasn't processed yet, so the player only sees a correction when client
+/// and server disagree. Getting in or out of a plane isn't predicted; it shows up in the server's state.
 /// </summary>
 public sealed class PredictedPlayer
 {
@@ -17,21 +18,21 @@ public sealed class PredictedPlayer
     private uint _lastSeq;
     private uint _lastAck;
 
-    public PredictedPlayer(PlayerState start)
+    public PredictedPlayer(PawnState start)
     {
         State = start;
     }
 
-    public PlayerState State { get; private set; }
+    public PawnState State { get; private set; }
 
     public int PendingCount => _pending.Count;
 
     /// <summary>Numbers the input, applies it and keeps it for replay.</summary>
     /// <returns>The input with its sequence number, ready to send to the server.</returns>
-    public PlayerInput Predict(VoxelWorld world, PlayerSettings settings, PlayerInput input, float dt)
+    public PlayerInput Predict(VoxelWorld world, GameRules rules, PlayerInput input, float dt)
     {
         input = input with { Seq = ++_lastSeq };
-        State = PlayerMovement.Step(world, settings, State, input, dt);
+        State = Pawn.Step(world, rules, State, input, dt);
         _pending.Add(input);
         if (_pending.Count > MaxPending)
         {
@@ -53,7 +54,7 @@ public sealed class PredictedPlayer
     /// inputs. Acknowledgements older than one already applied are ignored.
     /// </summary>
     /// <returns>How far the predicted position moved because of the correction.</returns>
-    public float Reconcile(VoxelWorld world, PlayerSettings settings, PlayerState server, uint ack, float dt)
+    public float Reconcile(VoxelWorld world, GameRules rules, PawnState server, uint ack, float dt)
     {
         if (ack < _lastAck)
         {
@@ -62,14 +63,14 @@ public sealed class PredictedPlayer
 
         _lastAck = ack;
         _pending.RemoveAll(input => input.Seq <= ack);
-        Vector3 before = State.Position;
-        PlayerState state = server;
+        Vector3 before = State.Player.Position;
+        PawnState state = server;
         foreach (PlayerInput input in _pending)
         {
-            state = PlayerMovement.Step(world, settings, state, input, dt);
+            state = Pawn.Step(world, rules, state, input, dt);
         }
 
         State = state;
-        return Vector3.Distance(before, state.Position);
+        return Vector3.Distance(before, state.Player.Position);
     }
 }

@@ -1,17 +1,21 @@
 using System.Numerics;
 using IslandWar.Sim.Players;
+using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Sim.Protocol;
 
-/// <summary>One player in a snapshot.</summary>
-public readonly record struct PlayerSnapshot(int PeerId, PlayerState State, float Yaw, float Pitch);
+/// <summary>One player in a snapshot. <see cref="PlaneId"/> is the plane they're flying, or 0.</summary>
+public readonly record struct PlayerSnapshot(int PeerId, PlayerState State, float Yaw, float Pitch, int PlaneId = 0);
+
+/// <summary>One plane in a snapshot. <see cref="PilotPeerId"/> is 0 when nobody is flying it.</summary>
+public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotPeerId);
 
 /// <summary>
-/// The server's view of every player at one tick. <see cref="AckSeq"/> is the last input the server has
-/// processed from the client receiving this snapshot.
+/// The server's view of every player and plane at one tick. <see cref="AckSeq"/> is the last input the
+/// server has processed from the client receiving this snapshot.
 /// </summary>
-public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players);
+public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes);
 
 /// <summary>
 /// Byte layouts for messages sent often or in bulk. Little-endian. Decoders treat the bytes as untrusted:
@@ -21,8 +25,9 @@ public static class WireFormat
 {
     public const int MaxInputsPerPacket = 16;
     public const int MaxPlayersPerSnapshot = 255;
+    public const int MaxPlanesPerSnapshot = 255;
 
-    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly;
+    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use;
 
     public static byte[] EncodeInputs(IReadOnlyList<PlayerInput> inputs)
     {
@@ -71,9 +76,9 @@ public static class WireFormat
 
     public static byte[] EncodeSnapshot(Snapshot snapshot)
     {
-        if (snapshot.Players.Count > MaxPlayersPerSnapshot)
+        if (snapshot.Players.Count > MaxPlayersPerSnapshot || snapshot.Planes.Count > MaxPlanesPerSnapshot)
         {
-            throw new ArgumentException($"At most {MaxPlayersPerSnapshot} players per snapshot.", nameof(snapshot));
+            throw new ArgumentException($"At most {MaxPlayersPerSnapshot} players and {MaxPlanesPerSnapshot} planes per snapshot.", nameof(snapshot));
         }
 
         return Encode(writer =>
@@ -89,6 +94,23 @@ public static class WireFormat
                 writer.Write(player.Yaw);
                 writer.Write(player.Pitch);
                 writer.Write((byte)((player.State.OnGround ? 1 : 0) | (player.State.Flying ? 2 : 0)));
+                writer.Write(player.PlaneId);
+            }
+
+            writer.Write((byte)snapshot.Planes.Count);
+            foreach (PlaneSnapshot plane in snapshot.Planes)
+            {
+                writer.Write(plane.Id);
+                writer.Write(plane.PilotPeerId);
+                Write(writer, plane.State.Position);
+                writer.Write(plane.State.Rotation.X);
+                writer.Write(plane.State.Rotation.Y);
+                writer.Write(plane.State.Rotation.Z);
+                writer.Write(plane.State.Rotation.W);
+                writer.Write(plane.State.Airspeed);
+                writer.Write(plane.State.Sink);
+                writer.Write(plane.State.Throttle);
+                writer.Write(plane.State.OnGround);
             }
         });
     }
@@ -107,10 +129,23 @@ public static class WireFormat
             float yaw = reader.ReadSingle();
             float pitch = reader.ReadSingle();
             byte flags = reader.ReadByte();
-            players[i] = new PlayerSnapshot(peer, new PlayerState(position, velocity, (flags & 1) != 0, (flags & 2) != 0), yaw, pitch);
+            int planeId = reader.ReadInt32();
+            players[i] = new PlayerSnapshot(peer, new PlayerState(position, velocity, (flags & 1) != 0, (flags & 2) != 0), yaw, pitch, planeId);
         }
 
-        return new Snapshot(tick, ack, players);
+        int planeCount = reader.ReadByte();
+        var planes = new PlaneSnapshot[planeCount];
+        for (int i = 0; i < planeCount; i++)
+        {
+            int id = reader.ReadInt32();
+            int pilot = reader.ReadInt32();
+            Vector3 position = Read(reader);
+            var rotation = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            var state = new PlaneState(position, rotation, reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadBoolean());
+            planes[i] = new PlaneSnapshot(id, state, pilot);
+        }
+
+        return new Snapshot(tick, ack, players, planes);
     });
 
     /// <summary>Block edits, 8 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>

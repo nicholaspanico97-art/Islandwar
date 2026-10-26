@@ -38,8 +38,8 @@ public sealed record LaunchArgs
                 "--port" => result with { Port = ParseInt(key, value) },
                 "--seed" => result with { Seed = ParseInt(key, value) },
                 "--connect" => WithConnect(result, value),
-                "--bot" => result with { Bot = value is "builder" or "breaker" ? value : throw new ArgumentException("--bot must be builder or breaker.") },
-                _ => throw new ArgumentException($"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --connect=HOST[:PORT] or --bot=builder|breaker."),
+                "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" ? value : throw new ArgumentException("--bot must be builder, breaker or pilot.") },
+                _ => throw new ArgumentException($"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --connect=HOST[:PORT] or --bot=builder|breaker|pilot."),
             };
         }
 

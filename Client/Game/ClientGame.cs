@@ -4,17 +4,19 @@ using System.Linq;
 using Godot;
 using IslandWar.Client.Ui;
 using IslandWar.Client.Voxels;
+using IslandWar.Sim;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Client.Game;
 
 /// <summary>
-/// What a player sees and controls: the rendered world, the first-person camera, the HUD and the other
-/// players. The local player moves by Sim prediction every tick. With a <see cref="Link"/> the inputs
-/// and edits also go to the server, which can correct them; without one (the sandbox) the prediction
-/// is simply the truth.
+/// What a player sees and controls: the rendered world, the camera, the HUD, other players and planes.
+/// The local player (or the plane they fly) moves by Sim prediction every tick. With a <see cref="Link"/>
+/// the inputs and edits also go to the server, which can correct them; without one (the sandbox) the
+/// prediction is simply the truth, and there are no planes.
 /// </summary>
 public partial class ClientGame : Node3D
 {
@@ -25,51 +27,55 @@ public partial class ClientGame : Node3D
     private const float SmoothingRate = 15;
 
     private readonly Dictionary<int, RemoteAvatar> _avatars = new();
+    private readonly Dictionary<int, PlaneModel> _planes = new();
     private GodotVoxelView _view = null!;
     private BlockHighlight _highlight = null!;
-    private Hotbar _hotbar = null!;
-    private Camera3D _camera = null!;
+    private GameHud _hud = null!;
+    private CameraRig _camera = null!;
     private Node3D _others = null!;
     private PredictedPlayer _player = null!;
-    private Vector3 _previousPosition;
+    private PawnState _previous;
     private Vector3 _renderOffset;
     private float _yaw;
     private float _pitch;
     private bool _wantsFlying;
+    private bool _usePressed;
 
     public VoxelWorld World { get; init; } = null!;
 
     public IslandSettings Terrain { get; init; } = null!;
 
-    public PlayerSettings Settings { get; init; } = null!;
+    public GameRules Rules { get; init; } = null!;
 
     public NetSettings Net { get; init; } = null!;
 
     /// <summary>Where the local player starts. The server's spawn when online.</summary>
-    public PlayerState Spawn { get; init; }
+    public PawnState Spawn { get; init; }
 
     public IGameLink? Link { get; init; }
+
+    private PlayerSettings Settings => Rules.Player;
+
+    private PawnState State => _player.State;
 
     public override void _Ready()
     {
         Name = "ClientGame";
 
-        AddEnvironment();
-        AddSea();
+        AddChild(new Scenery { World = World, Terrain = Terrain });
         _view = new GodotVoxelView { World = World };
         AddChild(_view);
         _highlight = new BlockHighlight();
         AddChild(_highlight);
-        _others = new Node3D { Name = "OtherPlayers" };
+        _others = new Node3D { Name = "Others" };
         AddChild(_others);
 
         _player = new PredictedPlayer(Spawn);
-        _previousPosition = ToGodot(Spawn.Position);
-        _camera = new Camera3D { Fov = 80 };
+        _previous = Spawn;
+        _camera = new CameraRig();
         AddChild(_camera);
-        _camera.MakeCurrent();
-
-        AddHud();
+        _hud = new GameHud();
+        AddChild(_hud);
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -78,22 +84,34 @@ public partial class ClientGame : Node3D
 
     /// <summary>
     /// The server's state for the local player after it processed input <paramref name="ack"/>. Small
-    /// corrections are blended out over a few frames; big ones snap.
+    /// corrections are blended out over a few frames; big ones, and getting in or out of a plane, snap.
     /// </summary>
-    public void Reconcile(PlayerState server, uint ack)
+    public void Reconcile(PawnState server, uint ack)
     {
-        Vector3 before = ToGodot(_player.State.Position);
-        _player.Reconcile(World, Settings, server, ack, Net.TickSeconds);
-        Vector3 shift = ToGodot(_player.State.Position) - before;
-        _previousPosition += shift;
-        if (shift.Length() > SnapDistance)
+        PawnState before = State;
+        _player.Reconcile(World, Rules, server, ack, Net.TickSeconds);
+        Vector3 shift = ToGodot(State.Player.Position) - ToGodot(before.Player.Position);
+
+        if (before.InPlane != State.InPlane)
         {
+            if (!State.InPlane)
+            {
+                // Out of the plane: face the way it was pointing.
+                _yaw = before.Plane.Heading;
+                _pitch = 0;
+            }
+
+            _previous = State;
             _renderOffset = Vector3.Zero;
+            return;
         }
-        else
+
+        _previous = _previous with
         {
-            _renderOffset -= shift;
-        }
+            Player = _previous.Player with { Position = _previous.Player.Position + ToSim(shift) },
+            Plane = _previous.Plane with { Position = _previous.Plane.Position + ToSim(shift) },
+        };
+        _renderOffset = shift.Length() > SnapDistance ? Vector3.Zero : _renderOffset - shift;
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -101,8 +119,17 @@ public partial class ClientGame : Node3D
         bool captured = Input.MouseMode == Input.MouseModeEnum.Captured;
         if (@event is InputEventMouseMotion motion && captured)
         {
-            _yaw -= Mathf.DegToRad(motion.Relative.X * Settings.LookSensitivity);
-            _pitch = Mathf.Clamp(_pitch - Mathf.DegToRad(motion.Relative.Y * Settings.LookSensitivity), -Mathf.Pi / 2 + 0.01f, Mathf.Pi / 2 - 0.01f);
+            float yaw = -Mathf.DegToRad(motion.Relative.X * Settings.LookSensitivity);
+            float pitch = -Mathf.DegToRad(motion.Relative.Y * Settings.LookSensitivity);
+            if (State.InPlane)
+            {
+                _camera.Orbit(yaw, pitch);
+            }
+            else
+            {
+                _yaw += yaw;
+                _pitch = Mathf.Clamp(_pitch + pitch, -Mathf.Pi / 2 + 0.01f, Mathf.Pi / 2 - 0.01f);
+            }
         }
         else if (@event.IsActionPressed(InputActions.ReleaseMouse))
         {
@@ -116,6 +143,14 @@ public partial class ClientGame : Node3D
                 Input.MouseMode = Input.MouseModeEnum.Captured;
                 GetViewport().SetInputAsHandled();
             }
+        }
+        else if (@event.IsActionPressed(InputActions.Use))
+        {
+            _usePressed = true;
+        }
+        else if (State.InPlane)
+        {
+            // Building and noclip are for players on foot.
         }
         else if (@event.IsActionPressed(InputActions.ToggleFly))
         {
@@ -133,28 +168,43 @@ public partial class ClientGame : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        _previousPosition = ToGodot(_player.State.Position);
-        PlayerInput sent = _player.Predict(World, Settings, ReadInput(), Net.TickSeconds);
+        _previous = State;
+        PlayerInput sent = _player.Predict(World, Rules, ReadInput(), Net.TickSeconds);
         Link?.SendInputs(_player.Latest(Net.InputsPerPacket));
 
         // Online, the server decides respawns and the correction arrives with the next snapshot.
-        if (Link is null && _player.State.Position.Y < Settings.RespawnBelowY)
+        if (Link is null && State.Player.Position.Y < Settings.RespawnBelowY)
         {
-            _player.Reconcile(World, Settings, Spawn, sent.Seq, Net.TickSeconds);
-            _previousPosition = ToGodot(Spawn.Position);
+            _player.Reconcile(World, Rules, Spawn, sent.Seq, Net.TickSeconds);
+            _previous = Spawn;
         }
 
-        _highlight.ShowAt(Aim()?.Block);
+        _highlight.ShowAt(State.InPlane ? null : Aim()?.Block);
     }
 
     public override void _Process(double delta)
     {
         _renderOffset *= Mathf.Exp(-SmoothingRate * (float)delta);
         float fraction = (float)Engine.GetPhysicsInterpolationFraction();
-        Vector3 feet = _previousPosition.Lerp(ToGodot(_player.State.Position), fraction) + _renderOffset;
-        _camera.GlobalPosition = feet + Vector3.Up * Settings.EyeHeight;
-        _camera.Rotation = new Vector3(_pitch, _yaw, 0);
+        IReadOnlyDictionary<int, RemotePlane> planes = Link?.SampleRemotePlanes() ?? new Dictionary<int, RemotePlane>();
 
+        if (State.InPlane)
+        {
+            PlaneState from = _previous.InPlane ? _previous.Plane : State.Plane;
+            Vector3 position = ToGodot(from.Position).Lerp(ToGodot(State.Plane.Position), fraction) + _renderOffset;
+            Quaternion rotation = ToGodot(from.Rotation).Slerp(ToGodot(State.Plane.Rotation), fraction);
+            Plane(State.PlaneId).ShowState(position, rotation, State.Plane.Throttle, delta);
+            _camera.Chase(position, rotation, delta);
+            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel);
+        }
+        else
+        {
+            Vector3 feet = ToGodot(_previous.Player.Position).Lerp(ToGodot(State.Player.Position), fraction) + _renderOffset;
+            _camera.FirstPerson(feet + Vector3.Up * Settings.EyeHeight, _yaw, _pitch);
+            _hud.ShowOnFoot(CanGetIn(planes) ? "Press E to fly the plane" : null);
+        }
+
+        ShowPlanes(planes, delta);
         if (Link is not null)
         {
             ShowOtherPlayers(Link.SampleRemotePlayers());
@@ -188,12 +238,23 @@ public partial class ClientGame : Node3D
             buttons |= InputButtons.Fly;
         }
 
+        if (_usePressed)
+        {
+            buttons |= InputButtons.Use;
+            _usePressed = false;
+        }
+
         return new PlayerInput(0, move.X, move.Y, _yaw, _pitch, buttons);
     }
 
+    /// <summary>Whether a free plane is close enough to get into. The server makes the real decision.</summary>
+    private bool CanGetIn(IReadOnlyDictionary<int, RemotePlane> planes) =>
+        planes.Values.Any(p => p.PilotPeerId == 0
+            && VehicleRules.InEnterRange(Rules.Plane, State.Player.Position, new PlaneState(p.Position, p.Rotation, 0, 0, 0, true)));
+
     private RaycastHit? Aim()
     {
-        Vector3 eye = ToGodot(_player.State.Position) + Vector3.Up * Settings.EyeHeight;
+        Vector3 eye = ToGodot(State.Player.Position) + Vector3.Up * Settings.EyeHeight;
         Vector3 look = Basis.FromEuler(new Vector3(_pitch, _yaw, 0)) * Vector3.Forward;
         return VoxelRaycast.Cast(World, ToSim(eye), ToSim(look), Settings.Reach);
     }
@@ -209,11 +270,11 @@ public partial class ClientGame : Node3D
     private void Place()
     {
         // Flying turns collisions off, so the player's own box doesn't block placement then. Other players
-        // are left to the server, which knows where they really are.
-        System.Numerics.Vector3[] blockers = _player.State.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { _player.State.Position };
-        if (Aim() is { } hit && BuildRules.CanPlace(World, Settings, hit.Before, _hotbar.Selected, blockers))
+        // and planes are left to the server, which knows where they really are.
+        System.Numerics.Vector3[] blockers = State.Player.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { State.Player.Position };
+        if (Aim() is { } hit && BuildRules.CanPlace(World, Settings, hit.Before, _hud.Hotbar.Selected, blockers))
         {
-            Predict(new VoxelEdit(hit.Before, _hotbar.Selected));
+            Predict(new VoxelEdit(hit.Before, _hud.Hotbar.Selected));
         }
     }
 
@@ -224,6 +285,36 @@ public partial class ClientGame : Node3D
         {
             _view.ShowEdit(edit);
             Link?.SubmitEdit(edit);
+        }
+    }
+
+    private PlaneModel Plane(int id)
+    {
+        if (!_planes.TryGetValue(id, out PlaneModel? model))
+        {
+            model = new PlaneModel { PlaneId = id };
+            _others.AddChild(model);
+            _planes[id] = model;
+        }
+
+        return model;
+    }
+
+    /// <summary>Draws every plane except the one being flown here, which <see cref="_Process"/> draws from prediction.</summary>
+    private void ShowPlanes(IReadOnlyDictionary<int, RemotePlane> planes, double delta)
+    {
+        foreach ((int id, RemotePlane plane) in planes)
+        {
+            if (id != State.PlaneId)
+            {
+                Plane(id).ShowState(ToGodot(plane.Position), ToGodot(plane.Rotation), plane.Throttle, delta);
+            }
+        }
+
+        foreach (int gone in _planes.Keys.Where(id => !planes.ContainsKey(id) && id != State.PlaneId).ToList())
+        {
+            _planes[gone].QueueFree();
+            _planes.Remove(gone);
         }
     }
 
@@ -238,6 +329,8 @@ public partial class ClientGame : Node3D
                 _avatars[peer] = avatar;
             }
 
+            // A pilot sits inside the plane, which is drawn instead.
+            avatar.Visible = !state.InPlane;
             avatar.ShowState(state);
         }
 
@@ -250,74 +343,7 @@ public partial class ClientGame : Node3D
 
     private static Vector3 ToGodot(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
 
+    private static Quaternion ToGodot(System.Numerics.Quaternion q) => new(q.X, q.Y, q.Z, q.W);
+
     private static System.Numerics.Vector3 ToSim(Vector3 v) => new(v.X, v.Y, v.Z);
-
-    private void AddEnvironment()
-    {
-        var sky = new Sky { SkyMaterial = new ProceduralSkyMaterial() };
-        AddChild(new WorldEnvironment
-        {
-            Environment = new Godot.Environment
-            {
-                BackgroundMode = Godot.Environment.BGMode.Sky,
-                Sky = sky,
-                AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-                TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            },
-        });
-
-        var sun = new DirectionalLight3D { ShadowEnabled = true };
-        AddChild(sun);
-        sun.RotationDegrees = new Vector3(-55, -30, 0);
-    }
-
-    /// <summary>
-    /// Water is a flat plane at sea level, not blocks (see docs/decisions.md). A sand-coloured floor
-    /// continues the seabed past the world's edge, so the map's square boundary doesn't show through.
-    /// </summary>
-    private void AddSea()
-    {
-        float size = Mathf.Max(World.SizeX, World.SizeZ) * 8;
-        var centre = new Vector3(World.SizeX / 2f, 0, World.SizeZ / 2f);
-
-        // Just under the top face of the seabed blocks, so inside the map the blocks cover it.
-        float seabedTop = Terrain.SeaLevel - Terrain.SeabedDepth + 1;
-        AddChild(new MeshInstance3D
-        {
-            Name = "SeabedBeyondMap",
-            Mesh = new PlaneMesh { Size = new Vector2(size, size) },
-            Position = centre + Vector3.Up * (seabedTop - 0.02f),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = BlockColors.Of(Block.Sand) },
-        });
-
-        AddChild(new MeshInstance3D
-        {
-            Name = "Water",
-            Mesh = new PlaneMesh { Size = new Vector2(size, size) },
-            Position = centre + Vector3.Up * (Terrain.SeaLevel - 0.1f),
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(0.08f, 0.25f, 0.5f, 0.85f),
-                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                Roughness = 0.2f,
-            },
-        });
-    }
-
-    private void AddHud()
-    {
-        var hud = new CanvasLayer { Name = "Hud" };
-        AddChild(hud);
-        hud.AddChild(new Crosshair());
-        _hotbar = new Hotbar();
-        hud.AddChild(_hotbar);
-        var help = new Label
-        {
-            Position = new Vector2(12, 8),
-            Text = "WASD move, Space jump, Shift sprint, F fly (Space/Ctrl up/down). Left click break, right click place. 1-5 or wheel: block. Esc frees the mouse.",
-        };
-        help.AddThemeColorOverride("font_outline_color", Colors.Black);
-        help.AddThemeConstantOverride("outline_size", 4);
-        hud.AddChild(help);
-    }
 }

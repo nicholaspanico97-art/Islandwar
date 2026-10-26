@@ -41,11 +41,14 @@ public static class BuildRules
     }
 
     /// <summary>Whether the player's box (feet at <paramref name="feet"/>, centred horizontally) overlaps a block.</summary>
-    public static bool Overlaps(PlayerSettings player, Vector3 feet, BlockPos block)
+    public static bool Overlaps(PlayerSettings player, Vector3 feet, BlockPos block) => OverlapsBox(feet, player.Width, player.Height, block);
+
+    /// <summary>Whether an upright box (base centre at <paramref name="basePosition"/>) overlaps a block.</summary>
+    public static bool OverlapsBox(Vector3 basePosition, float width, float height, BlockPos block)
     {
-        float half = player.Width / 2;
-        return feet.X - half < block.X + 1 && feet.X + half > block.X
-            && feet.Y < block.Y + 1 && feet.Y + player.Height > block.Y
-            && feet.Z - half < block.Z + 1 && feet.Z + half > block.Z;
+        float half = width / 2;
+        return basePosition.X - half < block.X + 1 && basePosition.X + half > block.X
+            && basePosition.Y < block.Y + 1 && basePosition.Y + height > block.Y
+            && basePosition.Z - half < block.Z + 1 && basePosition.Z + half > block.Z;
     }
 }

@@ -18,4 +18,7 @@ public interface IGameLink
 
     /// <summary>Other players to draw this frame, by peer id, already interpolated.</summary>
     IReadOnlyDictionary<int, RemoteState> SampleRemotePlayers();
+
+    /// <summary>Every plane by id, already interpolated. The one the local player flies is drawn from prediction instead.</summary>
+    IReadOnlyDictionary<int, RemotePlane> SampleRemotePlanes();
 }

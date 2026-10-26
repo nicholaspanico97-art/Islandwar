@@ -59,11 +59,13 @@ public partial class ClientMain : Node
         SetStatus($"Connecting to {Args.ConnectHost}:{Args.Port}...");
     }
 
-    private void StartGame(PlayerState spawn)
+    private void StartGame(PawnState spawn)
     {
         if (Args.Bot is not null)
         {
-            AddChild(new SyncBot { Net = _net, Role = Args.Bot });
+            AddChild(Args.Bot == "pilot"
+                ? new PilotBot { Net = _net, Role = Args.Bot, Spawn = spawn }
+                : new SyncBot { Net = _net, Role = Args.Bot });
             return;
         }
 
@@ -72,7 +74,7 @@ public partial class ClientMain : Node
         {
             World = _net.World!,
             Terrain = data.Terrain,
-            Settings = data.Player,
+            Rules = data.Rules,
             Net = data.Net,
             Spawn = spawn,
             Link = _net,

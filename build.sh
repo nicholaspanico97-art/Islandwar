@@ -39,10 +39,11 @@ wait_for_line() {
 }
 
 # The automated sync test (docs/testing.md): a headless server, a builder bot, then a breaker bot that
-# joins late. Each bot exits 0 only if its world hash matches the server's.
+# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its world hash matches the
+# server's (and, for the pilot, the server never had to correct its prediction).
 synctest() {
   dotnet build IslandWar.csproj
-  local logs port=7790 builder breaker builder_status=0 breaker_status=0
+  local logs port=7790 builder breaker pilot builder_status=0 breaker_status=0 pilot_status=0
   logs="$(mktemp -d)"
   "$GODOT" --headless --path . -- --server --port=$port >"$logs/server.log" 2>&1 &
   server_pid=$!  # global: the EXIT trap runs after this function returns
@@ -54,11 +55,14 @@ synctest() {
   wait_for_line "$logs/builder.log" "built the tower"
   "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=breaker >"$logs/breaker.log" 2>&1 &
   breaker=$!
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=pilot >"$logs/pilot.log" 2>&1 &
+  pilot=$!
   wait "$builder" || builder_status=$?
   wait "$breaker" || breaker_status=$?
+  wait "$pilot" || pilot_status=$?
 
-  grep -h "^\[bot" "$logs/builder.log" "$logs/breaker.log" || true
-  if [ "$builder_status" -ne 0 ] || [ "$breaker_status" -ne 0 ]; then
+  grep -h "^\[bot" "$logs/builder.log" "$logs/breaker.log" "$logs/pilot.log" || true
+  if [ "$builder_status" -ne 0 ] || [ "$breaker_status" -ne 0 ] || [ "$pilot_status" -ne 0 ]; then
     echo "Sync test FAILED. Logs: $logs"
     exit 1
   fi

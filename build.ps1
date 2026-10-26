@@ -47,7 +47,8 @@ function Wait-ForLine([string]$Name, [string]$Pattern, [int]$Seconds = 60) {
 }
 
 # The automated sync test (docs/testing.md): a headless server, a builder bot, then a breaker bot that
-# joins late. Each bot exits 0 only if its world hash matches the server's.
+# joins late and a pilot bot that flies the plane. Each bot exits 0 only if its world hash matches the
+# server's (and, for the pilot, the server never had to correct its prediction).
 function Invoke-SyncTest {
   $script:logs = Join-Path ([IO.Path]::GetTempPath()) "islandwar-synctest"
   New-Item -ItemType Directory -Force $logs | Out-Null
@@ -60,12 +61,13 @@ function Invoke-SyncTest {
     $bots += Start-Godot "builder" @("--connect=127.0.0.1:$port", "--bot=builder")
     Wait-ForLine "builder" "built the tower"
     $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker")
+    $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot")
     $bots | Wait-Process -Timeout 90
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }
 
-  Get-Content (Join-Path $logs "builder.log"), (Join-Path $logs "breaker.log") | Select-String "^\[bot" | ForEach-Object { $_.Line }
+  Get-Content (Join-Path $logs "builder.log"), (Join-Path $logs "breaker.log"), (Join-Path $logs "pilot.log") | Select-String "^\[bot" | ForEach-Object { $_.Line }
   if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
     Write-Host "Sync test FAILED. Logs: $logs"
     exit 1
