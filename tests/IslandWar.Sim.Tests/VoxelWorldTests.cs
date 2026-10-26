@@ -61,6 +61,39 @@ public class VoxelWorldTests
     }
 
     [Fact]
+    public void AUniformChunkStoresNoArrayUntilSomethingDiffers()
+    {
+        var chunk = new Chunk(new ChunkPos(0, 0, 0));
+
+        chunk.Set(1, 2, 3, Block.Air);
+        Assert.True(chunk.IsUniform);
+
+        chunk.Set(1, 2, 3, Block.Stone);
+        Assert.False(chunk.IsUniform);
+        Assert.Equal(Block.Stone, chunk.Get(1, 2, 3));
+        Assert.Equal(Block.Air, chunk.Get(0, 0, 0));
+    }
+
+    [Fact]
+    public void TheHashDependsOnBlocksNotOnHowChunksAreStored()
+    {
+        var stored = new VoxelWorld(1, 1, 1);
+        var uniform = new VoxelWorld(1, 1, 1);
+        var p = new BlockPos(4, 4, 4);
+
+        // Placing and removing a block leaves an array of all air in one world, a uniform chunk in the other.
+        stored.SetGenerated(p, Block.Stone);
+        stored.SetGenerated(p, Block.Air);
+
+        Assert.False(stored.Chunks[0].IsUniform);
+        Assert.True(uniform.Chunks[0].IsUniform);
+        Assert.Equal(uniform.ComputeHash(), stored.ComputeHash());
+
+        stored.Compact();
+        Assert.True(stored.Chunks[0].IsUniform);
+    }
+
+    [Fact]
     public void ChunkIndexRoundTrips()
     {
         for (int i = 0; i < Chunk.Volume; i++)

@@ -50,6 +50,15 @@ public sealed class VoxelWorld
     /// <summary>Who placed each placed block that's still standing (team build protection).</summary>
     public IReadOnlyDictionary<BlockPos, BlockOwner> Owners => _owners;
 
+    /// <summary>Stores every chunk that turned out all one block type without an array (after generation).</summary>
+    public void Compact()
+    {
+        foreach (Chunk chunk in _chunks)
+        {
+            chunk.Compact();
+        }
+    }
+
     /// <summary>Chunks in a fixed order (Y, then Z, then X).</summary>
     public IReadOnlyList<Chunk> Chunks => _chunks;
 
@@ -145,8 +154,9 @@ public sealed class VoxelWorld
     public IEnumerable<VoxelEdit> EditsWithOwners() => Deltas.All().Select(e => e with { Owner = OwnerOf(e.Position) });
 
     /// <summary>
-    /// A 64-bit FNV-1a hash of every block and every block owner. Two worlds with the same hash hold the same
-    /// blocks placed by the same players; the sync tests compare server and client worlds this way.
+    /// A 64-bit FNV-1a hash over every chunk's content hash and every block owner. Two worlds with the same
+    /// hash hold the same blocks placed by the same players, however their chunks happen to be stored; the
+    /// sync tests compare server and client worlds this way.
     /// </summary>
     public ulong ComputeHash()
     {
@@ -156,11 +166,10 @@ public sealed class VoxelWorld
         ulong hash = offsetBasis;
         foreach (Chunk chunk in _chunks)
         {
-            foreach (Block block in chunk.Blocks)
+            ulong content = chunk.ContentHash();
+            for (int shift = 0; shift < 64; shift += 8)
             {
-                ushort value = (ushort)block;
-                hash = (hash ^ (byte)value) * prime;
-                hash = (hash ^ (byte)(value >> 8)) * prime;
+                hash = (hash ^ (byte)(content >> shift)) * prime;
             }
         }
 
