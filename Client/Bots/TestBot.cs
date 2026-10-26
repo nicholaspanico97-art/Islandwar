@@ -12,7 +12,7 @@ namespace IslandWar.Client.Bots;
 /// </summary>
 public abstract partial class TestBot : Node
 {
-    private const double TimeoutSeconds = 90;
+    private const double TimeoutSeconds = 150;
 
     private Func<bool>? _waitUntil;
     private Action? _then;
@@ -25,12 +25,15 @@ public abstract partial class TestBot : Node
 
     protected VoxelWorld World => Net.World!;
 
+    /// <summary>Where the bot's pawn is, for <see cref="BotView"/>; null for bots that don't move.</summary>
+    public virtual System.Numerics.Vector3? Eye => null;
+
     /// <summary>The builder's tower column: two blocks east of the centre of Red's (west) island.</summary>
     protected (int X, int Z) TowerColumn
     {
         get
         {
-            (int x, int z) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Team.Red.IslandIndex());
+            (int x, int z) = Net.Data!.Terrain.IslandCentre(Team.Red.IslandIndex());
             return (x + 2, z);
         }
     }

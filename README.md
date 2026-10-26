@@ -23,8 +23,10 @@ score were removed on 2026-10-26; the time limit is a draw for now.) `build matc
 concession, with bots.
 
 M3 (economy and building) is under way. Done so far: team build protection (teammates' blocks can't be
-broken by hand, and your own bombs don't crater your own half). Next: the big islands from the developer's
-sketch (`docs/island-sketch.png`), then foundations, then resources against the developer's tech tree.
+broken by hand, and your own bombs don't crater your own half), and the big islands from the developer's
+sketch (`docs/island-sketch.png`): two 600 x 300 mirrored islands with mountains full of ore, hills,
+forests and grassland facing the strait, streamed in around the camera. Next: foundations, then resources
+against the developer's tech tree.
 
 ## Versions
 

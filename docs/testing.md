@@ -171,8 +171,8 @@ Planes are server-side, so use a server and a client (the single-player sandbox 
 ```
 
 Since M2 each team has its own plane: the server logs `Red plane 1 parked at ...` and `Blue plane 2
-parked at ...`. Each sits on the water just off the far beach of its team's island (Red's to the west,
-Blue's to the east), facing out to sea. Walk there from the spawn, or start the server with `--dev` and
+parked at ...`. Each sits on the water just off the south beach of its team's island, level with the island
+centre, facing south out to sea (moved there on 2026-10-26 with the big islands). Walk there from the spawn, or start the server with `--dev` and
 fly (F). Only your own team's plane lets you in.
 
 Check, in order:
@@ -366,4 +366,40 @@ Put two clients on Red and one on Blue. Check, in order:
    logs `landed on Red's own half: no crater`. Over the enemy half the ring is red and bombs crater as before.
 5. The automated tests cover it too: the sync test's breaker hits the protection (see above), and every
    hash check now includes who owns each block.
+
+## M3: the big islands from the sketch
+
+```sh
+./build.sh server --port=7777 --preset=practice --dev
+./build.sh client
+```
+
+The map is now 1488 x 128 x 400 blocks: two 600 x 300 islands traced from `docs/island-sketch.png`,
+mirror images of each other with 160 blocks of sea between them. Check, in order:
+1. You spawn on open grassland in the middle of your island, in a clearing. Looking north-west you
+   see the forest and the grey mountains at the far end; to the east, three rounded hills and the second
+   forest, and past them the beach facing the strait.
+2. Walk west (sprint off) to the mountains: about a minute from the spawn, about two minutes end to end.
+   Mountain tops above sea level + 26 are bare stone with orange ore showing; ore is dense there and
+   sparse (but present) under the grassland. Ore can be broken but isn't in the hotbar.
+3. Trees (wood trunks, leaf crowns) stand thick in the two forests and here and there on the grassland.
+   Wood and leaves are in the hotbar (slots 6 and 7).
+4. Terrain streams in around you, nearest first, and fades out in fog about 220 blocks away (380 when
+   flying). Fly across (F, or the plane) and the land ahead keeps loading; nothing stays missing.
+5. Your plane is on the water off the south beach, in line with the spawn.
+6. The bots handle the bigger map: `build synctest` and `build matchtest` pass (the bombers fly at a
+   height that clears the mountains).
+
+To watch a bot, run it in a window instead of headless: it draws the terrain around its pawn. For
+example, record a nuke run:
+
+```sh
+./build.sh server --port=7801 --preset=nuketest --dev
+godot --headless --path . -- --connect=127.0.0.1:7801 --bot=defender --team=blue --dev
+godot --path . --resolution 960x540 --write-movie nuke.avi -- --connect=127.0.0.1:7801 --bot=nuker --team=red --dev
+```
+
+The terrain tunables are in `data/terrain.json` (outline, regions, ore, trees) and `data/view.json`
+(draw distance, fog). The generator's unit tests print the generation time and the ore and tree densities:
+`dotnet test tests/IslandWar.Sim.Tests --logger "console;verbosity=detailed" --filter IslandGenerator`.
 

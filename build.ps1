@@ -65,7 +65,7 @@ function Invoke-SyncTest {
     Wait-ForLine "builder" "built the tower"
     $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker", "--team=red")
     $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot", "--team=blue")
-    $bots | Wait-Process -Timeout 120
+    $bots | Wait-Process -Timeout 200
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }
@@ -88,7 +88,7 @@ function Invoke-MatchScenario([string]$Name, [int]$Port, [string[]]$ServerArgs, 
     Wait-ForLine "$Name-server" "listening on port"
     $bots += Start-Godot "$Name-red" @("--connect=127.0.0.1:$Port", "--bot=$RedBot", "--team=red", "--name=red-$RedBot")
     $bots += Start-Godot "$Name-blue" @("--connect=127.0.0.1:$Port", "--bot=$BlueBot", "--team=blue", "--name=blue-$BlueBot")
-    $bots | Wait-Process -Timeout 150
+    $bots | Wait-Process -Timeout 200
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }
@@ -112,7 +112,7 @@ function Invoke-RejoinScenario([int]$Port) {
     $leaver | Wait-Process -Timeout 60
     $bots += $leaver
     $bots += Start-Godot "rejoin-returner" @("--connect=127.0.0.1:$Port", "--bot=returner", "--team=blue", "--name=sneaky", "--token=$token")
-    $bots | Wait-Process -Timeout 120
+    $bots | Wait-Process -Timeout 200
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }

@@ -1,18 +1,64 @@
 {
-  // Two mirrored islands, one per team, side by side along X. Sizes are in blocks unless the name says
-  // chunks (1 chunk = 16 blocks). 20 x 4 x 10 chunks = 320 x 64 x 160 blocks.
-  "chunks_x": 20,
-  "chunks_y": 4,
-  "chunks_z": 10,
-  // Centre to centre. With a radius of 48 that leaves 80 blocks of open water between the beaches.
-  "island_spacing": 176,
-  "sea_level": 16,
-  "seabed_depth": 4,
-  "island_radius": 48,
-  "base_height": 6,
-  "hill_height": 10,
-  "noise_cell_size": 24,
-  "beach_height": 1,
+  // Two mirrored islands, one per team, side by side along X, laid out from the developer's sketch
+  // (docs/island-sketch.png). Sizes are in blocks unless the name says chunks (1 chunk = 16 blocks).
+  // 93 x 8 x 25 chunks = 1488 x 128 x 400 blocks.
+  "chunks_x": 93,
+  "chunks_y": 8,
+  "chunks_z": 25,
+  "sea_level": 32,
+  "seabed_depth": 6,
+
+  // Each island sits in a 600 x 300 box (about two minutes' walk end to end), the two boxes 160 blocks
+  // apart. Fractions below are of that box: u along it from the far end (0) to the end facing the strait
+  // (1), v across it from the north side (0) to the south side (1).
+  "island_length": 600,
+  "island_width": 300,
+  "strait_width": 160,
+
+  // The coast traced from the sketch, beach included: at each u, land runs from v = north to v = south.
+  "outline": [
+    { "u": 0.00, "north": 0.50, "south": 0.70 },
+    { "u": 0.04, "north": 0.32, "south": 0.83 },
+    { "u": 0.13, "north": 0.15, "south": 0.97 },
+    { "u": 0.23, "north": 0.03, "south": 0.95 },
+    { "u": 0.33, "north": 0.00, "south": 0.83 },
+    { "u": 0.47, "north": 0.01, "south": 0.86 },
+    { "u": 0.62, "north": 0.03, "south": 0.92 },
+    { "u": 0.76, "north": 0.04, "south": 0.91 },
+    { "u": 0.90, "north": 0.08, "south": 0.76 },
+    { "u": 0.97, "north": 0.20, "south": 0.58 },
+    { "u": 1.00, "north": 0.36, "south": 0.44 },
+  ],
+  "coast_noise": 16,
+  "coast_slope": 20,
+  "beach_width": 12,
+  "beach_height": 2,
+  "inland_slope": 24,
+
+  // Open grassland: low and gently rolling.
+  "land_height": 4,
+  "rolling_height": 6,
+  "noise_cell_size": 32,
   "dirt_depth": 3,
+  "rock_line": 26,
+
+  // Grey triangles on the sketch are mountains, brown ones hills, green squares forest.
+  "regions": [
+    { "kind": "mountains", "u": 0.20, "v": 0.45, "radius_u": 0.19, "radius_v": 0.48, "height": 60 },
+    { "kind": "hills", "u": 0.645, "v": 0.21, "radius_u": 0.07, "radius_v": 0.13, "height": 24 },
+    { "kind": "hills", "u": 0.76, "v": 0.14, "radius_u": 0.06, "radius_v": 0.11, "height": 18 },
+    { "kind": "hills", "u": 0.65, "v": 0.37, "radius_u": 0.045, "radius_v": 0.08, "height": 12 },
+    { "kind": "forest", "u": 0.34, "v": 0.17, "radius_u": 0.08, "radius_v": 0.14, "tree_chance": 900 },
+    { "kind": "forest", "u": 0.80, "v": 0.47, "radius_u": 0.10, "radius_v": 0.17, "tree_chance": 900 },
+  ],
+
+  // Ore clumps: dense in the mountains, sparse everywhere else on the islands.
+  "ore_chance_mountains": 120,
+  "ore_chance_elsewhere": 12,
+  "ore_clump_size": 3,
+
+  "tree_cell_size": 7,
+  "grassland_tree_chance": 15,
+  "spawn_clearing": 16,
   "default_seed": 1337
 }

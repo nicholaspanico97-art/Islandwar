@@ -12,8 +12,8 @@ public static class BuildRules
     public static bool CanBreak(VoxelWorld world, BlockPos target) =>
         target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) != Block.Air;
 
-    /// <summary>Blocks a player can place: everything but air and retired block types.</summary>
-    public static bool Placeable(Block block) => block is not (Block.Air or Block.Core);
+    /// <summary>Blocks a player can place: everything but air, natural-only blocks and retired block types.</summary>
+    public static bool Placeable(Block block) => block is not (Block.Air or Block.Core or Block.Ore);
 
     /// <summary>
     /// A block can go into an in-bounds air cell that no player's collision box overlaps.

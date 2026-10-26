@@ -13,6 +13,9 @@ public static class BlockColors
         Block.Grass => new Color(0.33f, 0.62f, 0.25f),
         Block.Sand => new Color(0.86f, 0.80f, 0.57f),
         Block.Planks => new Color(0.72f, 0.55f, 0.33f),
+        Block.Wood => new Color(0.36f, 0.25f, 0.14f),
+        Block.Leaves => new Color(0.18f, 0.42f, 0.16f),
+        Block.Ore => new Color(0.78f, 0.45f, 0.20f),
         _ => new Color(1, 0, 1), // magenta: a new block type without a colour yet
     };
 }

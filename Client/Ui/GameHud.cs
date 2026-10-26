@@ -10,7 +10,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint | Left click break, right click place, 1-5 block | E plane | Tab scores | Esc mouse";
+        "WASD move, Space jump, Shift sprint | Left click break, right click place, number keys or wheel pick a block | E plane | Tab scores | Esc mouse";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";

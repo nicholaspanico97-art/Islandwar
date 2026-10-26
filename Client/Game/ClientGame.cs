@@ -35,6 +35,7 @@ public partial class ClientGame : Node3D
     private readonly Dictionary<int, RemoteAvatar> _avatars = new();
     private readonly Dictionary<int, PlaneModel> _planes = new();
     private readonly Dictionary<int, BombModel> _bombs = new();
+    private Scenery _scenery = null!;
     private GodotVoxelView _view = null!;
     private BlockHighlight _highlight = null!;
     private Bombsight _bombsight = null!;
@@ -75,8 +76,10 @@ public partial class ClientGame : Node3D
     {
         Name = "ClientGame";
 
-        AddChild(new Scenery { World = World, Terrain = Terrain });
-        _view = new GodotVoxelView { World = World };
+        ViewSettings view = ViewSettings.FromJson(FileAccess.GetFileAsString("res://data/view.json"));
+        _scenery = new Scenery { World = World, Terrain = Terrain, View = view };
+        AddChild(_scenery);
+        _view = new GodotVoxelView { World = World, Settings = view, Focus = ToGodot(Spawn.Player.Position) };
         AddChild(_view);
         _highlight = new BlockHighlight();
         AddChild(_highlight);
@@ -96,6 +99,14 @@ public partial class ClientGame : Node3D
         _hud = new GameHud();
         AddChild(_hud);
         Input.MouseMode = Input.MouseModeEnum.Captured;
+    }
+
+    /// <summary>Streams the terrain in around the player, further (with the fog pushed back) when flying.</summary>
+    private void DrawAround(Vector3 focus, bool flying)
+    {
+        _view.Focus = focus;
+        _view.ViewDistance = flying ? _scenery.View.FlyingViewDistance : _scenery.View.ViewDistance;
+        _scenery.SetViewDistance(_view.ViewDistance);
     }
 
     /// <summary>Draws a block change the client didn't predict: another player's, or a server correction.</summary>
@@ -245,12 +256,14 @@ public partial class ClientGame : Node3D
             Quaternion rotation = ToGodot(from.Rotation).Slerp(ToGodot(State.Plane.Rotation), fraction);
             Plane(State.PlaneId).ShowState(position, rotation, State.Plane.Throttle, delta);
             _camera.Chase(position, rotation, delta);
+            DrawAround(position, flying: true);
             _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus() + (Link is null ? "" : "\n" + MatchText.Nuke(Link.NukeReadyIn)));
         }
         else
         {
             Vector3 feet = ToGodot(_previous.Player.Position).Lerp(ToGodot(State.Player.Position), fraction) + _renderOffset;
             _camera.FirstPerson(feet + Vector3.Up * Settings.EyeHeight, _yaw, _pitch);
+            DrawAround(feet, flying: false);
             _hud.ShowOnFoot(CanGetIn(planes) ? "Press E to fly the plane" : null);
         }
 

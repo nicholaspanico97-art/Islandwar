@@ -37,8 +37,8 @@ public partial class PilotBot : TestBot
     /// <summary>Ticks of full nose-up input for the take-off rotation.</summary>
     private const int RotateTicks = 20;
 
-    /// <summary>Bombing height above the sea: clear of the highest hills.</summary>
-    private const float CruiseAboveSea = 36;
+    /// <summary>Clearance over the highest the ground and its trees can reach, when bombing.</summary>
+    private const float CruiseClearance = 6;
 
     /// <summary>Drop when the predicted impact is this close to the target, horizontally.</summary>
     private const float AimTolerance = 1.5f;
@@ -54,6 +54,8 @@ public partial class PilotBot : TestBot
     private enum Phase { Waiting, Approach, Boarding, TakeOff, Rotate, Attack, Falling, Leaving }
 
     private PredictedPlayer? _player;
+
+    public override Vector3? Eye => _player is null ? null : _player.State.InPlane ? _player.State.Plane.Position : _player.State.Player.Position;
     private Phase _phase;
     private int _phaseTicks;
     private float _maxCorrection;
@@ -288,7 +290,7 @@ public partial class PilotBot : TestBot
         float roll = Math.Clamp((bank - wantedBank) * 3, -1, 1);
 
         float pitch = MathF.Asin(Math.Clamp(plane.Forward.Y, -1, 1));
-        float wantedPitch = Math.Clamp((Net.Data!.Rules.SeaLevel + CruiseAboveSea - plane.Position.Y) * 0.04f, -0.25f, 0.3f);
+        float wantedPitch = Math.Clamp((CruiseHeight - plane.Position.Y) * 0.04f, -0.25f, 0.3f);
         float pitchInput = Math.Clamp((wantedPitch - pitch) * 4, -1, 1);
 
         InputButtons throttle = plane.Airspeed < AttackSpeed - 1 ? InputButtons.Sprint
@@ -298,12 +300,26 @@ public partial class PilotBot : TestBot
         return new PlayerInput(0, roll, pitchInput, 0, 0, throttle | trigger);
     }
 
+    /// <summary>
+    /// Bombing height: above the tallest the terrain can generate (the highest region on the highest rolling
+    /// land, with a tree on top), so the bomb runs never clip a mountain wherever the turns take the plane.
+    /// </summary>
+    private float CruiseHeight
+    {
+        get
+        {
+            IslandSettings terrain = Net.Data!.Terrain;
+            int tallestRegion = terrain.Regions.Select(r => r.Height).DefaultIfEmpty(0).Max();
+            return terrain.SeaLevel + terrain.LandHeight + terrain.RollingHeight + tallestRegion + IslandSettings.TallestTree + CruiseClearance;
+        }
+    }
+
     /// <summary>The builder's tower for the pilot; the middle of the enemy island for the nuker.</summary>
     private Vector3 Target()
     {
         if (Nuker)
         {
-            (int cx, int cz) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Net.MyTeam.Other().IslandIndex());
+            (int cx, int cz) = Net.Data!.Terrain.IslandCentre(Net.MyTeam.Other().IslandIndex());
             return new Vector3(cx + 0.5f, World.HighestSolid(cx, cz)!.Value + 1, cz + 0.5f);
         }
 

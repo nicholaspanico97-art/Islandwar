@@ -1,0 +1,11 @@
+{
+  // How far clients draw the terrain, in blocks. Chunks further away than this aren't drawn and fog hides
+  // the edge. godot_voxel allows at most 512.
+  "view_distance": 224,
+  // Further when flying, to see targets coming and land.
+  "flying_view_distance": 384,
+  // Chunks handed to the mesher per frame while catching up; more loads faster but can stutter.
+  "chunks_per_frame": 64,
+  // Fog starts at this fraction of the view distance and is thick at the view distance.
+  "fog_start": 0.55
+}

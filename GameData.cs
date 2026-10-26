@@ -51,7 +51,7 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     public PlayerState SpawnIn(VoxelWorld world, Team team, int slot = 0)
     {
         const int ringSlots = 8;
-        (int x, int z) = Terrain.IslandCentre(world.SizeX, world.SizeZ, team.IslandIndex());
+        (int x, int z) = Terrain.IslandCentre(team.IslandIndex());
 
         const int ringRadius = 3;
         if (slot > 0)
@@ -66,19 +66,23 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     }
 
     /// <summary>
-    /// A team's plane starts on the water just off the far beach of its island, facing out to sea, away from
-    /// the enemy: open water to take off over.
+    /// A team's plane starts on the water just off the south beach, level with its island's centre, facing
+    /// out to sea: open water to take off over, out of sight of the strait.
     /// </summary>
     public PlaneState PlaneSpawnIn(VoxelWorld world, Team team)
     {
         const int offshore = 6;
-        (int x, int z) = Terrain.IslandCentre(world.SizeX, world.SizeZ, team.IslandIndex());
-        bool west = team != Team.Blue;
-        x += (west ? -1 : 1) * (Terrain.IslandRadius + offshore);
+        (int x, int z) = Terrain.IslandCentre(team.IslandIndex());
+        while (z < world.SizeZ - offshore - 1 && (world.HighestSolid(x, z) ?? 0) >= Terrain.SeaLevel)
+        {
+            z++;
+        }
+
+        z += offshore;
         int ground = Math.Max(Terrain.SeaLevel, (world.HighestSolid(x, z) ?? 0) + 1);
 
-        // Heading 0 faces -Z and increases to the left, so +90 degrees faces west (-X).
-        return PlaneState.Parked(new System.Numerics.Vector3(x + 0.5f, ground, z + 0.5f), west ? MathF.PI / 2 : -MathF.PI / 2);
+        // Heading 0 faces -Z (north) and increases to the left, so 180 degrees faces south (+Z).
+        return PlaneState.Parked(new System.Numerics.Vector3(x + 0.5f, ground, z + 0.5f), MathF.PI);
     }
 
     /// <summary>The named preset, or an error listing the ones that exist.</summary>

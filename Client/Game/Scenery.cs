@@ -11,24 +11,48 @@ public partial class Scenery : Node3D
 
     public IslandSettings Terrain { get; init; } = null!;
 
+    public ViewSettings View { get; init; } = null!;
+
+    private Godot.Environment _environment = null!;
+    private float _fogDistance;
+
     public override void _Ready()
     {
         Name = "Scenery";
-        AddChild(new WorldEnvironment
+        // Depth fog thickens to the colour of the horizon at the view distance, so terrain that isn't drawn yet
+        // (or any more) fades out instead of ending at a hard edge. The sky itself stays clear.
+        _environment = new Godot.Environment
         {
-            Environment = new Godot.Environment
-            {
-                BackgroundMode = Godot.Environment.BGMode.Sky,
-                Sky = new Sky { SkyMaterial = new ProceduralSkyMaterial() },
-                AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-                TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            },
-        });
+            BackgroundMode = Godot.Environment.BGMode.Sky,
+            Sky = new Sky { SkyMaterial = new ProceduralSkyMaterial() },
+            AmbientLightSource = Godot.Environment.AmbientSource.Sky,
+            TonemapMode = Godot.Environment.ToneMapper.Filmic,
+            FogEnabled = true,
+            FogMode = Godot.Environment.FogModeEnum.Depth,
+            FogLightColor = new Color(0.66f, 0.73f, 0.82f),
+            FogSkyAffect = 0,
+            FogDensity = 1,
+        };
+        AddChild(new WorldEnvironment { Environment = _environment });
+        SetViewDistance(View.ViewDistance);
 
         var sun = new DirectionalLight3D { ShadowEnabled = true, DirectionalShadowMaxDistance = 250 };
         AddChild(sun);
         sun.RotationDegrees = new Vector3(-55, -30, 0);
         AddSea();
+    }
+
+    /// <summary>Moves the fog to match how far the terrain is drawn.</summary>
+    public void SetViewDistance(float distance)
+    {
+        if (distance == _fogDistance)
+        {
+            return;
+        }
+
+        _fogDistance = distance;
+        _environment.FogDepthBegin = distance * View.FogStart;
+        _environment.FogDepthEnd = distance;
     }
 
     /// <summary>

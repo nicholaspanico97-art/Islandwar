@@ -118,7 +118,7 @@ public partial class ClientMain : Node
             }
 
             _botStarted = true;
-            _session!.AddChild(Args.Bot switch
+            TestBot bot = Args.Bot switch
             {
                 "pilot" or "nuker" => new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn },
                 "defender" => new DefenderBot { Net = net, Role = Args.Bot },
@@ -126,8 +126,14 @@ public partial class ClientMain : Node
                 "returner" => new ReturnerBot { Net = net, Role = Args.Bot },
                 "conceder" => new ConcederBot { Net = net, Role = Args.Bot },
                 "watcher" => new MatchBot { Net = net, Role = Args.Bot },
-                _ => (TestBot)new SyncBot { Net = net, Role = Args.Bot },
-            });
+                _ => new SyncBot { Net = net, Role = Args.Bot },
+            };
+            _session!.AddChild(bot);
+            if (DisplayServer.GetName() != "headless")
+            {
+                _session.AddChild(new BotView { Bot = bot, Net = net });
+            }
+
             return;
         }
 

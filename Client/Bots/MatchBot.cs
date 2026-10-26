@@ -28,7 +28,7 @@ public partial class MatchBot : TestBot
         }
 
         // Something to be wiped by the reset: a plank next to the middle of our own island.
-        (int x, int z) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Net.MyTeam.IslandIndex());
+        (int x, int z) = Net.Data!.Terrain.IslandCentre(Net.MyTeam.IslandIndex());
         _warmupBlock = new BlockPos(x + 2, World.HighestSolid(x + 2, z)!.Value + 1, z);
         Net.SubmitEdit(new VoxelEdit(_warmupBlock, Block.Planks));
         Log($"on {Net.MyTeam}; placed a plank at {_warmupBlock} during warmup");

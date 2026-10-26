@@ -18,4 +18,15 @@ public enum Block : ushort
     /// generated or placeable; the id stays taken because ids are never reused.
     /// </summary>
     Core = 6,
+
+    /// <summary>Tree trunks.</summary>
+    Wood = 7,
+
+    Leaves = 8,
+
+    /// <summary>
+    /// Raw ore in the stone, dense in the mountains and sparse elsewhere. One kind for now; what it yields is
+    /// decided with the resources. Natural only: players can't place it.
+    /// </summary>
+    Ore = 9,
 }
