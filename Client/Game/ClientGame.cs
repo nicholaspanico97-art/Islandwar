@@ -108,6 +108,10 @@ public partial class ClientGame : Node3D
         bomb?.QueueFree();
         Vector3 at = ToGodot(explosion.Position);
         AddChild(new ExplosionEffect { Position = at, Radius = explosion.CraterRadius, InWater = explosion.InWater });
+        if (explosion.Harmless && Link is not null && Protection.IsHomeGround(Link.MyTeam, at.X, World.SizeX, Terrain.IslandCount))
+        {
+            _hud.Toast("No friendly fire: bombs don't crater your own island.");
+        }
         _camera.Shake(at.DistanceTo(ToGodot(State.Player.Position)), explosion.CraterRadius);
     }
 
@@ -254,7 +258,10 @@ public partial class ClientGame : Node3D
         ShowIdentity();
         ShowMatch();
         _bombsight.SetRadius(Math.Max(1, CraterRadius));
-        _bombsight.ShowAt(_aim is { } aim ? ToGodot(aim.Position) : null, _aim?.InWater ?? false);
+        // White where a bomb would do nothing: the sea, or our own half of the map (no friendly fire).
+        bool harmless = _aim is { } target && (target.InWater
+            || (Link is not null && Protection.IsHomeGround(Link.MyTeam, target.Position.X, World.SizeX, Terrain.IslandCount)));
+        _bombsight.ShowAt(_aim is { } aim ? ToGodot(aim.Position) : null, harmless);
         if (Link is not null)
         {
             ShowOtherPlayers(Link.SampleRemotePlayers());
@@ -398,10 +405,21 @@ public partial class ClientGame : Node3D
 
     private void Break()
     {
-        if (Aim() is { } hit && BuildRules.CanBreak(World, hit.Block))
+        if (Aim() is not { } hit || !BuildRules.CanBreak(World, hit.Block))
         {
-            Predict(new VoxelEdit(hit.Block, Block.Air));
+            return;
         }
+
+        // Team build protection: the server would refuse, so say why instead of flickering the block.
+        BlockOwner owner = World.OwnerOf(hit.Block);
+        if (Link is not null && !Protection.MayBreak(owner, Link.MyPlayerId, Link.MyTeam, id => Link.Roster.Values.Any(p => p.PlayerId == id)))
+        {
+            string who = Link.Roster.Values.FirstOrDefault(p => p.PlayerId == owner.PlayerId).Name ?? "A teammate";
+            _hud.Toast($"{who} built that. Teammates' blocks are protected.");
+            return;
+        }
+
+        Predict(new VoxelEdit(hit.Block, Block.Air));
     }
 
     private void Place()
@@ -411,7 +429,9 @@ public partial class ClientGame : Node3D
         System.Numerics.Vector3[] blockers = State.Player.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { State.Player.Position };
         if (Aim() is { } hit && BuildRules.CanPlace(World, Settings, hit.Before, _hud.Hotbar.Selected, blockers))
         {
-            Predict(new VoxelEdit(hit.Before, _hud.Hotbar.Selected));
+            // Predict the same owner the server will record, so its confirmation changes nothing.
+            BlockOwner me = Link is null ? default : new BlockOwner(Link.MyPlayerId, Link.MyTeam);
+            Predict(new VoxelEdit(hit.Before, _hud.Hotbar.Selected, me));
         }
     }
 

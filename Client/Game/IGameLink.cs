@@ -39,6 +39,9 @@ public interface IGameLink
     /// <summary>Our team.</summary>
     Team MyTeam { get; }
 
+    /// <summary>Our lasting player id: the owner recorded on blocks we place.</summary>
+    int MyPlayerId { get; }
+
     /// <summary>A player's name and team, or null if the roster hasn't caught up yet.</summary>
     RosterEntry? Player(int peer);
 

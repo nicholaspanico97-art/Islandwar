@@ -11,6 +11,7 @@ public sealed class VoxelWorld
     public const int UnbreakableLayer = 0;
 
     private readonly Chunk[] _chunks;
+    private readonly Dictionary<BlockPos, BlockOwner> _owners = new();
 
     public VoxelWorld(int chunksX, int chunksY, int chunksZ)
     {
@@ -45,6 +46,9 @@ public sealed class VoxelWorld
 
     /// <summary>Player edits applied with <see cref="ApplyEdit"/>. Terrain generation is not recorded.</summary>
     public ChunkDeltas Deltas { get; } = new();
+
+    /// <summary>Who placed each placed block that's still standing (team build protection).</summary>
+    public IReadOnlyDictionary<BlockPos, BlockOwner> Owners => _owners;
 
     /// <summary>Chunks in a fixed order (Y, then Z, then X).</summary>
     public IReadOnlyList<Chunk> Chunks => _chunks;
@@ -97,23 +101,52 @@ public sealed class VoxelWorld
         return true;
     }
 
-    /// <summary>Applies a gameplay edit and records it in <see cref="Deltas"/>.</summary>
-    /// <returns>True if the block changed. Out-of-bounds edits and no-op edits return false.</returns>
+    public BlockOwner OwnerOf(BlockPos p) => _owners.TryGetValue(p, out BlockOwner owner) ? owner : default;
+
+    /// <summary>
+    /// Applies a gameplay edit and records it in <see cref="Deltas"/>. The block's owner becomes the edit's
+    /// (air has no owner).
+    /// </summary>
+    /// <returns>True if the block or its owner changed. Out-of-bounds edits and no-op edits return false.</returns>
     public bool ApplyEdit(VoxelEdit edit)
     {
-        if (!InBounds(edit.Position) || Get(edit.Position) == edit.Block)
+        if (!InBounds(edit.Position))
         {
             return false;
         }
 
-        SetGenerated(edit.Position, edit.Block);
-        Deltas.Record(edit);
+        BlockOwner owner = edit.Block == Block.Air ? default : edit.Owner;
+        bool blockChanged = Get(edit.Position) != edit.Block;
+        bool ownerChanged = OwnerOf(edit.Position) != owner;
+        if (!blockChanged && !ownerChanged)
+        {
+            return false;
+        }
+
+        if (blockChanged)
+        {
+            SetGenerated(edit.Position, edit.Block);
+            Deltas.Record(edit);
+        }
+
+        if (owner.IsNobody)
+        {
+            _owners.Remove(edit.Position);
+        }
+        else
+        {
+            _owners[edit.Position] = owner;
+        }
+
         return true;
     }
 
+    /// <summary>Every edit since generation with its current owner, ready to send to a late joiner.</summary>
+    public IEnumerable<VoxelEdit> EditsWithOwners() => Deltas.All().Select(e => e with { Owner = OwnerOf(e.Position) });
+
     /// <summary>
-    /// A 64-bit FNV-1a hash of every block. Two worlds with the same hash hold the same blocks;
-    /// the sync tests compare server and client worlds this way.
+    /// A 64-bit FNV-1a hash of every block and every block owner. Two worlds with the same hash hold the same
+    /// blocks placed by the same players; the sync tests compare server and client worlds this way.
     /// </summary>
     public ulong ComputeHash()
     {
@@ -128,6 +161,17 @@ public sealed class VoxelWorld
                 ushort value = (ushort)block;
                 hash = (hash ^ (byte)value) * prime;
                 hash = (hash ^ (byte)(value >> 8)) * prime;
+            }
+        }
+
+        foreach ((BlockPos p, BlockOwner owner) in _owners.OrderBy(o => o.Key.Y).ThenBy(o => o.Key.Z).ThenBy(o => o.Key.X))
+        {
+            foreach (int value in new[] { p.X, p.Y, p.Z, owner.PlayerId, (int)owner.Team })
+            {
+                for (int shift = 0; shift < 32; shift += 8)
+                {
+                    hash = (hash ^ (byte)(value >> shift)) * prime;
+                }
             }
         }
 

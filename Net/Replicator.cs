@@ -18,9 +18,10 @@ public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState Stat
 
 /// <summary>
 /// A bomb hit something. <see cref="EditsData"/> is the crater, packed with <c>WireFormat.EncodeEdits</c>
-/// (empty in the sea); <see cref="CraterRadius"/> sizes the effect.
+/// (empty in the sea); <see cref="CraterRadius"/> sizes the effect. <see cref="Harmless"/> means it landed on
+/// its own team's half, where bombs make no crater (team build protection).
 /// </summary>
-public sealed record Explosion(int BombId, System.Numerics.Vector3 Position, bool InWater, byte[] EditsData, int CraterRadius = 4, bool Nuke = false);
+public sealed record Explosion(int BombId, System.Numerics.Vector3 Position, bool InWater, byte[] EditsData, int CraterRadius = 4, bool Nuke = false, bool Harmless = false);
 
 /// <summary>
 /// The one node that sends and receives game messages. Godot calls an RPC on the node at the same path on
@@ -113,15 +114,15 @@ public partial class Replicator : Node
         Rpc(MethodName.ReceiveBombDrop, drop.Id, drop.OwnerPeerId, (long)drop.Tick, ToGodot(drop.State.Position), ToGodot(drop.State.Velocity), drop.Nuke);
 
     public void BroadcastExplosion(Explosion explosion) =>
-        Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData, explosion.CraterRadius, explosion.Nuke);
+        Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData, explosion.CraterRadius, explosion.Nuke, explosion.Harmless);
 
-    /// <summary>Tells every client the block at a position.</summary>
+    /// <summary>Tells every client the block (and who placed it) at a position.</summary>
     public void BroadcastEdit(VoxelEdit edit) =>
-        Rpc(MethodName.ReceiveEdit, edit.Position.X, edit.Position.Y, edit.Position.Z, (int)edit.Block);
+        Rpc(MethodName.ReceiveEdit, edit.Position.X, edit.Position.Y, edit.Position.Z, (int)edit.Block, edit.Owner.PlayerId, (int)edit.Owner.Team);
 
     /// <summary>Tells one client the block at a position, to undo a prediction the server rejected.</summary>
     public void SendEdit(int peer, VoxelEdit edit) =>
-        RpcId(peer, MethodName.ReceiveEdit, edit.Position.X, edit.Position.Y, edit.Position.Z, (int)edit.Block);
+        RpcId(peer, MethodName.ReceiveEdit, edit.Position.X, edit.Position.Y, edit.Position.Z, (int)edit.Block, edit.Owner.PlayerId, (int)edit.Owner.Team);
 
     public void SendSnapshot(int peer, byte[] data) => RpcId(peer, MethodName.ReceiveSnapshot, data);
 
@@ -190,12 +191,12 @@ public partial class Replicator : Node
         BombDropped?.Invoke(new BombDrop(id, owner, (uint)tick, new BombState(ToSim(position), ToSim(velocity)), nuke));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits, int craterRadius, bool nuke) =>
-        ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits, craterRadius, nuke));
+    private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits, int craterRadius, bool nuke, bool harmless) =>
+        ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits, craterRadius, nuke, harmless));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveEdit(int x, int y, int z, int block) =>
-        EditReceived?.Invoke(new VoxelEdit(new BlockPos(x, y, z), (Block)block));
+    private void ReceiveEdit(int x, int y, int z, int block, int ownerId, int ownerTeam) =>
+        EditReceived?.Invoke(new VoxelEdit(new BlockPos(x, y, z), (Block)block, new BlockOwner(ownerId, (Team)ownerTeam)));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = SnapshotChannel)]
     private void ReceiveSnapshot(byte[] data) => SnapshotReceived?.Invoke(data);

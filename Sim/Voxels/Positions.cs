@@ -19,5 +19,8 @@ public readonly record struct ChunkPos(int X, int Y, int Z)
     private static int FloorDiv(int a, int b) => (a >= 0 ? a : a - b + 1) / b;
 }
 
-/// <summary>One block change: set the block at <see cref="Position"/> to <see cref="Block"/>.</summary>
-public readonly record struct VoxelEdit(BlockPos Position, Block Block);
+/// <summary>
+/// One block change: set the block at <see cref="Position"/> to <see cref="Block"/>, placed by
+/// <see cref="Owner"/> (nobody for breaking, craters and anything outside a game).
+/// </summary>
+public readonly record struct VoxelEdit(BlockPos Position, Block Block, BlockOwner Owner = default);

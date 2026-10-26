@@ -62,6 +62,9 @@ public partial class NetClient : Node, IGameLink
     /// <summary>The newest input number sent, so a new prediction after a world reset can carry on from it.</summary>
     public uint LastSentSeq { get; private set; }
 
+    /// <summary>Our lasting player id (the owner recorded on blocks we place), once the server has said.</summary>
+    public int MyPlayerId => _roster.TryGetValue(Multiplayer.GetUniqueId(), out RosterEntry me) ? me.PlayerId : 0;
+
     /// <summary>Our own team, once the server has said.</summary>
     public Team MyTeam => _roster.TryGetValue(Multiplayer.GetUniqueId(), out RosterEntry me) ? me.Team : Team.None;
 

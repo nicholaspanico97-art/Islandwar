@@ -28,6 +28,8 @@ public partial class GameHud : CanvasLayer
     private Label _bannerTitle = null!;
     private Label _bannerDetail = null!;
     private double _bannerSecondsLeft;
+    private Label _toast = null!;
+    private double _toastSecondsLeft;
 
     public Hotbar Hotbar { get; private set; } = null!;
 
@@ -87,6 +89,13 @@ public partial class GameHud : CanvasLayer
         _bannerDetail.OffsetTop = -90;
         _bannerDetail.AddThemeFontSizeOverride("font_size", 24);
 
+        _toast = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
+        _toast.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _toast.GrowHorizontal = Control.GrowDirection.Both;
+        _toast.OffsetTop = 60;
+        _toast.AddThemeFontSizeOverride("font_size", 20);
+        _toast.Modulate = new Color(1, 0.85f, 0.5f);
+
         _flight = Outlined(new Label { Visible = false });
         // Anchored to the bottom-left corner and growing upward, so extra lines never run off the screen.
         _flight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
@@ -100,6 +109,12 @@ public partial class GameHud : CanvasLayer
 
     public override void _Process(double delta)
     {
+        if (_toastSecondsLeft > 0)
+        {
+            _toastSecondsLeft -= delta;
+            _toast.Visible = _toastSecondsLeft > 0;
+        }
+
         if (_bannerSecondsLeft > 0)
         {
             _bannerSecondsLeft -= delta;
@@ -118,6 +133,14 @@ public partial class GameHud : CanvasLayer
 
     /// <summary>Our team's concede votes, under the cores. Empty hides it.</summary>
     public void ShowConcede(string text) => _concede.Text = text;
+
+    /// <summary>A short note just under the crosshair for a couple of seconds (why something didn't happen).</summary>
+    public void Toast(string text, double seconds = 2.5)
+    {
+        _toast.Text = text;
+        _toast.Visible = true;
+        _toastSecondsLeft = seconds;
+    }
 
     /// <summary>A big announcement in the middle of the screen for a few seconds.</summary>
     public void Announce(string title, string detail, Color colour, double seconds = 5)

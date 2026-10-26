@@ -78,6 +78,13 @@ public abstract partial class TestBot : Node
         _then = then;
     }
 
+    /// <summary>Waits a fixed time: for things the server answers by not doing anything, like a refused edit.</summary>
+    protected void WaitSeconds(double seconds, Action then)
+    {
+        double until = _elapsed + seconds;
+        WaitUntil(() => _elapsed >= until, then);
+    }
+
     /// <summary>
     /// Asks the server for its world hash; the bot passes if it equals its own. The reply shares the
     /// reliable channel with edits, so it arrives after every edit the server sent before it.

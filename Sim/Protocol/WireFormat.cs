@@ -163,7 +163,7 @@ public static class WireFormat
         return new Snapshot(tick, ack, players, planes, match, nukeReadyIn);
     });
 
-    /// <summary>Block edits, 8 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>
+    /// <summary>Block edits with their owners, 13 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>
     public static byte[] EncodeEdits(IReadOnlyCollection<VoxelEdit> edits) => Encode(writer =>
     {
         writer.Write(edits.Count);
@@ -173,13 +173,15 @@ public static class WireFormat
             writer.Write(checked((ushort)edit.Position.Y));
             writer.Write(checked((ushort)edit.Position.Z));
             writer.Write((ushort)edit.Block);
+            writer.Write(edit.Owner.PlayerId);
+            writer.Write((byte)edit.Owner.Team);
         }
     });
 
     public static IReadOnlyList<VoxelEdit> DecodeEdits(byte[] data) => Decode(data, reader =>
     {
         int count = reader.ReadInt32();
-        if (count < 0 || count > (data.Length - 4) / 8)
+        if (count < 0 || count > (data.Length - 4) / 13)
         {
             throw new InvalidDataException($"Edit list claims {count} edits in {data.Length} bytes.");
         }
@@ -188,7 +190,8 @@ public static class WireFormat
         for (int i = 0; i < count; i++)
         {
             var position = new BlockPos(reader.ReadUInt16(), reader.ReadUInt16(), reader.ReadUInt16());
-            edits[i] = new VoxelEdit(position, (Block)reader.ReadUInt16());
+            var block = (Block)reader.ReadUInt16();
+            edits[i] = new VoxelEdit(position, block, new BlockOwner(reader.ReadInt32(), (Team)reader.ReadByte()));
         }
 
         return edits;
@@ -205,6 +208,7 @@ public static class WireFormat
             writer.Write((byte)entry.Team);
             writer.Write(entry.ConcedeVote);
             writer.Write((ushort)Math.Clamp(entry.PingMs, 0, ushort.MaxValue));
+            writer.Write(entry.PlayerId);
         }
     });
 
@@ -219,7 +223,7 @@ public static class WireFormat
         var roster = new RosterEntry[count];
         for (int i = 0; i < count; i++)
         {
-            roster[i] = new RosterEntry(reader.ReadInt32(), reader.ReadString(), (Team)reader.ReadByte(), reader.ReadBoolean(), reader.ReadUInt16());
+            roster[i] = new RosterEntry(reader.ReadInt32(), reader.ReadString(), (Team)reader.ReadByte(), reader.ReadBoolean(), reader.ReadUInt16(), reader.ReadInt32());
         }
 
         return roster;

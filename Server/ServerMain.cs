@@ -44,6 +44,10 @@ public partial class ServerMain : Node
     /// </summary>
     private readonly Dictionary<string, (string Name, Team Team)> _departed = new();
 
+    /// <summary>Lasting player ids by identity token, for block ownership. Ids start at 1; 0 means nobody.</summary>
+    private readonly Dictionary<string, int> _playerIds = new();
+    private int _nextPlayerId = 1;
+
     /// <summary>The roster goes out on every change and also this often, to refresh everyone's ping.</summary>
     private const uint RosterRefreshTicks = 120;
 
@@ -241,13 +245,17 @@ public partial class ServerMain : Node
             {
                 int[] coresBefore = _cores.Select(c => c.StandingBlocks(World)).ToArray();
                 float coreFactor = bomb.Nuke ? 1 : _rules.Bomb.CoreBlastFactor;
-                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, bomb.CraterRadius, hit, coreFactor);
-                _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList()), bomb.CraterRadius, bomb.Nuke));
-                GD.Print(hit.InWater
-                    ? $"[server] {(bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}")} splashed into the sea"
-                    : $"[server] {(bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}")} hit {hit.Block}: crater of {crater.Count} blocks");
+
+                // No friendly fire: a team's bombs make no crater on its own half of the map.
+                bool harmless = !hit.InWater && Protection.IsHomeGround(bomb.Team, hit.Position.X, World.SizeX, _data.Terrain.IslandCount);
+                IReadOnlyList<VoxelEdit> crater = harmless ? Array.Empty<VoxelEdit>() : BombFlight.Explode(World, bomb.CraterRadius, hit, coreFactor);
+                _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList()), bomb.CraterRadius, bomb.Nuke, harmless));
+                string what = bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}";
+                GD.Print(hit.InWater ? $"[server] {what} splashed into the sea"
+                    : harmless ? $"[server] {what} landed on {bomb.Team}'s own half: no crater (no friendly fire)"
+                    : $"[server] {what} hit {hit.Block}: crater of {crater.Count} blocks");
                 LogCoreDamage(coresBefore);
-                if (bomb.Nuke)
+                if (bomb.Nuke && !harmless)
                 {
                     CheckNukeHit(bomb, hit);
                 }
@@ -405,8 +413,14 @@ public partial class ServerMain : Node
         }
 
         string name = PlayerNames.Clean(requestedName, _players.Values.Select(p => p.Name));
-        _players[peer] = new ServerPlayer(name, team, token, _data.SpawnIn(World, team, _spawnSlots[team]++), _data.Net);
-        List<VoxelEdit> edits = World.Deltas.All().ToList();
+        int playerId = token.Length > 0 && _playerIds.TryGetValue(token, out int known) ? known : _nextPlayerId++;
+        if (token.Length > 0)
+        {
+            _playerIds[token] = playerId;
+        }
+
+        _players[peer] = new ServerPlayer(name, team, token, playerId, _data.SpawnIn(World, team, _spawnSlots[team]++), _data.Net);
+        List<VoxelEdit> edits = World.EditsWithOwners().ToList();
         _net.SendWorld(peer, new WorldInit(_seed, _data, WireFormat.EncodeEdits(edits), World.ComputeHash(), Args.Dev, Args.Preset));
         BroadcastRoster();
         GD.Print($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' on {team}; sent the world with {edits.Count} edits");
@@ -441,8 +455,10 @@ public partial class ServerMain : Node
 
     private void BroadcastRoster() =>
         _net.BroadcastRoster(WireFormat.EncodeRoster(_players
-            .Select(p => new RosterEntry(p.Key, p.Value.Name, p.Value.Team, p.Value.ConcedeVote, PingOf(p.Key)))
+            .Select(p => new RosterEntry(p.Key, p.Value.Name, p.Value.Team, p.Value.ConcedeVote, PingOf(p.Key), p.Value.PlayerId))
             .ToList()));
+
+    private bool IsOnline(int playerId) => _players.Values.Any(p => p.PlayerId == playerId);
 
     private int PingOf(int peer) =>
         Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet && enet.GetPeer(peer) is { } connection
@@ -539,6 +555,8 @@ public partial class ServerMain : Node
             return;
         }
 
+        // The server decides who placed it; whatever the client sent about owners is ignored.
+        edit = edit with { Owner = edit.Block == Block.Air ? default : new BlockOwner(player.PlayerId, player.Team) };
         if (Allowed(player, edit, out string? reason) && World.ApplyEdit(edit))
         {
             _net.BroadcastEdit(edit);
@@ -549,7 +567,7 @@ public partial class ServerMain : Node
         // Undo the client's prediction by telling it what's really there.
         if (World.InBounds(edit.Position))
         {
-            _net.SendEdit(peer, new VoxelEdit(edit.Position, World.Get(edit.Position)));
+            _net.SendEdit(peer, new VoxelEdit(edit.Position, World.Get(edit.Position), World.OwnerOf(edit.Position)));
         }
 
         if (reason is not null)
@@ -572,6 +590,7 @@ public partial class ServerMain : Node
             : !player.TrySpendEdit() ? "too many edits"
             : !BuildRules.InReach(settings, eye, edit.Position) ? "out of reach"
             : edit.Block == Block.Air && !BuildRules.CanBreak(World, edit.Position) ? "can't break that"
+            : edit.Block == Block.Air && !Protection.MayBreak(World.OwnerOf(edit.Position), player.PlayerId, player.Team, IsOnline) ? "a teammate built that"
             : edit.Block != Block.Air && !BuildRules.CanPlace(World, settings, edit.Position, edit.Block, blockers) ? "can't place there"
             : edit.Block != Block.Air && _planes.Values.Any(p => BuildRules.OverlapsBox(p.State.Position, _rules.Plane.Width, _rules.Plane.Height, edit.Position)) ? "a plane is in the way"
             : null;
@@ -666,11 +685,12 @@ public partial class ServerMain : Node
         private float _inputBudget;
         private float _editBudget;
 
-        public ServerPlayer(string name, Team team, string token, PlayerState spawn, NetSettings net)
+        public ServerPlayer(string name, Team team, string token, int playerId, PlayerState spawn, NetSettings net)
         {
             Name = name;
             Team = team;
             Token = token;
+            PlayerId = playerId;
             Spawn = spawn;
             Pawn = PawnState.OnFoot(spawn);
             _editBudget = net.MaxEditsPerSecond;
@@ -682,6 +702,9 @@ public partial class ServerMain : Node
 
         /// <summary>The client's identity token, for getting this seat back after a disconnect.</summary>
         public string Token { get; }
+
+        /// <summary>Lasting id (same token, same id), recorded as the owner of the blocks they place.</summary>
+        public int PlayerId { get; }
 
         public bool ConcedeVote { get; set; }
 
