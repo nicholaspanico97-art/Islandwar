@@ -134,7 +134,8 @@ Each client logs `rebuilt the world: seed 1337 plus N edits, hash ... matches th
 ```
 
 The plan's sync test: bot A builds a tower, bot B bombs it, and every world must end identical. It
-starts a headless server and three headless bots on port 7790:
+starts a headless server (developer mode, `practice` preset, so no match starts and resets the world) and
+three headless bots on port 7790:
 - The **builder** joins and builds a 5-block tower two blocks east of the island centre, then waits
   until the tower has been both broken and bombed.
 - Once the tower is up, two more join late. The **breaker** checks the tower is in the world it
@@ -242,4 +243,47 @@ Check, in order:
 Quick check of the join rules without a screen: set `max_players_per_team` to 1 in the compressed preset,
 start a server, and connect three `--bot=builder --team=red --name=Nick` clients. The server should log
 `Nick` on Red, `Nick 2` on Blue, and `kicking peer ...: The server is full (1 per team).`
+
+## M2, piece 2: match clock, phases, warmup, end and reset
+
+```sh
+./build.sh server --port=7777 --preset=quick
+./build.sh client
+./build.sh client
+```
+
+`quick` runs a five-minute match (phase 2 at 1:00, phase 3 at 3:00); `compressed` is the real 45-minute
+one. Join one client to each team. Check, in order:
+1. With one team empty, the top of the screen says `Warmup: the match starts when both teams have 1`.
+   Anything goes in warmup, bombs included.
+2. When both teams have a player: `Match starts in 10 s`, counting down. Leaving cancels it (the server
+   logs `back to warmup`).
+3. At zero the island resets: everything built or blasted in warmup is gone, everyone is back on foot at
+   their spawn, the planes are back on their moorings. A banner says `The match has started`.
+4. Phase 1: the line reads `Phase 1 of 3: scouting, no bombs | phase 2 in 0:59`. In a plane the HUD says
+   `Bombs unlock in phase 2`, there's no bombsight, and left click does nothing.
+5. Phase 2 (banner `Bombs unlocked: crater radius 3`): bombs work with radius-3 craters, and the bombsight
+   ring is that size. Phase 3 (banner `Heavy bombs`): radius 5.
+6. At the time limit: a `Draw` banner (`The time limit was reached`; scoring comes in piece 4), then
+   `next warmup in ...`, then back to warmup, and with both teams still there the countdown starts again.
+7. A client joining mid-match sees the current phase and clock at once.
+
+### Automated match test
+
+```sh
+./build.sh matchtest
+```
+
+A headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher` bot per team.
+Each places a plank in warmup, then checks that the start reset the world (the plank gone, the hash
+matching the server's), that the stages came in order and the time limit ended it, and finally compares
+world hashes. Expected output ends with:
+
+```
+[bot watcher] stages seen: Countdown -> phase 1 -> phase 2 -> phase 3 -> Ended
+[bot watcher] PASS: world hash <h>, server <h>
+Match test PASSED
+```
+
+It takes about 30 seconds.
 

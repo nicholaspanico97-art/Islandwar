@@ -15,7 +15,9 @@ the current world. `build synctest` checks it with bots: one builds a tower, one
 must end identical.
 
 M2 (the match loop) is under way. Done so far: two mirrored islands, Red and Blue teams with their own
-spawns and planes, player names, and a menu to join a server by address.
+spawns and planes, player names, a menu to join a server by address, and the match itself: warmup,
+countdown, three timed phases that unlock and grow bombs, a time limit, and a fresh island each match.
+`build matchtest` checks a whole match with bots.
 
 ## Versions
 
@@ -35,7 +37,8 @@ spawns and planes, player names, and a menu to join a server by address.
 ./build.sh server --port=7777                  # headless dedicated server (add --preset=full, --dev)
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
 ./build.sh client                              # the menu: join a server by address, or the sandbox
-./build.sh synctest                            # automated sync test: server + two bots
+./build.sh synctest                            # automated sync test: server + three bots
+./build.sh matchtest                           # automated match test: a 20-second match, two bots
 ```
 
 On Windows use `.\build.ps1` with the same arguments. Engine commands need Godot 4.7.2 (.NET) on `PATH`
