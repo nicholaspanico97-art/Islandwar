@@ -82,6 +82,7 @@ public partial class ClientMain : Node
         AddChild(game);
         _net.WorldChanged += game.ShowWorldChange;
         _net.OwnStateReceived += game.Reconcile;
+        _net.Exploded += game.ShowExplosion;
         SetStatus($"Playing on {Args.ConnectHost}:{Args.Port} as peer {Multiplayer.GetUniqueId()}.");
     }
 

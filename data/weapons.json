@@ -1,0 +1,10 @@
+{
+  // Weapon tunables. M1d has one bomb type. Distances in blocks, times in seconds.
+  "gravity": 15.0,
+  "drag": 0.05,
+  // Early bombers should be "scouts with a grudge" (game plan); 4 makes a satisfying M1 crater.
+  "crater_radius": 4,
+  "cooldown_seconds": 1.0,
+  "drop_height": 0.5,
+  "max_lifetime_seconds": 30.0
+}

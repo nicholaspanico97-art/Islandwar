@@ -38,6 +38,17 @@ public class CraterTests
     }
 
     [Fact]
+    public void BlastLeavesTheBottomLayer()
+    {
+        VoxelWorld world = SolidWorld();
+
+        Craters.Blast(world, new BlockPos(8, 1, 8), 3);
+
+        Assert.Equal(Block.Stone, world.Get(new BlockPos(8, 0, 8)));
+        Assert.Equal(Block.Air, world.Get(new BlockPos(8, 1, 8)));
+    }
+
+    [Fact]
     public void BlastSkipsAirAndOutOfBoundsBlocks()
     {
         VoxelWorld world = SolidWorld();

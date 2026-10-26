@@ -17,7 +17,12 @@ public partial class CameraRig : Node3D
     /// <summary>How quickly a mouse look-around in the plane returns behind the tail, per second.</summary>
     private const float OrbitReturn = 1.2f;
 
+    /// <summary>How fast a shake dies away, per second.</summary>
+    private const float ShakeDecay = 4;
+
+    private readonly RandomNumberGenerator _random = new();
     private Camera3D _camera = null!;
+    private float _shake;
     private Vector3 _chasePosition;
     private bool _chasing;
     private float _orbitYaw;
@@ -34,9 +39,24 @@ public partial class CameraRig : Node3D
     public void FirstPerson(Vector3 eye, float yaw, float pitch)
     {
         _chasing = false;
-        _camera.GlobalPosition = eye;
+        _camera.GlobalPosition = eye + ShakeOffset();
         _camera.Rotation = new Vector3(pitch, yaw, 0);
     }
+
+    /// <summary>Shakes the view for an explosion at <paramref name="distance"/> blocks: hard up close, nothing far away.</summary>
+    public void Shake(float distance, float radius)
+    {
+        float strength = Mathf.Clamp(1 - distance / (radius * 12), 0, 1);
+        _shake = Mathf.Max(_shake, strength * 0.6f);
+    }
+
+    public override void _Process(double delta)
+    {
+        _shake *= Mathf.Exp(-ShakeDecay * (float)delta);
+    }
+
+    private Vector3 ShakeOffset() =>
+        _shake < 0.001f ? Vector3.Zero : new Vector3(_random.RandfRange(-1, 1), _random.RandfRange(-1, 1), _random.RandfRange(-1, 1)) * _shake;
 
     /// <summary>Turns the chase view, in radians. Called with mouse movement while flying.</summary>
     public void Orbit(float yaw, float pitch)
@@ -61,7 +81,7 @@ public partial class CameraRig : Node3D
 
         _chasePosition = _chasing ? _chasePosition.Lerp(desired, 1 - Mathf.Exp(-ChaseStiffness * dt)) : desired;
         _chasing = true;
-        _camera.GlobalPosition = _chasePosition;
+        _camera.GlobalPosition = _chasePosition + ShakeOffset();
         if (!_chasePosition.IsEqualApprox(target))
         {
             _camera.LookAt(target, Vector3.Up);

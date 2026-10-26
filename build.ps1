@@ -62,7 +62,7 @@ function Invoke-SyncTest {
     Wait-ForLine "builder" "built the tower"
     $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker")
     $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot")
-    $bots | Wait-Process -Timeout 90
+    $bots | Wait-Process -Timeout 120
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }

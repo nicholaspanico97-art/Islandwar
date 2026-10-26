@@ -9,6 +9,8 @@ using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
+using Explosion = IslandWar.Net.Explosion;
 
 namespace IslandWar.Client.Game;
 
@@ -26,10 +28,17 @@ public partial class ClientGame : Node3D
     /// <summary>How fast a smoothed correction fades out, per second.</summary>
     private const float SmoothingRate = 15;
 
+    /// <summary>How many ticks ahead the bombsight looks for an impact (10 seconds at 60 ticks).</summary>
+    private const int BombsightTicks = 600;
+
     private readonly Dictionary<int, RemoteAvatar> _avatars = new();
     private readonly Dictionary<int, PlaneModel> _planes = new();
+    private readonly Dictionary<int, BombModel> _bombs = new();
     private GodotVoxelView _view = null!;
     private BlockHighlight _highlight = null!;
+    private Bombsight _bombsight = null!;
+    private BombImpact? _aim;
+    private double _lastDropSeconds = double.NegativeInfinity;
     private GameHud _hud = null!;
     private CameraRig _camera = null!;
     private Node3D _others = null!;
@@ -40,6 +49,7 @@ public partial class ClientGame : Node3D
     private float _pitch;
     private bool _wantsFlying;
     private bool _usePressed;
+    private bool _firePressed;
 
     public VoxelWorld World { get; init; } = null!;
 
@@ -67,6 +77,8 @@ public partial class ClientGame : Node3D
         AddChild(_view);
         _highlight = new BlockHighlight();
         AddChild(_highlight);
+        _bombsight = new Bombsight { Radius = Rules.Bomb.CraterRadius };
+        AddChild(_bombsight);
         _others = new Node3D { Name = "Others" };
         AddChild(_others);
 
@@ -81,6 +93,16 @@ public partial class ClientGame : Node3D
 
     /// <summary>Draws a block change the client didn't predict: another player's, or a server correction.</summary>
     public void ShowWorldChange(VoxelEdit edit) => _view.ShowEdit(edit);
+
+    /// <summary>Draws an explosion the server reported. Its crater arrives separately as world changes.</summary>
+    public void ShowExplosion(Explosion explosion)
+    {
+        _bombs.Remove(explosion.BombId, out BombModel? bomb);
+        bomb?.QueueFree();
+        Vector3 at = ToGodot(explosion.Position);
+        AddChild(new ExplosionEffect { Position = at, Radius = Rules.Bomb.CraterRadius, InWater = explosion.InWater });
+        _camera.Shake(at.DistanceTo(ToGodot(State.Player.Position)), Rules.Bomb.CraterRadius);
+    }
 
     /// <summary>
     /// The server's state for the local player after it processed input <paramref name="ack"/>. Small
@@ -150,7 +172,11 @@ public partial class ClientGame : Node3D
         }
         else if (State.InPlane)
         {
-            // Building and noclip are for players on foot.
+            // In a plane the left button drops bombs; building and noclip are for players on foot.
+            if (@event.IsActionPressed(InputActions.Break))
+            {
+                _firePressed = true;
+            }
         }
         else if (@event.IsActionPressed(InputActions.ToggleFly))
         {
@@ -180,6 +206,9 @@ public partial class ClientGame : Node3D
         }
 
         _highlight.ShowAt(State.InPlane ? null : Aim()?.Block);
+        _aim = State.InPlane && !State.Plane.OnGround
+            ? BombFlight.PredictImpact(World, Rules.Bomb, Rules.SeaLevel, BombFlight.Drop(Rules.Bomb, State.Plane), Net.TickSeconds, BombsightTicks)
+            : null;
     }
 
     public override void _Process(double delta)
@@ -195,7 +224,7 @@ public partial class ClientGame : Node3D
             Quaternion rotation = ToGodot(from.Rotation).Slerp(ToGodot(State.Plane.Rotation), fraction);
             Plane(State.PlaneId).ShowState(position, rotation, State.Plane.Throttle, delta);
             _camera.Chase(position, rotation, delta);
-            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel);
+            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus());
         }
         else
         {
@@ -205,11 +234,23 @@ public partial class ClientGame : Node3D
         }
 
         ShowPlanes(planes, delta);
+        _bombsight.ShowAt(_aim is { } aim ? ToGodot(aim.Position) : null, _aim?.InWater ?? false);
         if (Link is not null)
         {
             ShowOtherPlayers(Link.SampleRemotePlayers());
+            ShowBombs(Link.SampleBombs());
         }
     }
+
+    private bool BombReady => NowSeconds - _lastDropSeconds >= Rules.Bomb.CooldownSeconds;
+
+    private static double NowSeconds => Time.GetTicksMsec() / 1000.0;
+
+    private string BombStatus() =>
+        Link is null ? "No bombs in the sandbox"
+        : State.Plane.OnGround ? "Bombs: take off first"
+        : BombReady ? "Bomb ready: left click"
+        : "Bomb bay reloading...";
 
     private PlayerInput ReadInput()
     {
@@ -242,6 +283,18 @@ public partial class ClientGame : Node3D
         {
             buttons |= InputButtons.Use;
             _usePressed = false;
+        }
+
+        if (_firePressed)
+        {
+            // The server has the final say on the reload; this only keeps the HUD honest.
+            if (State.InPlane && !State.Plane.OnGround && BombReady)
+            {
+                _lastDropSeconds = NowSeconds;
+            }
+
+            buttons |= InputButtons.Fire;
+            _firePressed = false;
         }
 
         return new PlayerInput(0, move.X, move.Y, _yaw, _pitch, buttons);
@@ -315,6 +368,27 @@ public partial class ClientGame : Node3D
         {
             _planes[gone].QueueFree();
             _planes.Remove(gone);
+        }
+    }
+
+    private void ShowBombs(IReadOnlyDictionary<int, BombState> bombs)
+    {
+        foreach ((int id, BombState bomb) in bombs)
+        {
+            if (!_bombs.TryGetValue(id, out BombModel? model))
+            {
+                model = new BombModel();
+                _others.AddChild(model);
+                _bombs[id] = model;
+            }
+
+            model.ShowState(ToGodot(bomb.Position), ToGodot(bomb.Velocity));
+        }
+
+        foreach (int gone in _bombs.Keys.Where(id => !bombs.ContainsKey(id)).ToList())
+        {
+            _bombs[gone].QueueFree();
+            _bombs.Remove(gone);
         }
     }
 

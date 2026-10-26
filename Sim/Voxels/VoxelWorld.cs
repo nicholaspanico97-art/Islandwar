@@ -7,6 +7,9 @@ namespace IslandWar.Sim.Voxels;
 /// </summary>
 public sealed class VoxelWorld
 {
+    /// <summary>Blocks at this height can't be broken or blasted, so nobody digs or bombs out of the world.</summary>
+    public const int UnbreakableLayer = 0;
+
     private readonly Chunk[] _chunks;
 
     public VoxelWorld(int chunksX, int chunksY, int chunksZ)

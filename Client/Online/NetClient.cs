@@ -8,6 +8,7 @@ using IslandWar.Net;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
 
 namespace IslandWar.Client.Online;
 
@@ -20,6 +21,7 @@ public partial class NetClient : Node, IGameLink
 {
     private readonly Dictionary<int, InterpolationBuffer<RemoteState>> _others = new();
     private readonly Dictionary<int, InterpolationBuffer<RemotePlane>> _planes = new();
+    private readonly Dictionary<int, FallingBomb> _bombs = new();
     private double _serverTick;
     private bool _joined;
 
@@ -41,12 +43,17 @@ public partial class NetClient : Node, IGameLink
     /// <summary>The server's state for our player (and the plane they fly) after it processed the given input.</summary>
     public event Action<PawnState, uint>? OwnStateReceived;
 
+    /// <summary>A bomb went off; its crater is already in <see cref="World"/> (and reported by <see cref="WorldChanged"/>).</summary>
+    public event Action<Explosion>? Exploded;
+
     public override void _Ready()
     {
         Name = "NetClient";
         Replicator.WorldReceived += OnWorld;
         Replicator.EditReceived += OnEdit;
         Replicator.SnapshotReceived += OnSnapshot;
+        Replicator.BombDropped += drop => _bombs[drop.Id] = new FallingBomb(drop);
+        Replicator.ExplosionReceived += OnExplosion;
     }
 
     public override void _Process(double delta)
@@ -65,6 +72,24 @@ public partial class NetClient : Node, IGameLink
     public IReadOnlyDictionary<int, RemoteState> SampleRemotePlayers() => Sample(_others);
 
     public IReadOnlyDictionary<int, RemotePlane> SampleRemotePlanes() => Sample(_planes);
+
+    /// <summary>
+    /// Falling bombs, simulated here from their drop. Other players' bombs are shown at the same delay as
+    /// their planes; our own at the present, to line up with our predicted plane.
+    /// </summary>
+    public IReadOnlyDictionary<int, BombState> SampleBombs()
+    {
+        if (Data is null || World is null)
+        {
+            return new Dictionary<int, BombState>();
+        }
+
+        int me = Multiplayer.GetUniqueId();
+        double delayed = _serverTick - Data.Net.InterpolationDelayTicks;
+        return _bombs.ToDictionary(
+            b => b.Key,
+            b => b.Value.At(b.Value.Drop.OwnerPeerId == me ? _serverTick : delayed, World, Data.Rules, Data.Net.TickSeconds));
+    }
 
     private IReadOnlyDictionary<int, T> Sample<T>(Dictionary<int, InterpolationBuffer<T>> buffers)
     {
@@ -88,6 +113,22 @@ public partial class NetClient : Node, IGameLink
         {
             GD.PushError($"[client] rebuilt world hash {hash:x16} differs from the server's {init.Hash:x16}");
         }
+    }
+
+    private void OnExplosion(Explosion explosion)
+    {
+        _bombs.Remove(explosion.BombId);
+        if (World is null)
+        {
+            return;
+        }
+
+        foreach (VoxelEdit edit in WireFormat.DecodeEdits(explosion.EditsData))
+        {
+            OnEdit(edit);
+        }
+
+        Exploded?.Invoke(explosion);
     }
 
     private void OnEdit(VoxelEdit edit)
@@ -175,6 +216,46 @@ public partial class NetClient : Node, IGameLink
         foreach (int gone in buffers.Keys.Where(id => !present.Contains(id)).ToList())
         {
             buffers.Remove(gone);
+        }
+    }
+
+    /// <summary>
+    /// A bomb between its drop and the server's explosion. Steps forward only as far as asked, and stops
+    /// where it would hit something, waiting there for the server to say what really happened.
+    /// </summary>
+    private sealed class FallingBomb
+    {
+        private BombState _state;
+        private uint _tick;
+        private bool _landed;
+
+        public FallingBomb(BombDrop drop)
+        {
+            Drop = drop;
+            _state = drop.State;
+            _tick = drop.Tick;
+        }
+
+        public BombDrop Drop { get; }
+
+        public BombState At(double tick, VoxelWorld world, Sim.GameRules rules, float dt)
+        {
+            while (!_landed && _tick + 1 <= tick)
+            {
+                (BombState next, BombImpact? impact) = BombFlight.Step(world, rules.Bomb, rules.SeaLevel, _state, dt);
+                _tick++;
+                if (impact is { } hit)
+                {
+                    _state = next with { Position = hit.Position };
+                    _landed = true;
+                }
+                else
+                {
+                    _state = next;
+                }
+            }
+
+            return _state;
         }
     }
 }

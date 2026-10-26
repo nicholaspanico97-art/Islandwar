@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
 
 namespace IslandWar.Client.Game;
 
@@ -21,4 +22,7 @@ public interface IGameLink
 
     /// <summary>Every plane by id, already interpolated. The one the local player flies is drawn from prediction instead.</summary>
     IReadOnlyDictionary<int, RemotePlane> SampleRemotePlanes();
+
+    /// <summary>Falling bombs by id, positioned for this frame.</summary>
+    IReadOnlyDictionary<int, BombState> SampleBombs();
 }

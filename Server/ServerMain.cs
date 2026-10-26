@@ -9,13 +9,15 @@ using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
 
 namespace IslandWar.Server;
 
 /// <summary>
-/// Dedicated server: owns the world, every player and every plane. Clients send only inputs and edit
+/// Dedicated server: owns the world, every player, plane and bomb. Clients send only inputs and edit
 /// requests. The server runs each player (or the plane they fly) from their inputs, checks every edit
-/// against the build rules, and sends the results back as edits and snapshots.
+/// against the build rules, drops and flies bombs, blasts their craters, and sends the results back as
+/// edits, snapshots, drops and explosions.
 /// </summary>
 public partial class ServerMain : Node
 {
@@ -23,11 +25,13 @@ public partial class ServerMain : Node
 
     private readonly Dictionary<int, ServerPlayer> _players = new();
     private readonly Dictionary<int, ServerPlane> _planes = new();
+    private readonly List<ServerBomb> _bombs = new();
     private GameData _data = null!;
     private GameRules _rules = null!;
     private Replicator _net = null!;
     private int _seed;
     private int _joins;
+    private int _nextBombId = 1;
     private uint _tick;
 
     public LaunchArgs Args { get; init; } = new() { IsServer = true };
@@ -101,7 +105,12 @@ public partial class ServerMain : Node
                 player.Pawn = Pawn.Step(World, _rules, player.Pawn, input, net.TickSeconds);
                 if (player.Pawn.InPlane)
                 {
-                    _planes[player.Pawn.PlaneId].State = player.Pawn.Plane;
+                    ServerPlane plane = _planes[player.Pawn.PlaneId];
+                    plane.State = player.Pawn.Plane;
+                    if (input.Has(InputButtons.Fire))
+                    {
+                        TryDropBomb(peer, plane);
+                    }
                 }
 
                 player.Processed(input);
@@ -120,9 +129,58 @@ public partial class ServerMain : Node
             plane.State = PlaneFlight.Step(World, _rules.Plane, _rules.SeaLevel, plane.State, idle, net.TickSeconds);
         }
 
+        FlyBombs(net);
         if (_tick % net.SnapshotIntervalTicks == 0)
         {
             SendSnapshots();
+        }
+    }
+
+    /// <summary>Drops a bomb if the plane is airborne and its bomb bay has reloaded.</summary>
+    private void TryDropBomb(int peer, ServerPlane plane)
+    {
+        uint cooldown = (uint)Math.Ceiling(_rules.Bomb.CooldownSeconds * _data.Net.TickRate);
+        if (plane.State.OnGround || (plane.LastDropTick is { } last && _tick - last < cooldown))
+        {
+            return;
+        }
+
+        plane.LastDropTick = _tick;
+        var bomb = new ServerBomb(_nextBombId++, peer, _tick, BombFlight.Drop(_rules.Bomb, plane.State));
+        _bombs.Add(bomb);
+        _net.BroadcastBombDrop(new BombDrop(bomb.Id, peer, bomb.SpawnTick, bomb.State));
+        GD.Print($"[server] peer {peer} dropped bomb {bomb.Id} at {bomb.State.Position}");
+    }
+
+    /// <summary>Moves every falling bomb one tick and explodes the ones that hit something.</summary>
+    private void FlyBombs(NetSettings net)
+    {
+        uint maxTicks = (uint)(_rules.Bomb.MaxLifetimeSeconds * net.TickRate);
+        for (int i = _bombs.Count - 1; i >= 0; i--)
+        {
+            ServerBomb bomb = _bombs[i];
+
+            // A bomb starts falling the tick after its drop; clients count ticks the same way.
+            if (bomb.SpawnTick == _tick)
+            {
+                continue;
+            }
+
+            (BombState next, BombImpact? impact) = BombFlight.Step(World, _rules.Bomb, _rules.SeaLevel, bomb.State, net.TickSeconds);
+            bomb.State = next;
+            if (impact is { } hit)
+            {
+                IReadOnlyList<VoxelEdit> crater = BombFlight.Explode(World, _rules.Bomb, hit);
+                _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList())));
+                GD.Print(hit.InWater
+                    ? $"[server] bomb {bomb.Id} splashed into the sea"
+                    : $"[server] bomb {bomb.Id} hit {hit.Block}: crater of {crater.Count} blocks");
+                _bombs.RemoveAt(i);
+            }
+            else if (_tick - bomb.SpawnTick > maxTicks)
+            {
+                _bombs.RemoveAt(i);
+            }
         }
     }
 
@@ -265,6 +323,28 @@ public partial class ServerMain : Node
 
         /// <summary>The peer flying it, or 0.</summary>
         public int PilotPeerId { get; set; }
+
+        /// <summary>When this plane last dropped a bomb, for the reload time.</summary>
+        public uint? LastDropTick { get; set; }
+    }
+
+    private sealed class ServerBomb
+    {
+        public ServerBomb(int id, int ownerPeerId, uint spawnTick, BombState state)
+        {
+            Id = id;
+            OwnerPeerId = ownerPeerId;
+            SpawnTick = spawnTick;
+            State = state;
+        }
+
+        public int Id { get; }
+
+        public int OwnerPeerId { get; }
+
+        public uint SpawnTick { get; }
+
+        public BombState State { get; set; }
     }
 
     /// <summary>One connected player as the server sees them.</summary>

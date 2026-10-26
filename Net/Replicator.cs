@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
 
 namespace IslandWar.Net;
 
@@ -8,6 +9,12 @@ namespace IslandWar.Net;
 /// <param name="EditsData">Every edit since generation, packed with <c>WireFormat.EncodeEdits</c>.</param>
 /// <param name="Hash">The server's world hash, so the client can check its rebuild.</param>
 public sealed record WorldInit(int Seed, GameData Data, byte[] EditsData, ulong Hash);
+
+/// <summary>A bomb left a plane at server tick <see cref="Tick"/>. Clients simulate its fall from here.</summary>
+public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState State);
+
+/// <summary>A bomb hit something. <see cref="EditsData"/> is the crater, packed with <c>WireFormat.EncodeEdits</c> (empty in the sea).</summary>
+public sealed record Explosion(int BombId, System.Numerics.Vector3 Position, bool InWater, byte[] EditsData);
 
 /// <summary>
 /// The one node that sends and receives game messages. Godot calls an RPC on the node at the same path on
@@ -45,6 +52,12 @@ public partial class Replicator : Node
     /// <summary>Client: the server's world hash.</summary>
     public event Action<ulong>? HashReceived;
 
+    /// <summary>Client: someone dropped a bomb.</summary>
+    public event Action<BombDrop>? BombDropped;
+
+    /// <summary>Client: a bomb exploded, with its crater.</summary>
+    public event Action<Explosion>? ExplosionReceived;
+
     public override void _Ready()
     {
         Name = "Replicator";
@@ -62,7 +75,15 @@ public partial class Replicator : Node
     // ---- Server to client ----
 
     public void SendWorld(int peer, WorldInit world) =>
-        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson, world.EditsData, (long)world.Hash);
+        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson, world.Data.WeaponsJson, world.EditsData, (long)world.Hash);
+
+    // Drops and explosions are reliable and share channel 0 with edits, so a crater never arrives before
+    // the edits that came first, and a hash reply follows every crater.
+    public void BroadcastBombDrop(BombDrop drop) =>
+        Rpc(MethodName.ReceiveBombDrop, drop.Id, drop.OwnerPeerId, (long)drop.Tick, ToGodot(drop.State.Position), ToGodot(drop.State.Velocity));
+
+    public void BroadcastExplosion(Explosion explosion) =>
+        Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData);
 
     /// <summary>Tells every client the block at a position.</summary>
     public void BroadcastEdit(VoxelEdit edit) =>
@@ -106,8 +127,16 @@ public partial class Replicator : Node
     }
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, byte[] edits, long hash) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson), edits, (ulong)hash));
+    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, byte[] edits, long hash) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson), edits, (ulong)hash));
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveBombDrop(int id, int owner, long tick, Vector3 position, Vector3 velocity) =>
+        BombDropped?.Invoke(new BombDrop(id, owner, (uint)tick, new BombState(ToSim(position), ToSim(velocity))));
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits) =>
+        ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveEdit(int x, int y, int z, int block) =>
@@ -118,4 +147,8 @@ public partial class Replicator : Node
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveHash(long hash) => HashReceived?.Invoke((ulong)hash);
+
+    private static Vector3 ToGodot(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
+
+    private static System.Numerics.Vector3 ToSim(Vector3 v) => new(v.X, v.Y, v.Z);
 }

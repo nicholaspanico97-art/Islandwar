@@ -3,7 +3,10 @@ namespace IslandWar.Sim.Voxels;
 /// <summary>Block removal from explosions. The server runs this and replicates the returned edits.</summary>
 public static class Craters
 {
-    /// <summary>Removes every solid block within <paramref name="radius"/> of <paramref name="center"/>.</summary>
+    /// <summary>
+    /// Removes every solid block within <paramref name="radius"/> of <paramref name="center"/>, except the
+    /// unbreakable bottom layer.
+    /// </summary>
     /// <returns>The edits that were applied, in a fixed order (Y, then Z, then X).</returns>
     public static IReadOnlyList<VoxelEdit> Blast(VoxelWorld world, BlockPos center, int radius)
     {
@@ -14,7 +17,7 @@ public static class Craters
         }
 
         int radiusSquared = radius * radius;
-        for (int dy = -radius; dy <= radius; dy++)
+        for (int dy = Math.Max(-radius, VoxelWorld.UnbreakableLayer + 1 - center.Y); dy <= radius; dy++)
         {
             for (int dz = -radius; dz <= radius; dz++)
             {

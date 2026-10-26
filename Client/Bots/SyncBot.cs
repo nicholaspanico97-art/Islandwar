@@ -7,7 +7,7 @@ namespace IslandWar.Client.Bots;
 /// Block sync bots for the automated test (see docs/testing.md):
 /// <list type="bullet">
 /// <item><b>builder</b> joins first, builds a tower next to the island centre, then waits for the
-/// breaker to knock its top off.</item>
+/// breaker to knock its top off and the pilot to bomb it.</item>
 /// <item><b>breaker</b> joins late, checks the tower is already in the world it rebuilt (late join),
 /// and breaks the top two blocks.</item>
 /// </list>
@@ -49,7 +49,11 @@ public partial class SyncBot : TestBot
         {
             // The orchestrating script starts the breaker when it sees this line.
             Log("built the tower; waiting for the breaker");
-            WaitUntil(() => Planks(baseY) == TowerHeight - BlocksBroken, CompareWithServer);
+            WaitUntil(() => Planks(baseY) == TowerHeight - BlocksBroken, () =>
+            {
+                Log("the breaker took the top off; waiting for the pilot's bomb");
+                WaitUntil(() => Planks(baseY) < TowerHeight - BlocksBroken, CompareWithServer);
+            });
         });
     }
 

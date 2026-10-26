@@ -6,6 +6,7 @@ using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
+using IslandWar.Sim.Weapons;
 using FileAccess = Godot.FileAccess;
 
 namespace IslandWar;
@@ -14,7 +15,7 @@ namespace IslandWar;
 /// The tunables from <c>data/</c>. The server sends its raw JSON to each client on join, so clients
 /// generate the same island and predict movement with the same numbers as the server.
 /// </summary>
-public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson)
+public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson, string WeaponsJson)
 {
     public IslandSettings Terrain { get; } = IslandSettings.FromJson(TerrainJson);
 
@@ -24,13 +25,16 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
 
     public PlaneSettings Plane { get; } = CheckedPlane(PlaneJson, NetSettings.FromJson(NetJson));
 
-    public GameRules Rules => new(Player, Plane, Terrain.SeaLevel);
+    public BombSettings Bomb { get; } = BombSettings.FromJson(WeaponsJson);
+
+    public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
 
     public static GameData Load() => new(
         FileAccess.GetFileAsString("res://data/terrain.json"),
         FileAccess.GetFileAsString("res://data/player.json"),
         FileAccess.GetFileAsString("res://data/net.json"),
-        FileAccess.GetFileAsString("res://data/plane.json"));
+        FileAccess.GetFileAsString("res://data/plane.json"),
+        FileAccess.GetFileAsString("res://data/weapons.json"));
 
     /// <summary>Makes Godot's physics tick match the simulation tick rate.</summary>
     public void ApplyTickRate() => Engine.PhysicsTicksPerSecond = Net.TickRate;

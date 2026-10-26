@@ -11,7 +11,7 @@ namespace IslandWar.Client.Bots;
 /// </summary>
 public abstract partial class TestBot : Node
 {
-    private const double TimeoutSeconds = 60;
+    private const double TimeoutSeconds = 90;
 
     private Func<bool>? _waitUntil;
     private Action? _then;

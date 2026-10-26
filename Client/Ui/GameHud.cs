@@ -13,7 +13,7 @@ public partial class GameHud : CanvasLayer
         "WASD move, Space jump, Shift sprint, F fly (Space/Ctrl up/down). Left click break, right click place. 1-5 or wheel: block. E: get in a plane. Esc frees the mouse.";
 
     private const string FlyingHelp =
-        "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Mouse looks around. E: get out.";
+        "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Left click: drop a bomb. Mouse looks around. E: get out.";
 
     private Crosshair _crosshair = null!;
     private Label _help = null!;
@@ -38,9 +38,12 @@ public partial class GameHud : CanvasLayer
         _prompt.AddThemeFontSizeOverride("font_size", 22);
 
         _flight = Outlined(new Label { Visible = false });
+        // Anchored to the bottom-left corner and growing upward, so extra lines never run off the screen.
         _flight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
+        _flight.GrowVertical = Control.GrowDirection.Begin;
         _flight.OffsetLeft = 16;
-        _flight.OffsetTop = -96;
+        _flight.OffsetBottom = -16;
+        _flight.OffsetTop = -16;
         _flight.AddThemeFontSizeOverride("font_size", 22);
         ShowOnFoot(null);
     }
@@ -57,7 +60,8 @@ public partial class GameHud : CanvasLayer
     }
 
     /// <param name="altitude">Height of the wheels above sea level.</param>
-    public void ShowFlying(PlaneState plane, PlaneSettings settings, float altitude)
+    /// <param name="bombStatus">One line about the bomb bay.</param>
+    public void ShowFlying(PlaneState plane, PlaneSettings settings, float altitude, string bombStatus)
     {
         _help.Text = FlyingHelp;
         _crosshair.Visible = false;
@@ -65,7 +69,7 @@ public partial class GameHud : CanvasLayer
         _prompt.Visible = false;
         _flight.Visible = true;
         bool stalling = !plane.OnGround && plane.Airspeed < settings.StallSpeed;
-        _flight.Text = $"Throttle {plane.Throttle * 100:0}%\nSpeed {plane.Airspeed:0}  (stall {settings.StallSpeed:0})\nAltitude {altitude:0}"
+        _flight.Text = $"Throttle {plane.Throttle * 100:0}%\nSpeed {plane.Airspeed:0}  (stall {settings.StallSpeed:0})\nAltitude {altitude:0}\n{bombStatus}"
             + (stalling ? "\nSTALL - nose down, more throttle" : plane.OnGround ? "\nOn the ground" : "");
         _flight.Modulate = stalling ? new Color(1, 0.4f, 0.3f) : Colors.White;
     }

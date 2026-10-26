@@ -16,6 +16,9 @@ public enum InputButtons : byte
     /// it runs each input sequence number once however many packets repeat it.
     /// </summary>
     Use = 16,
+
+    /// <summary>Drop a bomb (left click in a plane). Set on one tick, acted on once, like <see cref="Use"/>.</summary>
+    Fire = 32,
 }
 
 /// <summary>

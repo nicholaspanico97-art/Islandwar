@@ -243,7 +243,7 @@ public class VehicleRulesTests
     public void AFlyingPawnCarriesThePlayerInTheSeat()
     {
         var world = new VoxelWorld(4, 2, 4);
-        var rules = new GameRules(Player, Plane, 8);
+        var rules = new GameRules(Player, Plane, new IslandWar.Sim.Weapons.BombSettings(), 8);
         var plane = new PlaneState(new Vector3(32, 20, 32), Quaternion.Identity, 30, 0, 0.6f, false);
         var pawn = new PawnState(PlayerState.At(plane.Position), 1, plane);
 

@@ -10,7 +10,7 @@ public class PredictedPlayerTests
 {
     private const float Dt = 1f / 60;
     private static readonly PlayerSettings Settings = new();
-    private static readonly GameRules Rules = new(Settings, new PlaneSettings(), 0);
+    private static readonly GameRules Rules = new(Settings, new PlaneSettings(), new IslandWar.Sim.Weapons.BombSettings(), 0);
 
     private static PawnState At(Vector3 feet) => PawnState.OnFoot(PlayerState.At(feet));
 
@@ -177,7 +177,7 @@ public class WireFormatTests
         Assert.Equal(0, decoded.MoveZ);
         Assert.Equal(0, decoded.Yaw);
         Assert.Equal(MathF.PI / 2, decoded.Pitch, 4);
-        Assert.Equal(InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use, decoded.Buttons);
+        Assert.Equal(InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire, decoded.Buttons);
     }
 
     [Theory]

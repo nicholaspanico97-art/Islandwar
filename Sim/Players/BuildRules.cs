@@ -9,11 +9,8 @@ namespace IslandWar.Sim.Players;
 /// </summary>
 public static class BuildRules
 {
-    /// <summary>The bottom layer can't be broken, so nobody digs out of the world.</summary>
-    public const int UnbreakableLayer = 0;
-
     public static bool CanBreak(VoxelWorld world, BlockPos target) =>
-        target.Y > UnbreakableLayer && world.Get(target) != Block.Air;
+        target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) != Block.Air;
 
     /// <summary>
     /// A block can go into an in-bounds air cell that no player's collision box overlaps.

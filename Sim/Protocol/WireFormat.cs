@@ -27,7 +27,7 @@ public static class WireFormat
     public const int MaxPlayersPerSnapshot = 255;
     public const int MaxPlanesPerSnapshot = 255;
 
-    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use;
+    private const InputButtons KnownButtons = InputButtons.Jump | InputButtons.Sprint | InputButtons.Descend | InputButtons.Fly | InputButtons.Use | InputButtons.Fire;
 
     public static byte[] EncodeInputs(IReadOnlyList<PlayerInput> inputs)
     {
