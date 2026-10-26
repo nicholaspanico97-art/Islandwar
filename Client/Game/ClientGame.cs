@@ -298,11 +298,6 @@ public partial class ClientGame : Node3D
         int red = Link.Roster.Values.Count(p => p.Team == Team.Red);
         int blue = Link.Roster.Values.Count(p => p.Team == Team.Blue);
         _hud.ShowMatch(MatchText.Status(match, preset, red, blue));
-        IReadOnlyList<CoreSite> cores = Link.Cores;
-        int redCore = cores.Count < 2 ? 0 : cores[Team.Red.IslandIndex()].StandingBlocks(World);
-        int blueCore = cores.Count < 2 ? 0 : cores[Team.Blue.IslandIndex()].StandingBlocks(World);
-        _hud.ShowCores(cores.Count < 2 ? "" : MatchText.Cores(redCore, blueCore, cores[0].TotalBlocks));
-
         Team mine = Link.MyTeam;
         RosterEntry[] team = Link.Roster.Values.Where(p => p.Team == mine).ToArray();
         _hud.ShowConcede(match.Playing ? MatchText.Concede(team.Count(p => p.ConcedeVote), team.Length, preset.ConcedeFraction) : "");
@@ -310,12 +305,7 @@ public partial class ClientGame : Node3D
         _hud.Scoreboard.Visible = Input.IsActionPressed(InputActions.Scoreboard);
         if (_hud.Scoreboard.Visible)
         {
-            Dictionary<Team, int>? percent = cores.Count < 2 ? null : new Dictionary<Team, int>
-            {
-                [Team.Red] = 100 * redCore / cores[0].TotalBlocks,
-                [Team.Blue] = 100 * blueCore / cores[0].TotalBlocks,
-            };
-            _hud.Scoreboard.ShowRoster(Link.Roster.Values.ToList(), percent, Multiplayer.GetUniqueId(), preset.ConcedeFraction);
+            _hud.Scoreboard.ShowRoster(Link.Roster.Values.ToList(), Multiplayer.GetUniqueId(), preset.ConcedeFraction);
         }
         if (MatchText.Announcement(_lastMatch, match, preset) is { } news)
         {

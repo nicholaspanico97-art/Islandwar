@@ -25,13 +25,13 @@ public abstract partial class TestBot : Node
 
     protected VoxelWorld World => Net.World!;
 
-    /// <summary>The builder's tower column: just east of the core on Red's (west) island.</summary>
+    /// <summary>The builder's tower column: two blocks east of the centre of Red's (west) island.</summary>
     protected (int X, int Z) TowerColumn
     {
         get
         {
             (int x, int z) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Team.Red.IslandIndex());
-            return (x + Net.Data.Terrain.CoreSize / 2 + 2, z);
+            return (x + 2, z);
         }
     }
 

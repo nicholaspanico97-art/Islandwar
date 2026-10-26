@@ -14,8 +14,5 @@
   "noise_cell_size": 24,
   "beach_height": 1,
   "dirt_depth": 3,
-  // Each island's industrial core: a 7 x 5 x 7 block at the centre on a levelled foundation.
-  "core_size": 7,
-  "core_height": 5,
   "default_seed": 1337
 }

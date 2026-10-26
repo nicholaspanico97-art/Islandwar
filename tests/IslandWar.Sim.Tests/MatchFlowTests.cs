@@ -92,7 +92,7 @@ public class MatchFlowTests
     {
         var playing = new MatchStatus(MatchStage.Playing, 2, 80, Team.None, EndReason.None);
 
-        MatchStatus ended = MatchFlow.End(playing, Team.Blue, EndReason.CoreDestroyed);
+        MatchStatus ended = MatchFlow.End(playing, Team.Blue, EndReason.NukeHit);
 
         Assert.Equal(MatchStage.Ended, ended.Stage);
         Assert.Equal(Team.Blue, ended.Winner);
@@ -115,6 +115,18 @@ public class MatchFlowTests
         Assert.Null(MatchFlow.SecondsToNext(MatchStatus.Warmup, Preset));
         Assert.Equal(50, MatchFlow.SecondsToNext(new MatchStatus(MatchStage.Playing, 1, 10, Team.None, EndReason.None), Preset));
         Assert.Equal(30, MatchFlow.SecondsToNext(new MatchStatus(MatchStage.Playing, 3, 150, Team.None, EndReason.None), Preset));
+    }
+
+    [Theory]
+    [InlineData(Team.Red, 250, false, true)]
+    [InlineData(Team.Red, 100, false, false)]
+    [InlineData(Team.Red, 250, true, false)]
+    [InlineData(Team.Blue, 20, false, true)]
+    public void ANukeWinsAnywhereOnTheEnemyIslandButNotInTheSea(Team dropper, float x, bool inWater, bool wins)
+    {
+        var impact = new IslandWar.Sim.Weapons.BombImpact(new System.Numerics.Vector3(x, 20, 80), inWater ? null : new IslandWar.Sim.Voxels.BlockPos((int)x, 19, 80));
+
+        Assert.Equal(wins, MatchFlow.NukeWins(dropper, impact, mapSizeX: 320, islandCount: 2));
     }
 
     [Theory]

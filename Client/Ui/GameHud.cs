@@ -21,7 +21,6 @@ public partial class GameHud : CanvasLayer
     private Label _flight = null!;
     private Label _identity = null!;
     private Label _match = null!;
-    private Label _cores = null!;
     private Label _concede = null!;
 
     public Scoreboard Scoreboard { get; private set; } = null!;
@@ -61,16 +60,10 @@ public partial class GameHud : CanvasLayer
         _match.OffsetTop = 34;
         _match.AddThemeFontSizeOverride("font_size", 18);
 
-        _cores = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
-        _cores.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
-        _cores.GrowHorizontal = Control.GrowDirection.Both;
-        _cores.OffsetTop = 58;
-        _cores.AddThemeFontSizeOverride("font_size", 18);
-
         _concede = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
         _concede.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
         _concede.GrowHorizontal = Control.GrowDirection.Both;
-        _concede.OffsetTop = 82;
+        _concede.OffsetTop = 58;
         _concede.Modulate = Colors.Orange;
         _concede.AddThemeFontSizeOverride("font_size", 18);
 
@@ -127,9 +120,6 @@ public partial class GameHud : CanvasLayer
 
     /// <summary>The match line under the help text: stage, phase and clock.</summary>
     public void ShowMatch(string text) => _match.Text = text;
-
-    /// <summary>Both cores' health, under the match line. Empty hides it.</summary>
-    public void ShowCores(string text) => _cores.Text = text;
 
     /// <summary>Our team's concede votes, under the cores. Empty hides it.</summary>
     public void ShowConcede(string text) => _concede.Text = text;

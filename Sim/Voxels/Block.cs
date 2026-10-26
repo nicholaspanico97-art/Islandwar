@@ -13,6 +13,9 @@ public enum Block : ushort
     Sand = 4,
     Planks = 5,
 
-    /// <summary>The industrial core (see CoreSite). Can't be broken or placed by hand; bombs only chip it.</summary>
+    /// <summary>
+    /// Retired 2026-10-26 with the industrial core (a nuke anywhere on the enemy island wins now). Never
+    /// generated or placeable; the id stays taken because ids are never reused.
+    /// </summary>
     Core = 6,
 }

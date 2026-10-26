@@ -4,7 +4,7 @@ namespace IslandWar.Client.Bots;
 
 /// <summary>
 /// The other side of the nuke test (role <c>defender</c>): it holds a team so the match can start, waits
-/// for the result, and passes if the other team won by hitting its core and its world matches the server's.
+/// for the result, and passes if the other team won by nuking its island and its world matches the server's.
 /// </summary>
 public partial class DefenderBot : TestBot
 {
@@ -14,9 +14,9 @@ public partial class DefenderBot : TestBot
         WaitUntil(() => Net.Match.Stage == MatchStage.Ended, () =>
         {
             Log($"the match ended: {Net.Match.Winner} wins ({Net.Match.Reason})");
-            if (Net.Match.Winner != Net.MyTeam.Other() || Net.Match.Reason != EndReason.CoreDestroyed)
+            if (Net.Match.Winner != Net.MyTeam.Other() || Net.Match.Reason != EndReason.NukeHit)
             {
-                Finish(false, $"expected {Net.MyTeam.Other()} to win by hitting our core");
+                Finish(false, $"expected {Net.MyTeam.Other()} to win by nuking our island");
                 return;
             }
 

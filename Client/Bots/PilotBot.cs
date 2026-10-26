@@ -18,8 +18,8 @@ namespace IslandWar.Client.Bots;
 /// <list type="bullet">
 /// <item><b>pilot</b> (sync test, Blue) bombs the builder's tower on Red's island. It passes if the bomb
 /// took tower blocks.</item>
-/// <item><b>nuker</b> (nuke test) waits for the match to start, then drops its team's nuke on the enemy
-/// core when it's ready. It passes if that ends the match with its team winning.</item>
+/// <item><b>nuker</b> (nuke test) waits for the match to start, then drops its team's nuke on the middle of
+/// the enemy island when it's ready. It passes if that ends the match with its team winning.</item>
 /// </list>
 /// Either way it also needs the server's corrections to its prediction to stay tiny, and its world to
 /// match the server's.
@@ -40,7 +40,7 @@ public partial class PilotBot : TestBot
     /// <summary>Bombing height above the sea: clear of the highest hills.</summary>
     private const float CruiseAboveSea = 36;
 
-    /// <summary>Drop when the predicted impact is this close to the tower, horizontally.</summary>
+    /// <summary>Drop when the predicted impact is this close to the target, horizontally.</summary>
     private const float AimTolerance = 1.5f;
 
     /// <summary>Airspeed held during the attack: fast enough to fly, slow enough to turn onto the tower.</summary>
@@ -135,13 +135,13 @@ public partial class PilotBot : TestBot
             Log($"the nuke hit ({explosion.Position.X:0.0}, {explosion.Position.Y:0.0}, {explosion.Position.Z:0.0})");
             WaitUntil(() => Net.Match.Stage == MatchStage.Ended, () =>
             {
-                if (Net.Match.Winner != Net.MyTeam || Net.Match.Reason != EndReason.CoreDestroyed)
+                if (Net.Match.Winner != Net.MyTeam || Net.Match.Reason != EndReason.NukeHit)
                 {
-                    Finish(false, $"expected a {Net.MyTeam} win by core hit, got {Net.Match.Winner} ({Net.Match.Reason})");
+                    Finish(false, $"expected a {Net.MyTeam} win by nuke, got {Net.Match.Winner} ({Net.Match.Reason})");
                     return;
                 }
 
-                Enter(Phase.Leaving, $"{Net.MyTeam} won by nuking the core; pressing E");
+                Enter(Phase.Leaving, $"{Net.MyTeam} won by nuking the enemy island; pressing E");
             });
             return;
         }
@@ -204,7 +204,7 @@ public partial class PilotBot : TestBot
             case Phase.Rotate:
                 if (_phaseTicks >= RotateTicks)
                 {
-                    Enter(Phase.Attack, me.Plane.OnGround ? "still on the ground after rotating" : $"airborne; heading for the {(Nuker ? "enemy core" : "tower")}");
+                    Enter(Phase.Attack, me.Plane.OnGround ? "still on the ground after rotating" : $"airborne; heading for the {(Nuker ? "enemy island" : "tower")}");
                 }
 
                 return Input(InputButtons.Sprint, pitch: 1);
@@ -298,13 +298,13 @@ public partial class PilotBot : TestBot
         return new PlayerInput(0, roll, pitchInput, 0, 0, throttle | trigger);
     }
 
-    /// <summary>The builder's tower for the pilot; the top of the enemy core for the nuker.</summary>
+    /// <summary>The builder's tower for the pilot; the middle of the enemy island for the nuker.</summary>
     private Vector3 Target()
     {
         if (Nuker)
         {
-            CoreSite core = Net.Cores[Net.MyTeam.Other().IslandIndex()];
-            return core.Centre with { Y = core.BaseY + core.Height };
+            (int cx, int cz) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Net.MyTeam.Other().IslandIndex());
+            return new Vector3(cx + 0.5f, World.HighestSolid(cx, cz)!.Value + 1, cz + 0.5f);
         }
 
         (int x, int z) = TowerColumn;

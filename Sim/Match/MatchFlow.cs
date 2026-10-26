@@ -1,3 +1,5 @@
+using IslandWar.Sim.Weapons;
+
 namespace IslandWar.Sim.Match;
 
 public enum MatchStage : byte
@@ -19,7 +21,8 @@ public enum EndReason : byte
 {
     None = 0,
     TimeLimit = 1,
-    CoreDestroyed = 2,
+    /// <summary>A nuke landed on the enemy island.</summary>
+    NukeHit = 2,
     Concede = 3,
 }
 
@@ -75,7 +78,7 @@ public static class MatchFlow
             case MatchStage.Playing:
                 if (seconds >= preset.TimeLimitSeconds)
                 {
-                    // Piece 4 replaces the draw with a score.
+                    // A draw until a score is designed.
                     return (End(status, Team.None, EndReason.TimeLimit), MatchEvent.MatchEnded);
                 }
 
@@ -112,6 +115,13 @@ public static class MatchFlow
         MatchStage.Ended => preset.ResultsSeconds - status.StageSeconds,
         _ => null,
     };
+
+    /// <summary>
+    /// Whether a nuke wins the match: it landed on solid ground on the enemy's half of the map (the enemy
+    /// island). Anywhere counts, which is why teams hide their equipment; a splash in the sea doesn't.
+    /// </summary>
+    public static bool NukeWins(Team dropper, BombImpact impact, int mapSizeX, int islandCount) =>
+        !impact.InWater && Protection.IsHomeGround(dropper.Other(), impact.Position.X, mapSizeX, islandCount);
 
     /// <summary>
     /// Seconds until a team may drop its nuke: 0 when ready, negative when nukes aren't available at all

@@ -10,9 +10,9 @@ namespace IslandWar.Sim.Players;
 public static class BuildRules
 {
     public static bool CanBreak(VoxelWorld world, BlockPos target) =>
-        target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) is not (Block.Air or Block.Core);
+        target.Y > VoxelWorld.UnbreakableLayer && world.Get(target) != Block.Air;
 
-    /// <summary>Blocks a player can place. The core comes with the map (repairing it is for later).</summary>
+    /// <summary>Blocks a player can place: everything but air and retired block types.</summary>
     public static bool Placeable(Block block) => block is not (Block.Air or Block.Core);
 
     /// <summary>

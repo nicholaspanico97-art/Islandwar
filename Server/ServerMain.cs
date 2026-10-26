@@ -36,7 +36,6 @@ public partial class ServerMain : Node
     private readonly Dictionary<Team, int> _spawnSlots = new() { [Team.Red] = 0, [Team.Blue] = 0 };
     private MatchPreset _preset = null!;
     private MatchStatus _match = MatchStatus.Warmup;
-    private IReadOnlyList<CoreSite> _cores = Array.Empty<CoreSite>();
 
     /// <summary>
     /// Seats of players who left during this match, by identity token, so they come back to the same team
@@ -86,7 +85,6 @@ public partial class ServerMain : Node
         _rules = _data.Rules;
         _seed = Args.Seed ?? _data.Terrain.DefaultSeed;
         World = IslandGenerator.Generate(_data.Terrain, _seed);
-        _cores = IslandGenerator.CoreSites(_data.Terrain, _seed);
         GD.Print($"[server] generated island: seed {_seed}, {World.SizeX}x{World.SizeY}x{World.SizeZ} blocks, hash {World.ComputeHash():x16}");
 
         // One plane per team, parked off its own island. Ids start at 1; 0 means "no plane".
@@ -243,18 +241,14 @@ public partial class ServerMain : Node
             bomb.State = next;
             if (impact is { } hit)
             {
-                int[] coresBefore = _cores.Select(c => c.StandingBlocks(World)).ToArray();
-                float coreFactor = bomb.Nuke ? 1 : _rules.Bomb.CoreBlastFactor;
-
                 // No friendly fire: a team's bombs make no crater on its own half of the map.
                 bool harmless = !hit.InWater && Protection.IsHomeGround(bomb.Team, hit.Position.X, World.SizeX, _data.Terrain.IslandCount);
-                IReadOnlyList<VoxelEdit> crater = harmless ? Array.Empty<VoxelEdit>() : BombFlight.Explode(World, bomb.CraterRadius, hit, coreFactor);
+                IReadOnlyList<VoxelEdit> crater = harmless ? Array.Empty<VoxelEdit>() : BombFlight.Explode(World, bomb.CraterRadius, hit);
                 _net.BroadcastExplosion(new Explosion(bomb.Id, hit.Position, hit.InWater, WireFormat.EncodeEdits(crater.ToList()), bomb.CraterRadius, bomb.Nuke, harmless));
                 string what = bomb.Nuke ? "the nuke" : $"bomb {bomb.Id}";
                 GD.Print(hit.InWater ? $"[server] {what} splashed into the sea"
                     : harmless ? $"[server] {what} landed on {bomb.Team}'s own half: no crater (no friendly fire)"
                     : $"[server] {what} hit {hit.Block}: crater of {crater.Count} blocks");
-                LogCoreDamage(coresBefore);
                 if (bomb.Nuke && !harmless)
                 {
                     CheckNukeHit(bomb, hit);
@@ -304,10 +298,7 @@ public partial class ServerMain : Node
                 GD.Print($"[server] phase {_match.Phase}");
                 break;
             case MatchEvent.MatchEnded:
-                // Out of time: the team that kept more of its core wins.
-                _match = _match with { Winner = MatchScore.TimeLimitWinner(CoreStanding(Team.Red), CoreStanding(Team.Blue)) };
-                GD.Print($"[server] match over: {(_match.Winner == Team.None ? "draw" : $"{_match.Winner} wins")} ({_match.Reason}); "
-                    + $"cores Red {CoreStanding(Team.Red)}, Blue {CoreStanding(Team.Blue)}");
+                GD.Print($"[server] match over: {(_match.Winner == Team.None ? "draw" : $"{_match.Winner} wins")} ({_match.Reason})");
                 break;
             case MatchEvent.BackToWarmup:
                 _departed.Clear();
@@ -472,9 +463,6 @@ public partial class ServerMain : Node
             ? (int)connection.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTime)
             : 0;
 
-    private int CoreStanding(Team team) =>
-        _cores.Count > team.IslandIndex() ? _cores[team.IslandIndex()].StandingBlocks(World) : 0;
-
     private void OnConcedeVote(int peer, bool vote)
     {
         if (!_players.TryGetValue(peer, out ServerPlayer? player) || player.ConcedeVote == vote || (vote && !_match.Playing))
@@ -604,31 +592,18 @@ public partial class ServerMain : Node
         return reason is null;
     }
 
-    private void LogCoreDamage(int[] before)
-    {
-        for (int i = 0; i < _cores.Count; i++)
-        {
-            int now = _cores[i].StandingBlocks(World);
-            if (now < before[i])
-            {
-                Team team = i == Team.Blue.IslandIndex() ? Team.Blue : Team.Red;
-                GD.Print($"[server] {team} core: {now}/{_cores[i].TotalBlocks} blocks ({100 * now / _cores[i].TotalBlocks}%)");
-            }
-        }
-    }
-
-    /// <summary>A nuke that lands on the enemy core wins the match for the team that dropped it.</summary>
+    /// <summary>A nuke that lands anywhere on the enemy island wins the match for the team that dropped it.</summary>
     private void CheckNukeHit(ServerBomb nuke, BombImpact hit)
     {
         Team enemy = nuke.Team.Other();
-        if (!_match.Playing || _cores.Count <= enemy.IslandIndex() || !_cores[enemy.IslandIndex()].IsHitBy(hit.Position, _rules.Bomb.NukeHitMargin))
+        if (!_match.Playing || !MatchFlow.NukeWins(nuke.Team, hit, World.SizeX, _data.Terrain.IslandCount))
         {
-            GD.Print($"[server] {nuke.Team}'s nuke missed the {enemy} core");
+            GD.Print($"[server] {nuke.Team}'s nuke missed the {enemy} island");
             return;
         }
 
-        _match = MatchFlow.End(_match, nuke.Team, EndReason.CoreDestroyed);
-        GD.Print($"[server] {nuke.Team}'s nuke hit the {enemy} core: {nuke.Team} wins");
+        _match = MatchFlow.End(_match, nuke.Team, EndReason.NukeHit);
+        GD.Print($"[server] {nuke.Team}'s nuke hit the {enemy} island: {nuke.Team} wins");
     }
 
     private sealed class ServerPlane

@@ -38,15 +38,6 @@ public sealed record IslandSettings
     /// <summary>Dirt depth under grass before stone starts.</summary>
     public int DirtDepth { get; init; } = 3;
 
-    /// <summary>
-    /// Width and depth of each island's industrial core, in blocks; odd, so it sits exactly on the centre
-    /// column and mirrors cleanly. 0 means no cores (the single-island sandbox map).
-    /// </summary>
-    public int CoreSize { get; init; }
-
-    /// <summary>Height of each core in blocks.</summary>
-    public int CoreHeight { get; init; } = 5;
-
     /// <summary>Seed used when the server is not given one on the command line.</summary>
     public int DefaultSeed { get; init; } = 1337;
 
@@ -84,16 +75,6 @@ public sealed record IslandSettings
         if (IslandSpacing < 0 || (IslandSpacing > 0 && IslandSpacing < 2 * IslandRadius))
         {
             throw new InvalidDataException("island_spacing must be 0 (one island) or at least twice island_radius, so the islands don't touch.");
-        }
-
-        if (CoreSize < 0 || (CoreSize > 0 && (CoreSize % 2 == 0 || CoreSize > IslandRadius || CoreHeight <= 0)))
-        {
-            throw new InvalidDataException("core_size must be 0 (no cores) or an odd number no bigger than island_radius, with a positive core_height.");
-        }
-
-        if (CoreSize > 0 && SeaLevel + BaseHeight + HillHeight + CoreHeight >= height)
-        {
-            throw new InvalidDataException("The cores must fit under the world height: lower core_height or hill_height, or add chunks_y.");
         }
 
         int sizeX = ChunksX * Chunk.Size;

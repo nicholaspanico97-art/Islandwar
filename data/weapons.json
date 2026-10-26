@@ -4,12 +4,8 @@
   "drag": 0.05,
   // Early bombers should be "scouts with a grudge" (game plan); 4 makes a satisfying M1 crater.
   "crater_radius": 4,
-  // Bombs only remove core blocks within this fraction of their radius: raids chip the core, not wipe it.
-  "core_blast_factor": 0.5,
-  // The phase-3 nuke stub: a big crater that ignores the core's hardening. Landing within nuke_hit_margin
-  // blocks of the enemy core's footprint wins the match.
+  // The phase-3 nuke stub: landing anywhere on the enemy island wins the match.
   "nuke_crater_radius": 9,
-  "nuke_hit_margin": 3,
   "cooldown_seconds": 1.0,
   "drop_height": 0.5,
   "max_lifetime_seconds": 30.0

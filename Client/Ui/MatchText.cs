@@ -54,25 +54,11 @@ public static class MatchText
 
     private static string Reason(MatchStatus match) => match.Reason switch
     {
-        EndReason.TimeLimit => match.Winner == Team.None
-            ? "Time's up, with the cores level."
-            : $"Time's up: {match.Winner} kept more of its core.",
-        EndReason.CoreDestroyed => $"{match.Winner}'s nuke hit the {match.Winner.Other()} core.",
+        EndReason.TimeLimit => "Time's up.",
+        EndReason.NukeHit => $"{match.Winner}'s nuke hit the {match.Winner.Other()} island.",
         EndReason.Concede => $"{match.Winner.Other()} conceded.",
         _ => "",
     };
-
-    /// <summary>Both cores' health, for the line under the match status, with who's ahead on the time-limit score.</summary>
-    public static string Cores(int red, int blue, int total)
-    {
-        if (total == 0)
-        {
-            return "";
-        }
-
-        Team ahead = MatchScore.TimeLimitWinner(red, blue);
-        return $"Red core {100 * red / total}%    Blue core {100 * blue / total}%" + (ahead == Team.None ? "" : $"    ({ahead} ahead at the time limit)");
-    }
 
     /// <summary>Our team's concede votes, or empty when nobody has voted.</summary>
     public static string Concede(int votes, int teamSize, float fraction) =>
@@ -81,7 +67,7 @@ public static class MatchText
     /// <summary>The nuke line in the flight readout.</summary>
     public static string Nuke(float readyIn) =>
         readyIn < 0 ? "Nuke: phase 3"
-        : readyIn == 0 ? "NUKE READY: right click over the enemy core"
+        : readyIn == 0 ? "NUKE READY: right click over the enemy island"
         : $"Nuke in {Clock(readyIn)}";
 
     private static string Clock(float seconds)

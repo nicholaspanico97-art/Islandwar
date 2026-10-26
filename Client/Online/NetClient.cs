@@ -56,9 +56,6 @@ public partial class NetClient : Node, IGameLink
     /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
     public float NukeReadyIn { get; private set; } = -1;
 
-    /// <summary>Each island's core site (index = Team.IslandIndex), from the seed.</summary>
-    public IReadOnlyList<CoreSite> Cores { get; private set; } = Array.Empty<CoreSite>();
-
     /// <summary>The newest input number sent, so a new prediction after a world reset can carry on from it.</summary>
     public uint LastSentSeq { get; private set; }
 
@@ -179,7 +176,6 @@ public partial class NetClient : Node, IGameLink
         Data.ApplyTickRate();
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
-        Cores = IslandGenerator.CoreSites(Data.Terrain, init.Seed);
         ulong hash = World.ComputeHash();
         WorldMatchedServer = hash == init.Hash;
         if (WorldMatchedServer)

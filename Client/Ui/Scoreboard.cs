@@ -6,8 +6,8 @@ using IslandWar.Sim.Match;
 namespace IslandWar.Client.Ui;
 
 /// <summary>
-/// Shown while Tab is held: both teams side by side with each player's ping and concede vote, each core's
-/// health, and how many votes a concession needs.
+/// Shown while Tab is held: both teams side by side with each player's ping and concede vote, and how many
+/// votes a concession needs.
 /// </summary>
 public partial class Scoreboard : PanelContainer
 {
@@ -48,11 +48,10 @@ public partial class Scoreboard : PanelContainer
         GrowVertical = GrowDirection.Both;
     }
 
-    /// <param name="corePercent">Each team's core health in percent, or null when there are no cores.</param>
-    public void ShowRoster(IReadOnlyCollection<RosterEntry> roster, IReadOnlyDictionary<Team, int>? corePercent, int myPeer, float concedeFraction)
+    public void ShowRoster(IReadOnlyCollection<RosterEntry> roster, int myPeer, float concedeFraction)
     {
         // Rebuild the rows only when something on them changed.
-        string content = string.Join(";", roster.OrderBy(p => p.PeerId)) + string.Join(",", corePercent?.Values ?? Enumerable.Empty<int>());
+        string content = string.Join(";", roster.OrderBy(p => p.PeerId));
         if (content == _shown)
         {
             return;
@@ -67,8 +66,7 @@ public partial class Scoreboard : PanelContainer
             }
 
             RosterEntry[] members = roster.Where(p => p.Team == team).OrderBy(p => p.Name).ToArray();
-            string core = corePercent is null ? "" : $"   core {corePercent[team]}%";
-            column.AddChild(Line($"{team} ({members.Length}){core}", TeamColors.Of(team).Lightened(0.3f), 22));
+            column.AddChild(Line($"{team} ({members.Length})", TeamColors.Of(team).Lightened(0.3f), 22));
             foreach (RosterEntry player in members)
             {
                 string you = player.PeerId == myPeer ? "  (you)" : "";
