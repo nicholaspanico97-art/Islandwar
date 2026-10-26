@@ -25,7 +25,7 @@ public partial class ClientMain : Node
     private ClientGame? _game;
     private bool _botStarted;
     private string _address = "";
-    private (string Name, Team Team) _hello;
+    private (string Name, Team Team, string Token) _hello;
 
     public LaunchArgs Args { get; init; } = new();
 
@@ -49,7 +49,7 @@ public partial class ClientMain : Node
         Multiplayer.ConnectedToServer += () =>
         {
             SetStatus($"Connected to {_address}. Loading the world...");
-            _net?.SayHello(_hello.Name, _hello.Team);
+            _net?.SayHello(_hello.Name, _hello.Team, _hello.Token);
         };
         Multiplayer.ConnectionFailed += () => Fail($"Couldn't reach a server at {_address}.");
         Multiplayer.ServerDisconnected += () => Fail("The server disconnected.");
@@ -84,7 +84,7 @@ public partial class ClientMain : Node
     {
         EndSession();
         _address = $"{host}:{port}";
-        _hello = (name, team);
+        _hello = (name, team, IdentityToken());
         var session = new Node { Name = "Session" };
         _session = session;
         AddChild(session);
@@ -122,6 +122,9 @@ public partial class ClientMain : Node
             {
                 "pilot" or "nuker" => new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn },
                 "defender" => new DefenderBot { Net = net, Role = Args.Bot },
+                "leaver" => new LeaverBot { Net = net, Role = Args.Bot },
+                "returner" => new ReturnerBot { Net = net, Role = Args.Bot },
+                "conceder" => new ConcederBot { Net = net, Role = Args.Bot },
                 "watcher" => new MatchBot { Net = net, Role = Args.Bot },
                 _ => (TestBot)new SyncBot { Net = net, Role = Args.Bot },
             });
@@ -162,10 +165,40 @@ public partial class ClientMain : Node
         _game = null;
     }
 
+    /// <summary>
+    /// Who we are to the server across reconnects: <c>--token</c> if given, a fresh one for bots, otherwise a
+    /// random one made once and kept in <c>user://settings.cfg</c>.
+    /// </summary>
+    private string IdentityToken()
+    {
+        if (Args.Token is not null)
+        {
+            return Args.Token;
+        }
+
+        if (Args.Bot is not null)
+        {
+            return System.Guid.NewGuid().ToString("N");
+        }
+
+        const string path = "user://settings.cfg";
+        var settings = new ConfigFile();
+        settings.Load(path);
+        string token = settings.GetValue("player", "token", "").AsString();
+        if (token.Length == 0)
+        {
+            token = System.Guid.NewGuid().ToString("N");
+            settings.SetValue("player", "token", token);
+            settings.Save(path);
+        }
+
+        return token;
+    }
+
     /// <summary>Bots exit with a failure; players go back to the menu with the reason.</summary>
     private void Fail(string reason)
     {
-        if (_net is null)
+        if (_net is null || _net.LeavingOnPurpose)
         {
             return;
         }

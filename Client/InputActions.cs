@@ -20,6 +20,8 @@ public static class InputActions
     public const string Place = "place_block";
     public const string ToggleFly = "toggle_fly";
     public const string Use = "use";
+    public const string Concede = "concede";
+    public const string Scoreboard = "scoreboard";
     public const string HotbarNext = "hotbar_next";
     public const string HotbarPrevious = "hotbar_previous";
     public const string ReleaseMouse = "release_mouse";
@@ -40,6 +42,8 @@ public static class InputActions
         AddKey(Sprint, Key.Shift);
         AddKey(ToggleFly, Key.F);
         AddKey(Use, Key.E);
+        AddKey(Concede, Key.F10);
+        AddKey(Scoreboard, Key.Tab);
         AddKey(ReleaseMouse, Key.Escape);
         AddMouse(Break, MouseButton.Left);
         AddMouse(Place, MouseButton.Right);

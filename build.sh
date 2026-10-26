@@ -8,7 +8,7 @@
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
 #   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
-#   ./build.sh matchtest          two headless scenarios: a whole fast match, then a nuke winning one
+#   ./build.sh matchtest          three headless scenarios: a whole fast match, a nuke win, a rejoin and concession
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -96,6 +96,31 @@ match_scenario() {
   fi
 }
 
+# The rejoin scenario: Red's player drops out mid-match and comes back with the same identity token while
+# asking for Blue. Developer mode would grant Blue, so only the rejoin rule puts it back on Red. Then Blue
+# concedes and both must see Red win.
+rejoin_scenario() {
+  local port=$1 token=rejoin-test-token conceder returner leaver_status=0 conceder_status=0 returner_status=0
+  "$GODOT" --headless --path . -- --server --port=$port --preset=nuketest --dev >"$logs/rejoin-server.log" 2>&1 &
+  server_pid=$!  # global: the EXIT trap runs after this function returns
+  trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+  wait_for_line "$logs/rejoin-server.log" "listening on port"
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=conceder --team=blue --name=blue-conceder >"$logs/rejoin-conceder.log" 2>&1 &
+  conceder=$!
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=leaver --team=red --name=red-leaver --token=$token >"$logs/rejoin-leaver.log" 2>&1 || leaver_status=$?
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=returner --team=blue --name=sneaky --token=$token >"$logs/rejoin-returner.log" 2>&1 &
+  returner=$!
+  wait "$conceder" || conceder_status=$?
+  wait "$returner" || returner_status=$?
+  kill "$server_pid" 2>/dev/null || true
+
+  grep -h "^\[bot" "$logs/rejoin-conceder.log" "$logs/rejoin-leaver.log" "$logs/rejoin-returner.log" || true
+  if [ "$leaver_status" -ne 0 ] || [ "$conceder_status" -ne 0 ] || [ "$returner_status" -ne 0 ]; then
+    scenario_failed=1
+  fi
+}
+
 # The automated match test (docs/testing.md). First a whole match on the fast test preset, followed by a
 # watcher bot per team: stages, world reset and hashes. Then a nuke match: Red's nuker flies over and
 # nukes Blue's core in phase 3, and both bots must see Red win by core hit.
@@ -106,6 +131,7 @@ matchtest() {
   match_scenario flow 7791 watcher watcher --preset=test
   # Developer mode lets the nuker noclip to its plane.
   match_scenario nuke 7792 nuker defender --preset=nuketest --dev
+  rejoin_scenario 7793
   if [ "$scenario_failed" -ne 0 ]; then
     echo "Match test FAILED. Logs: $logs"
     exit 1

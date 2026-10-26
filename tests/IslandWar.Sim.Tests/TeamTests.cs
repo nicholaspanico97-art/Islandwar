@@ -70,7 +70,7 @@ public class PlayerNameTests
     [Fact]
     public void RosterRoundTrips()
     {
-        var roster = new[] { new RosterEntry(5, "Nick", Team.Red), new RosterEntry(9, "Sam 2", Team.Blue) };
+        var roster = new[] { new RosterEntry(5, "Nick", Team.Red, ConcedeVote: true, PingMs: 42), new RosterEntry(9, "Sam 2", Team.Blue) };
 
         Assert.Equal(roster, IslandWar.Sim.Protocol.WireFormat.DecodeRoster(IslandWar.Sim.Protocol.WireFormat.EncodeRoster(roster)));
     }

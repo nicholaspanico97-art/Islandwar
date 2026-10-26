@@ -3,7 +3,9 @@ using System.Text;
 namespace IslandWar.Sim.Match;
 
 /// <summary>One connected player as everyone sees them.</summary>
-public readonly record struct RosterEntry(int PeerId, string Name, Team Team);
+/// <param name="ConcedeVote">They've voted for their team to concede.</param>
+/// <param name="PingMs">Round trip to the server in milliseconds, as the server last measured it.</param>
+public readonly record struct RosterEntry(int PeerId, string Name, Team Team, bool ConcedeVote = false, int PingMs = 0);
 
 /// <summary>Player names: what a client asks for is cleaned up before anyone sees it.</summary>
 public static class PlayerNames

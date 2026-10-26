@@ -53,4 +53,7 @@ public interface IGameLink
 
     /// <summary>The newest input number sent; a fresh prediction carries on from it.</summary>
     uint LastSentSeq { get; }
+
+    /// <summary>Sets or clears our vote for our team to concede.</summary>
+    void SetConcedeVote(bool vote);
 }

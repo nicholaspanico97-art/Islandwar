@@ -41,6 +41,12 @@ public sealed record LaunchArgs
     /// <summary>Client: the team to ask for (red or blue). Null lets the server choose.</summary>
     public string? Team { get; init; }
 
+    /// <summary>
+    /// Client: the identity token to send, so the server can give a returning player their seat back. Null
+    /// means the one saved in user://settings.cfg (players) or a fresh random one (bots).
+    /// </summary>
+    public string? Token { get; init; }
+
     public static LaunchArgs Parse(string[] args)
     {
         var result = new LaunchArgs();
@@ -56,10 +62,13 @@ public sealed record LaunchArgs
                 "--dev" => result with { Dev = true },
                 "--preset" => result with { Preset = Required(key, value) },
                 "--name" => result with { Name = Required(key, value) },
+                "--token" => result with { Token = Required(key, value) },
                 "--team" => result with { Team = value is "red" or "blue" ? value : throw new ArgumentException("--team must be red or blue.") },
-                "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" or "nuker" or "defender" ? value : throw new ArgumentException("--bot must be builder, breaker, pilot, watcher, nuker or defender.") },
+                "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" or "nuker" or "defender" or "leaver" or "returner" or "conceder"
+                    ? value
+                    : throw new ArgumentException("--bot must be builder, breaker, pilot, watcher, nuker, defender, leaver, returner or conceder.") },
                 _ => throw new ArgumentException(
-                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue or --bot=builder|breaker|pilot|watcher|nuker|defender."),
+                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue, --token=TOKEN or --bot=ROLE."),
             };
         }
 

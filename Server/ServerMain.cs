@@ -38,6 +38,15 @@ public partial class ServerMain : Node
     private MatchStatus _match = MatchStatus.Warmup;
     private IReadOnlyList<CoreSite> _cores = Array.Empty<CoreSite>();
 
+    /// <summary>
+    /// Seats of players who left during this match, by identity token, so they come back to the same team
+    /// with the same name. Forgotten when the server returns to warmup.
+    /// </summary>
+    private readonly Dictionary<string, (string Name, Team Team)> _departed = new();
+
+    /// <summary>The roster goes out on every change and also this often, to refresh everyone's ping.</summary>
+    private const uint RosterRefreshTicks = 120;
+
     /// <summary>When each team last dropped its nuke, on the match clock; null for not yet this match.</summary>
     private readonly Dictionary<Team, float?> _lastNukeDrop = new() { [Team.Red] = null, [Team.Blue] = null };
     private GameData _data = null!;
@@ -94,6 +103,7 @@ public partial class ServerMain : Node
         _net.EditRequested += OnEditRequested;
         _net.HashRequested += peer => _net.SendHash(peer, World.ComputeHash());
         _net.HelloReceived += OnHello;
+        _net.ConcedeVoteReceived += OnConcedeVote;
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateServer(Args.Port, MaxClients);
@@ -169,6 +179,11 @@ public partial class ServerMain : Node
         if (_tick % net.SnapshotIntervalTicks == 0)
         {
             SendSnapshots();
+        }
+
+        if (_tick % RosterRefreshTicks == 0 && _players.Count > 0)
+        {
+            BroadcastRoster();
         }
     }
 
@@ -274,15 +289,21 @@ public partial class ServerMain : Node
                 break;
             case MatchEvent.MatchStarted:
                 ResetWorld();
+                ClearConcedeVotes();
                 GD.Print("[server] match started: phase 1");
                 break;
             case MatchEvent.PhaseChanged:
                 GD.Print($"[server] phase {_match.Phase}");
                 break;
             case MatchEvent.MatchEnded:
-                GD.Print($"[server] match over: {(_match.Winner == Team.None ? "draw" : $"{_match.Winner} wins")} ({_match.Reason})");
+                // Out of time: the team that kept more of its core wins.
+                _match = _match with { Winner = MatchScore.TimeLimitWinner(CoreStanding(Team.Red), CoreStanding(Team.Blue)) };
+                GD.Print($"[server] match over: {(_match.Winner == Team.None ? "draw" : $"{_match.Winner} wins")} ({_match.Reason}); "
+                    + $"cores Red {CoreStanding(Team.Red)}, Blue {CoreStanding(Team.Blue)}");
                 break;
             case MatchEvent.BackToWarmup:
+                _departed.Clear();
+                ClearConcedeVotes();
                 GD.Print("[server] back to warmup");
                 break;
         }
@@ -349,12 +370,22 @@ public partial class ServerMain : Node
         GD.Print($"[server] peer {peer} got into plane {nearest.Id}");
     }
 
-    /// <summary>A connected client introduced itself: give it a name and a team, and send it the world.</summary>
-    private void OnHello(int peer, string requestedName, Team requestedTeam)
+    /// <summary>
+    /// A connected client introduced itself: give it a name and a team, and send it the world. A player who
+    /// left during this match gets their old team and name back, whatever they ask for.
+    /// </summary>
+    private void OnHello(int peer, string requestedName, Team requestedTeam, string token)
     {
         if (!_pending.Remove(peer))
         {
             return;
+        }
+
+        (string Name, Team Team) seat = ("", Team.None);
+        bool returning = token.Length > 0 && _departed.Remove(token, out seat);
+        if (returning)
+        {
+            requestedName = seat.Name;
         }
 
         int red = _players.Values.Count(p => p.Team == Team.Red);
@@ -367,18 +398,18 @@ public partial class ServerMain : Node
         }
 
         // Developer mode lets the test bots line up on whichever side they need.
-        Team team = Teams.Assign(red, blue, requestedTeam, Args.Dev ? max : _preset.MaxTeamImbalance);
+        Team team = returning ? seat.Team : Teams.Assign(red, blue, requestedTeam, Args.Dev ? max : _preset.MaxTeamImbalance);
         if ((team == Team.Red ? red : blue) >= max)
         {
             team = team.Other();
         }
 
         string name = PlayerNames.Clean(requestedName, _players.Values.Select(p => p.Name));
-        _players[peer] = new ServerPlayer(name, team, _data.SpawnIn(World, team, _spawnSlots[team]++), _data.Net);
+        _players[peer] = new ServerPlayer(name, team, token, _data.SpawnIn(World, team, _spawnSlots[team]++), _data.Net);
         List<VoxelEdit> edits = World.Deltas.All().ToList();
         _net.SendWorld(peer, new WorldInit(_seed, _data, WireFormat.EncodeEdits(edits), World.ComputeHash(), Args.Dev, Args.Preset));
         BroadcastRoster();
-        GD.Print($"[server] peer {peer} joined as '{name}' on {team}; sent the world with {edits.Count} edits");
+        GD.Print($"[server] peer {peer} {(returning ? "came back" : "joined")} as '{name}' on {team}; sent the world with {edits.Count} edits");
     }
 
     private void Leave(int peer)
@@ -397,12 +428,72 @@ public partial class ServerMain : Node
             plane.State = plane.State with { Throttle = 0 };
         }
 
+        // Keep their seat for this match in case they come back.
+        if (player.Token.Length > 0 && _match.Stage != MatchStage.Warmup)
+        {
+            _departed[player.Token] = (player.Name, player.Team);
+        }
+
         BroadcastRoster();
         GD.Print($"[server] '{player.Name}' (peer {peer}) left");
+        CheckConcede();
     }
 
     private void BroadcastRoster() =>
-        _net.BroadcastRoster(WireFormat.EncodeRoster(_players.Select(p => new RosterEntry(p.Key, p.Value.Name, p.Value.Team)).ToList()));
+        _net.BroadcastRoster(WireFormat.EncodeRoster(_players
+            .Select(p => new RosterEntry(p.Key, p.Value.Name, p.Value.Team, p.Value.ConcedeVote, PingOf(p.Key)))
+            .ToList()));
+
+    private int PingOf(int peer) =>
+        Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet && enet.GetPeer(peer) is { } connection
+            ? (int)connection.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTime)
+            : 0;
+
+    private int CoreStanding(Team team) =>
+        _cores.Count > team.IslandIndex() ? _cores[team.IslandIndex()].StandingBlocks(World) : 0;
+
+    private void OnConcedeVote(int peer, bool vote)
+    {
+        if (!_players.TryGetValue(peer, out ServerPlayer? player) || player.ConcedeVote == vote || (vote && !_match.Playing))
+        {
+            return;
+        }
+
+        player.ConcedeVote = vote;
+        GD.Print($"[server] '{player.Name}' {(vote ? "voted" : "withdrew their vote")} to concede for {player.Team}");
+        BroadcastRoster();
+        CheckConcede();
+    }
+
+    /// <summary>A team that has enough concede votes loses on the spot.</summary>
+    private void CheckConcede()
+    {
+        if (!_match.Playing)
+        {
+            return;
+        }
+
+        foreach (Team team in Teams.Playing)
+        {
+            ServerPlayer[] members = _players.Values.Where(p => p.Team == team).ToArray();
+            if (MatchScore.Concedes(members.Count(p => p.ConcedeVote), members.Length, _preset.ConcedeFraction))
+            {
+                _match = MatchFlow.End(_match, team.Other(), EndReason.Concede);
+                GD.Print($"[server] {team} conceded: {team.Other()} wins");
+                return;
+            }
+        }
+    }
+
+    private void ClearConcedeVotes()
+    {
+        foreach (ServerPlayer player in _players.Values)
+        {
+            player.ConcedeVote = false;
+        }
+
+        BroadcastRoster();
+    }
 
     /// <summary>Drops clients that connected but never said hello (an old version, or not this game at all).</summary>
     private void DropSilentPeers()
@@ -575,10 +666,11 @@ public partial class ServerMain : Node
         private float _inputBudget;
         private float _editBudget;
 
-        public ServerPlayer(string name, Team team, PlayerState spawn, NetSettings net)
+        public ServerPlayer(string name, Team team, string token, PlayerState spawn, NetSettings net)
         {
             Name = name;
             Team = team;
+            Token = token;
             Spawn = spawn;
             Pawn = PawnState.OnFoot(spawn);
             _editBudget = net.MaxEditsPerSecond;
@@ -587,6 +679,11 @@ public partial class ServerMain : Node
         public string Name { get; }
 
         public Team Team { get; }
+
+        /// <summary>The client's identity token, for getting this seat back after a disconnect.</summary>
+        public string Token { get; }
+
+        public bool ConcedeVote { get; set; }
 
         /// <summary>Where this player appeared, and where they come back after falling off the map.</summary>
         public PlayerState Spawn { get; private set; }

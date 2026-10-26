@@ -10,10 +10,10 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint. Left click break, right click place. 1-5 or wheel: block. E: get in your team's plane. Esc frees the mouse.";
+        "WASD move, Space jump, Shift sprint | Left click break, right click place, 1-5 block | E plane | Tab scores | Esc mouse";
 
     private const string FlyingHelp =
-        "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Left click: bomb. Right click: nuke (phase 3). Mouse looks around. E: get out.";
+        "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
 
     private Crosshair _crosshair = null!;
     private Label _help = null!;
@@ -22,6 +22,9 @@ public partial class GameHud : CanvasLayer
     private Label _identity = null!;
     private Label _match = null!;
     private Label _cores = null!;
+    private Label _concede = null!;
+
+    public Scoreboard Scoreboard { get; private set; } = null!;
     private Label _bannerTitle = null!;
     private Label _bannerDetail = null!;
     private double _bannerSecondsLeft;
@@ -61,6 +64,16 @@ public partial class GameHud : CanvasLayer
         _cores.GrowHorizontal = Control.GrowDirection.Both;
         _cores.OffsetTop = 58;
         _cores.AddThemeFontSizeOverride("font_size", 18);
+
+        _concede = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center });
+        _concede.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
+        _concede.GrowHorizontal = Control.GrowDirection.Both;
+        _concede.OffsetTop = 82;
+        _concede.Modulate = Colors.Orange;
+        _concede.AddThemeFontSizeOverride("font_size", 18);
+
+        Scoreboard = new Scoreboard();
+        AddChild(Scoreboard);
 
         _bannerTitle = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false });
         _bannerTitle.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
@@ -102,6 +115,9 @@ public partial class GameHud : CanvasLayer
 
     /// <summary>Both cores' health, under the match line. Empty hides it.</summary>
     public void ShowCores(string text) => _cores.Text = text;
+
+    /// <summary>Our team's concede votes, under the cores. Empty hides it.</summary>
+    public void ShowConcede(string text) => _concede.Text = text;
 
     /// <summary>A big announcement in the middle of the screen for a few seconds.</summary>
     public void Announce(string title, string detail, Color colour, double seconds = 5)

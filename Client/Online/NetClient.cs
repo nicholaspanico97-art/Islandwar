@@ -36,6 +36,9 @@ public partial class NetClient : Node, IGameLink
     /// <summary>True if the world rebuilt on join had the same hash as the server's.</summary>
     public bool WorldMatchedServer { get; private set; }
 
+    /// <summary>Set before disconnecting on purpose, so losing the connection isn't treated as a failure.</summary>
+    public bool LeavingOnPurpose { get; set; }
+
     /// <summary>The server allows noclip flying (developer mode).</summary>
     public bool DevMode { get; private set; }
 
@@ -156,8 +159,10 @@ public partial class NetClient : Node, IGameLink
         return buffers.Where(b => !b.Value.IsEmpty).ToDictionary(b => b.Key, b => b.Value.Sample(renderTick));
     }
 
-    /// <summary>Introduces us to the server, which then assigns a team and sends the world.</summary>
-    public void SayHello(string name, Team team) => Replicator.SayHello(name, team);
+    /// <summary>Introduces us to the server, which then assigns a team (or gives our old seat back) and sends the world.</summary>
+    public void SayHello(string name, Team team, string token) => Replicator.SayHello(name, team, token);
+
+    public void SetConcedeVote(bool vote) => Replicator.SetConcedeVote(vote);
 
     public RosterEntry? Player(int peer) => _roster.TryGetValue(peer, out RosterEntry entry) ? entry : null;
 

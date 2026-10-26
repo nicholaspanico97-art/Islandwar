@@ -203,6 +203,8 @@ public static class WireFormat
             writer.Write(entry.PeerId);
             writer.Write(entry.Name);
             writer.Write((byte)entry.Team);
+            writer.Write(entry.ConcedeVote);
+            writer.Write((ushort)Math.Clamp(entry.PingMs, 0, ushort.MaxValue));
         }
     });
 
@@ -217,7 +219,7 @@ public static class WireFormat
         var roster = new RosterEntry[count];
         for (int i = 0; i < count; i++)
         {
-            roster[i] = new RosterEntry(reader.ReadInt32(), reader.ReadString(), (Team)reader.ReadByte());
+            roster[i] = new RosterEntry(reader.ReadInt32(), reader.ReadString(), (Team)reader.ReadByte(), reader.ReadBoolean(), reader.ReadUInt16());
         }
 
         return roster;

@@ -46,8 +46,14 @@ public partial class Replicator : Node
     /// <summary>Server: a client asks for the world hash (the sync test uses this).</summary>
     public event Action<int>? HashRequested;
 
-    /// <summary>Server: a newly connected client introduces itself (peer id, requested name, requested team).</summary>
-    public event Action<int, string, Team>? HelloReceived;
+    /// <summary>
+    /// Server: a newly connected client introduces itself (peer id, requested name, requested team, and its
+    /// identity token, which lets a player who drops out get their seat back).
+    /// </summary>
+    public event Action<int, string, Team, string>? HelloReceived;
+
+    /// <summary>Server: a player sets or clears their vote to concede.</summary>
+    public event Action<int, bool>? ConcedeVoteReceived;
 
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
@@ -87,7 +93,9 @@ public partial class Replicator : Node
 
     public void RequestHash() => RpcId(ServerId, MethodName.ReceiveHashRequest);
 
-    public void SayHello(string name, Team team) => RpcId(ServerId, MethodName.ReceiveHello, name, (int)team);
+    public void SayHello(string name, Team team, string token) => RpcId(ServerId, MethodName.ReceiveHello, name, (int)team, token);
+
+    public void SetConcedeVote(bool vote) => RpcId(ServerId, MethodName.ReceiveConcedeVote, vote);
 
     // ---- Server to client ----
 
@@ -154,11 +162,20 @@ public partial class Replicator : Node
         WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson), edits, (ulong)hash, devMode, presetName));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveHello(string name, int team)
+    private void ReceiveHello(string name, int team, string token)
     {
         if (Multiplayer.IsServer())
         {
-            HelloReceived?.Invoke(Multiplayer.GetRemoteSenderId(), name, Enum.IsDefined((Team)team) ? (Team)team : Team.None);
+            HelloReceived?.Invoke(Multiplayer.GetRemoteSenderId(), name, Enum.IsDefined((Team)team) ? (Team)team : Team.None, token);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveConcedeVote(bool vote)
+    {
+        if (Multiplayer.IsServer())
+        {
+            ConcedeVoteReceived?.Invoke(Multiplayer.GetRemoteSenderId(), vote);
         }
     }
 

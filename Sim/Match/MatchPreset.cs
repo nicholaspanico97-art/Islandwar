@@ -41,6 +41,9 @@ public sealed record MatchPreset
     /// </summary>
     public float NukeCooldownMinutes { get; init; } = 4;
 
+    /// <summary>A team concedes once this share of its players (rounded up) have voted to.</summary>
+    public float ConcedeFraction { get; init; } = 0.66f;
+
     public float Phase2StartSeconds => Phase2StartMinutes * 60;
 
     public float Phase3StartSeconds => Phase3StartMinutes * 60;
@@ -60,7 +63,7 @@ public sealed record MatchPreset
 
     public void Validate(string name)
     {
-        if (MaxPlayersPerTeam <= 0 || MaxTeamImbalance < 0 || MinPlayersPerTeam <= 0 || CountdownSeconds < 0 || ResultsSeconds < 0 || NukeCooldownMinutes < 0)
+        if (MaxPlayersPerTeam <= 0 || MaxTeamImbalance < 0 || MinPlayersPerTeam <= 0 || CountdownSeconds < 0 || ResultsSeconds < 0 || NukeCooldownMinutes < 0 || ConcedeFraction <= 0 || ConcedeFraction > 1)
         {
             throw new InvalidDataException($"Preset '{name}' in presets.json has a value out of range.");
         }
