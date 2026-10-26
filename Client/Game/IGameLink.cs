@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
@@ -25,4 +26,13 @@ public interface IGameLink
 
     /// <summary>Falling bombs by id, positioned for this frame.</summary>
     IReadOnlyDictionary<int, BombState> SampleBombs();
+
+    /// <summary>The server allows noclip flying (developer mode).</summary>
+    bool DevMode { get; }
+
+    /// <summary>Our team.</summary>
+    Team MyTeam { get; }
+
+    /// <summary>A player's name and team, or null if the roster hasn't caught up yet.</summary>
+    RosterEntry? Player(int peer);
 }

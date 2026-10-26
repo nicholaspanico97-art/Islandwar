@@ -47,10 +47,12 @@ public partial class GodotVoxelView : Node3D
 
         // VoxelTerrain only accepts blocks inside a viewer's range, so one viewer at the centre covers the
         // whole bounded map.
+        int viewDistance = Mathf.CeilToInt(new Vector3(World.SizeX, World.SizeY, World.SizeZ).Length() / 2) + Chunk.Size;
+        _terrain.Set("max_view_distance", viewDistance); // the terrain clamps viewers to this (default 128)
         var viewer = (Node3D)ClassDB.Instantiate("VoxelViewer").AsGodotObject();
         viewer.Name = "VoxelViewer";
         viewer.Position = new Vector3(World.SizeX, World.SizeY, World.SizeZ) / 2;
-        viewer.Set("view_distance", Mathf.CeilToInt(new Vector3(World.SizeX, World.SizeY, World.SizeZ).Length() / 2) + Chunk.Size);
+        viewer.Set("view_distance", viewDistance);
         AddChild(viewer);
 
         _tool = _terrain.Call("get_voxel_tool").AsGodotObject();

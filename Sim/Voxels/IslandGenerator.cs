@@ -42,8 +42,15 @@ public static class IslandGenerator
     {
         int seabed = settings.SeaLevel - settings.SeabedDepth;
 
-        long dx = x - world.SizeX / 2;
-        long dz = z - world.SizeZ / 2;
+        // With two islands, the east one is the west one mirrored, so neither team gets better ground.
+        if (settings.IslandSpacing > 0 && x >= world.SizeX / 2)
+        {
+            x = world.SizeX - 1 - x;
+        }
+
+        (int centreX, int centreZ) = settings.IslandCentre(world.SizeX, world.SizeZ, 0);
+        long dx = x - centreX;
+        long dz = z - centreZ;
         long radius = settings.IslandRadius;
         long falloff = (dx * dx + dz * dz) * One / (radius * radius);
         if (falloff >= One)

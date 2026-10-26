@@ -26,6 +26,21 @@ public sealed record LaunchArgs
     /// <summary>Terrain seed for the server or the local sandbox. Null means use the default from data/terrain.json.</summary>
     public int? Seed { get; init; }
 
+    /// <summary>
+    /// Server: developer mode. Players may fly (noclip) and pick any team regardless of balance. The test
+    /// bots need both. Off for real matches.
+    /// </summary>
+    public bool Dev { get; init; }
+
+    /// <summary>Server: the match preset from data/presets.json.</summary>
+    public string Preset { get; init; } = "compressed";
+
+    /// <summary>Client: the player name to ask for. Null means the one saved in the menu, or a default.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Client: the team to ask for (red or blue). Null lets the server choose.</summary>
+    public string? Team { get; init; }
+
     public static LaunchArgs Parse(string[] args)
     {
         var result = new LaunchArgs();
@@ -38,13 +53,21 @@ public sealed record LaunchArgs
                 "--port" => result with { Port = ParseInt(key, value) },
                 "--seed" => result with { Seed = ParseInt(key, value) },
                 "--connect" => WithConnect(result, value),
+                "--dev" => result with { Dev = true },
+                "--preset" => result with { Preset = Required(key, value) },
+                "--name" => result with { Name = Required(key, value) },
+                "--team" => result with { Team = value is "red" or "blue" ? value : throw new ArgumentException("--team must be red or blue.") },
                 "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" ? value : throw new ArgumentException("--bot must be builder, breaker or pilot.") },
-                _ => throw new ArgumentException($"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --connect=HOST[:PORT] or --bot=builder|breaker|pilot."),
+                _ => throw new ArgumentException(
+                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue or --bot=builder|breaker|pilot."),
             };
         }
 
         return result;
     }
+
+    private static string Required(string key, string? value) =>
+        string.IsNullOrWhiteSpace(value) ? throw new ArgumentException($"{key} needs a value, for example {key}=something.") : value;
 
     private static LaunchArgs WithConnect(LaunchArgs args, string? value)
     {

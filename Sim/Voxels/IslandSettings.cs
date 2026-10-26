@@ -17,6 +17,12 @@ public sealed record IslandSettings
     /// <summary>Radius of the island in blocks, measured from the world centre.</summary>
     public int IslandRadius { get; init; } = 48;
 
+    /// <summary>
+    /// Distance in blocks between the centres of two islands side by side along X, the second a mirror image
+    /// of the first. 0 means a single island in the middle of the map.
+    /// </summary>
+    public int IslandSpacing { get; init; }
+
     /// <summary>Blocks above sea level at the island centre before hills are added.</summary>
     public int BaseHeight { get; init; } = 6;
 
@@ -65,5 +71,35 @@ public sealed record IslandSettings
         {
             throw new InvalidDataException("island_radius and noise_cell_size must be positive.");
         }
+
+        if (IslandSpacing < 0 || (IslandSpacing > 0 && IslandSpacing < 2 * IslandRadius))
+        {
+            throw new InvalidDataException("island_spacing must be 0 (one island) or at least twice island_radius, so the islands don't touch.");
+        }
+
+        int sizeX = ChunksX * Chunk.Size;
+        int sizeZ = ChunksZ * Chunk.Size;
+        int westEdge = IslandCentre(sizeX, sizeZ, 0).X - IslandRadius;
+        if (westEdge < 0 || IslandRadius * 2 > sizeZ)
+        {
+            throw new InvalidDataException("The islands don't fit in the map: make chunks_x/chunks_z bigger, or island_radius/island_spacing smaller.");
+        }
+    }
+
+    /// <summary>Number of islands: one per team when <see cref="IslandSpacing"/> is set.</summary>
+    public int IslandCount => IslandSpacing > 0 ? 2 : 1;
+
+    /// <summary>The centre column of island <paramref name="index"/> (0 is the west one) in a map of the given size.</summary>
+    public (int X, int Z) IslandCentre(int sizeX, int sizeZ, int index)
+    {
+        if (IslandSpacing == 0)
+        {
+            return (sizeX / 2, sizeZ / 2);
+        }
+
+        int west = sizeX / 2 - IslandSpacing / 2;
+
+        // The east island mirrors the west one about the map's middle, column for column.
+        return (index == 0 ? west : sizeX - 1 - west, sizeZ / 2);
     }
 }

@@ -1,9 +1,11 @@
 {
-  // M1 test island. Sizes are in blocks unless the name says chunks (1 chunk = 16 blocks).
-  // 8 x 4 x 8 chunks = 128 x 64 x 128 blocks.
-  "chunks_x": 8,
+  // Two mirrored islands, one per team, side by side along X. Sizes are in blocks unless the name says
+  // chunks (1 chunk = 16 blocks). 20 x 4 x 10 chunks = 320 x 64 x 160 blocks.
+  "chunks_x": 20,
   "chunks_y": 4,
-  "chunks_z": 8,
+  "chunks_z": 10,
+  // Centre to centre. With a radius of 48 that leaves 80 blocks of open water between the beaches.
+  "island_spacing": 176,
   "sea_level": 16,
   "seabed_depth": 4,
   "island_radius": 48,

@@ -1,5 +1,6 @@
 using Godot;
 using IslandWar.Client.Game;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 
@@ -29,7 +30,7 @@ public partial class LocalSandbox : Node
             Terrain = data.Terrain,
             Rules = data.Rules,
             Net = data.Net,
-            Spawn = PawnState.OnFoot(data.SpawnIn(world)),
+            Spawn = PawnState.OnFoot(data.SpawnIn(world, Team.Red)),
         });
     }
 }

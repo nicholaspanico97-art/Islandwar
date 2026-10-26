@@ -178,8 +178,9 @@ public partial class ClientGame : Node3D
                 _firePressed = true;
             }
         }
-        else if (@event.IsActionPressed(InputActions.ToggleFly))
+        else if (@event.IsActionPressed(InputActions.ToggleFly) && (Link?.DevMode ?? true))
         {
+            // Noclip is a developer convenience: the sandbox always allows it, a server only in developer mode.
             _wantsFlying = !_wantsFlying;
         }
         else if (@event.IsActionPressed(InputActions.Break))
@@ -234,11 +235,24 @@ public partial class ClientGame : Node3D
         }
 
         ShowPlanes(planes, delta);
+        ShowIdentity();
         _bombsight.ShowAt(_aim is { } aim ? ToGodot(aim.Position) : null, _aim?.InWater ?? false);
         if (Link is not null)
         {
             ShowOtherPlayers(Link.SampleRemotePlayers());
             ShowBombs(Link.SampleBombs());
+        }
+    }
+
+    private void ShowIdentity()
+    {
+        if (Link is null)
+        {
+            _hud.ShowIdentity("Sandbox", Colors.White);
+        }
+        else if (Link.Player(Multiplayer.GetUniqueId()) is { } me)
+        {
+            _hud.ShowIdentity($"{me.Name} - {me.Team} team", TeamColors.Of(me.Team).Lightened(0.3f));
         }
     }
 
@@ -358,6 +372,7 @@ public partial class ClientGame : Node3D
     {
         foreach ((int id, RemotePlane plane) in planes)
         {
+            Plane(id).SetTeam(plane.Team);
             if (id != State.PlaneId)
             {
                 Plane(id).ShowState(ToGodot(plane.Position), ToGodot(plane.Rotation), plane.Throttle, delta);
@@ -405,6 +420,11 @@ public partial class ClientGame : Node3D
 
             // A pilot sits inside the plane, which is drawn instead.
             avatar.Visible = !state.InPlane;
+            if (Link?.Player(peer) is { } who)
+            {
+                avatar.SetIdentity(who.Name, who.Team);
+            }
+
             avatar.ShowState(state);
         }
 

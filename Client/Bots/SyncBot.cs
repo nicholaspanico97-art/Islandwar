@@ -6,9 +6,9 @@ namespace IslandWar.Client.Bots;
 /// <summary>
 /// Block sync bots for the automated test (see docs/testing.md):
 /// <list type="bullet">
-/// <item><b>builder</b> joins first, builds a tower next to the island centre, then waits for the
-/// breaker to knock its top off and the pilot to bomb it.</item>
-/// <item><b>breaker</b> joins late, checks the tower is already in the world it rebuilt (late join),
+/// <item><b>builder</b> joins Red first, builds a tower next to the centre of Red's island, then waits
+/// for the breaker to knock its top off and the pilot to bomb it.</item>
+/// <item><b>breaker</b> joins Red late, checks the tower is already in the world it rebuilt (late join),
 /// and breaks the top two blocks.</item>
 /// </list>
 /// Each then compares its world hash with the server's.
@@ -17,9 +17,6 @@ public partial class SyncBot : TestBot
 {
     private const int TowerHeight = 5;
     private const int BlocksBroken = 2;
-
-    /// <summary>The tower goes two blocks east of the island centre, on whatever ground is there.</summary>
-    private (int X, int Z) TowerColumn => (World.SizeX / 2 + 2, World.SizeZ / 2);
 
     protected override void Start()
     {

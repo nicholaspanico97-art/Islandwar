@@ -11,9 +11,9 @@ using IslandWar.Sim.Weapons;
 namespace IslandWar.Client.Bots;
 
 /// <summary>
-/// The plane bot for the automated test. It flies (noclip) to the parked plane, presses E, takes off,
-/// flies back over the island and bombs the builder's tower, aiming with the same impact prediction as
-/// the bombsight, then gets out. It predicts every tick like a real client. It passes if the bomb took
+/// The plane bot for the automated test. It joins Blue, flies (noclip) to Blue's parked plane, presses E,
+/// takes off, crosses to Red's island and bombs the builder's tower, aiming with the same impact
+/// prediction as the bombsight, then gets out. It predicts every tick like a real client. It passes if the bomb took
 /// blocks off the tower, the server's corrections to its prediction stayed tiny, and its world matches
 /// the server's.
 /// </summary>
@@ -59,9 +59,6 @@ public partial class PilotBot : TestBot
     private PlaneSettings Plane => Net.Data!.Plane;
 
     private BombSettings Bomb => Net.Data!.Bomb;
-
-    /// <summary>The builder's tower: two blocks east of the island centre (see SyncBot).</summary>
-    private (int X, int Z) TowerColumn => (World.SizeX / 2 + 2, World.SizeZ / 2);
 
     protected override void Start()
     {
@@ -124,8 +121,9 @@ public partial class PilotBot : TestBot
         switch (_phase)
         {
             case Phase.Approach:
-                IReadOnlyDictionary<int, RemotePlane> planes = Net.SampleRemotePlanes();
-                if (!planes.TryGetValue(1, out RemotePlane plane))
+                // Our team's plane; only that one lets us in.
+                RemotePlane? ours = Net.SampleRemotePlanes().Values.Where(p => p.Team == Net.MyTeam).Cast<RemotePlane?>().FirstOrDefault();
+                if (ours is not { } plane)
                 {
                     return Input(InputButtons.Fly);
                 }

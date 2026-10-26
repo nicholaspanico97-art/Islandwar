@@ -1,4 +1,5 @@
 using System.Numerics;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
@@ -9,7 +10,7 @@ namespace IslandWar.Sim.Protocol;
 public readonly record struct PlayerSnapshot(int PeerId, PlayerState State, float Yaw, float Pitch, int PlaneId = 0);
 
 /// <summary>One plane in a snapshot. <see cref="PilotPeerId"/> is 0 when nobody is flying it.</summary>
-public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotPeerId);
+public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotPeerId, Team Team = Team.None);
 
 /// <summary>
 /// The server's view of every player and plane at one tick. <see cref="AckSeq"/> is the last input the
@@ -102,6 +103,7 @@ public static class WireFormat
             {
                 writer.Write(plane.Id);
                 writer.Write(plane.PilotPeerId);
+                writer.Write((byte)plane.Team);
                 Write(writer, plane.State.Position);
                 writer.Write(plane.State.Rotation.X);
                 writer.Write(plane.State.Rotation.Y);
@@ -139,10 +141,11 @@ public static class WireFormat
         {
             int id = reader.ReadInt32();
             int pilot = reader.ReadInt32();
+            var team = (Team)reader.ReadByte();
             Vector3 position = Read(reader);
             var rotation = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             var state = new PlaneState(position, rotation, reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadBoolean());
-            planes[i] = new PlaneSnapshot(id, state, pilot);
+            planes[i] = new PlaneSnapshot(id, state, pilot, team);
         }
 
         return new Snapshot(tick, ack, players, planes);
@@ -177,6 +180,35 @@ public static class WireFormat
         }
 
         return edits;
+    });
+
+    /// <summary>Every connected player's name and team.</summary>
+    public static byte[] EncodeRoster(IReadOnlyCollection<RosterEntry> roster) => Encode(writer =>
+    {
+        writer.Write(roster.Count);
+        foreach (RosterEntry entry in roster)
+        {
+            writer.Write(entry.PeerId);
+            writer.Write(entry.Name);
+            writer.Write((byte)entry.Team);
+        }
+    });
+
+    public static IReadOnlyList<RosterEntry> DecodeRoster(byte[] data) => Decode(data, reader =>
+    {
+        int count = reader.ReadInt32();
+        if (count < 0 || count > data.Length)
+        {
+            throw new InvalidDataException($"Roster claims {count} players.");
+        }
+
+        var roster = new RosterEntry[count];
+        for (int i = 0; i < count; i++)
+        {
+            roster[i] = new RosterEntry(reader.ReadInt32(), reader.ReadString(), (Team)reader.ReadByte());
+        }
+
+        return roster;
     });
 
     private static byte[] Encode(Action<BinaryWriter> write)

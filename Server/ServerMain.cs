@@ -5,6 +5,7 @@ using System.Linq;
 using Godot;
 using IslandWar.Net;
 using IslandWar.Sim;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Vehicles;
@@ -23,14 +24,21 @@ public partial class ServerMain : Node
 {
     private const int MaxClients = 32;
 
+    /// <summary>A client that connects but doesn't say hello within this many milliseconds is dropped.</summary>
+    private const ulong HelloTimeoutMsec = 10_000;
+
     private readonly Dictionary<int, ServerPlayer> _players = new();
     private readonly Dictionary<int, ServerPlane> _planes = new();
     private readonly List<ServerBomb> _bombs = new();
+
+    /// <summary>Connected peers that haven't said hello yet, with when they connected.</summary>
+    private readonly Dictionary<int, ulong> _pending = new();
+    private readonly Dictionary<Team, int> _spawnSlots = new() { [Team.Red] = 0, [Team.Blue] = 0 };
+    private MatchPreset _preset = null!;
     private GameData _data = null!;
     private GameRules _rules = null!;
     private Replicator _net = null!;
     private int _seed;
-    private int _joins;
     private int _nextBombId = 1;
     private uint _tick;
 
@@ -46,6 +54,7 @@ public partial class ServerMain : Node
         try
         {
             _data = GameData.Load();
+            _preset = _data.Preset(Args.Preset);
         }
         catch (InvalidDataException e)
         {
@@ -61,16 +70,22 @@ public partial class ServerMain : Node
         World = IslandGenerator.Generate(_data.Terrain, _seed);
         GD.Print($"[server] generated island: seed {_seed}, {World.SizeX}x{World.SizeY}x{World.SizeZ} blocks, hash {World.ComputeHash():x16}");
 
-        // M1c has one plane. Ids start at 1; 0 means "no plane".
-        var plane = new ServerPlane(1, _data.PlaneSpawnIn(World));
-        _planes[plane.Id] = plane;
-        GD.Print($"[server] plane {plane.Id} parked at {plane.State.Position}");
+        // One plane per team, parked off its own island. Ids start at 1; 0 means "no plane".
+        foreach (Team team in Teams.Playing)
+        {
+            var plane = new ServerPlane(_planes.Count + 1, team, _data.PlaneSpawnIn(World, team));
+            _planes[plane.Id] = plane;
+            GD.Print($"[server] {team} plane {plane.Id} parked at {plane.State.Position}");
+        }
+
+        GD.Print($"[server] preset '{Args.Preset}', up to {_preset.MaxPlayersPerTeam} per team{(Args.Dev ? "; developer mode: noclip on, any team" : "")}");
 
         _net = new Replicator();
         AddChild(_net);
         _net.InputsReceived += OnInputs;
         _net.EditRequested += OnEditRequested;
         _net.HashRequested += peer => _net.SendHash(peer, World.ComputeHash());
+        _net.HelloReceived += OnHello;
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateServer(Args.Port, MaxClients);
@@ -82,7 +97,7 @@ public partial class ServerMain : Node
         }
 
         Multiplayer.MultiplayerPeer = peer;
-        Multiplayer.PeerConnected += id => Join((int)id);
+        Multiplayer.PeerConnected += id => _pending[(int)id] = Time.GetTicksMsec();
         Multiplayer.PeerDisconnected += id => Leave((int)id);
         GD.Print($"[server] listening on port {Args.Port}");
     }
@@ -91,11 +106,18 @@ public partial class ServerMain : Node
     {
         _tick++;
         NetSettings net = _data.Net;
+        DropSilentPeers();
         foreach ((int peer, ServerPlayer player) in _players)
         {
             player.Refill(net);
             while (player.TryTakeInput(out PlayerInput input))
             {
+                // Noclip is a developer convenience; in a real match the server just ignores it.
+                if (!Args.Dev)
+                {
+                    input = input with { Buttons = input.Buttons & ~InputButtons.Fly };
+                }
+
                 // Getting in or out happens before the input's movement, and the client replays it the same way.
                 if (input.Has(InputButtons.Use))
                 {
@@ -189,14 +211,14 @@ public partial class ServerMain : Node
         PlayerSnapshot[] players = _players
             .Select(p => new PlayerSnapshot(p.Key, p.Value.Pawn.Player, p.Value.Yaw, p.Value.Pitch, p.Value.Pawn.PlaneId))
             .ToArray();
-        PlaneSnapshot[] planes = _planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId)).ToArray();
+        PlaneSnapshot[] planes = _planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId, p.Team)).ToArray();
         foreach ((int peer, ServerPlayer player) in _players)
         {
             _net.SendSnapshot(peer, WireFormat.EncodeSnapshot(new Snapshot(_tick, player.AckSeq, players, planes)));
         }
     }
 
-    /// <summary>Gets a pilot out, or a player into the nearest free plane in reach.</summary>
+    /// <summary>Gets a pilot out, or a player into the nearest free plane of their team in reach.</summary>
     private void ToggleSeat(int peer, ServerPlayer player)
     {
         if (player.Pawn.InPlane)
@@ -212,7 +234,7 @@ public partial class ServerMain : Node
 
         System.Numerics.Vector3 feet = player.Pawn.Player.Position;
         ServerPlane? nearest = _planes.Values
-            .Where(p => p.PilotPeerId == 0 && VehicleRules.InEnterRange(_rules.Plane, feet, p.State))
+            .Where(p => p.PilotPeerId == 0 && p.Team == player.Team && VehicleRules.InEnterRange(_rules.Plane, feet, p.State))
             .OrderBy(p => System.Numerics.Vector3.DistanceSquared(feet, p.State.Position))
             .FirstOrDefault();
         if (nearest is null)
@@ -225,17 +247,47 @@ public partial class ServerMain : Node
         GD.Print($"[server] peer {peer} got into plane {nearest.Id}");
     }
 
-    private void Join(int peer)
+    /// <summary>A connected client introduced itself: give it a name and a team, and send it the world.</summary>
+    private void OnHello(int peer, string requestedName, Team requestedTeam)
     {
-        _players[peer] = new ServerPlayer(_data.SpawnIn(World, _joins++), _data.Net);
+        if (!_pending.Remove(peer))
+        {
+            return;
+        }
+
+        int red = _players.Values.Count(p => p.Team == Team.Red);
+        int blue = _players.Values.Count(p => p.Team == Team.Blue);
+        int max = _preset.MaxPlayersPerTeam;
+        if (red >= max && blue >= max)
+        {
+            Kick(peer, $"The server is full ({max} per team).");
+            return;
+        }
+
+        // Developer mode lets the test bots line up on whichever side they need.
+        Team team = Teams.Assign(red, blue, requestedTeam, Args.Dev ? max : _preset.MaxTeamImbalance);
+        if ((team == Team.Red ? red : blue) >= max)
+        {
+            team = team.Other();
+        }
+
+        string name = PlayerNames.Clean(requestedName, _players.Values.Select(p => p.Name));
+        _players[peer] = new ServerPlayer(name, team, _data.SpawnIn(World, team, _spawnSlots[team]++), _data.Net);
         List<VoxelEdit> edits = World.Deltas.All().ToList();
-        _net.SendWorld(peer, new WorldInit(_seed, _data, WireFormat.EncodeEdits(edits), World.ComputeHash()));
-        GD.Print($"[server] peer {peer} connected; sent the world with {edits.Count} edits");
+        _net.SendWorld(peer, new WorldInit(_seed, _data, WireFormat.EncodeEdits(edits), World.ComputeHash(), Args.Dev, Args.Preset));
+        BroadcastRoster();
+        GD.Print($"[server] peer {peer} joined as '{name}' on {team}; sent the world with {edits.Count} edits");
     }
 
     private void Leave(int peer)
     {
-        if (_players.Remove(peer, out ServerPlayer? player) && player.Pawn.InPlane)
+        _pending.Remove(peer);
+        if (!_players.Remove(peer, out ServerPlayer? player))
+        {
+            return;
+        }
+
+        if (player.Pawn.InPlane)
         {
             // A pilot who disconnects leaves the plane to glide down on its own.
             ServerPlane plane = _planes[player.Pawn.PlaneId];
@@ -243,7 +295,31 @@ public partial class ServerMain : Node
             plane.State = plane.State with { Throttle = 0 };
         }
 
-        GD.Print($"[server] peer {peer} disconnected");
+        BroadcastRoster();
+        GD.Print($"[server] '{player.Name}' (peer {peer}) left");
+    }
+
+    private void BroadcastRoster() =>
+        _net.BroadcastRoster(WireFormat.EncodeRoster(_players.Select(p => new RosterEntry(p.Key, p.Value.Name, p.Value.Team)).ToList()));
+
+    /// <summary>Drops clients that connected but never said hello (an old version, or not this game at all).</summary>
+    private void DropSilentPeers()
+    {
+        ulong now = Time.GetTicksMsec();
+        foreach (int peer in _pending.Where(p => now - p.Value > HelloTimeoutMsec).Select(p => p.Key).ToList())
+        {
+            _pending.Remove(peer);
+            GD.Print($"[server] peer {peer} never said hello; dropping it");
+            Multiplayer.MultiplayerPeer.DisconnectPeer(peer);
+        }
+    }
+
+    /// <summary>Tells a client why, then disconnects it a moment later so the message gets there first.</summary>
+    private void Kick(int peer, string reason)
+    {
+        GD.Print($"[server] kicking peer {peer}: {reason}");
+        _net.Kick(peer, reason);
+        GetTree().CreateTimer(0.5).Timeout += () => Multiplayer.MultiplayerPeer?.DisconnectPeer(peer);
     }
 
     private void OnInputs(int peer, byte[] data)
@@ -311,13 +387,17 @@ public partial class ServerMain : Node
 
     private sealed class ServerPlane
     {
-        public ServerPlane(int id, PlaneState state)
+        public ServerPlane(int id, Team team, PlaneState state)
         {
             Id = id;
+            Team = team;
             State = state;
         }
 
         public int Id { get; }
+
+        /// <summary>Only this team's players can fly it.</summary>
+        public Team Team { get; }
 
         public PlaneState State { get; set; }
 
@@ -355,12 +435,18 @@ public partial class ServerMain : Node
         private float _inputBudget;
         private float _editBudget;
 
-        public ServerPlayer(PlayerState spawn, NetSettings net)
+        public ServerPlayer(string name, Team team, PlayerState spawn, NetSettings net)
         {
+            Name = name;
+            Team = team;
             Spawn = spawn;
             Pawn = PawnState.OnFoot(spawn);
             _editBudget = net.MaxEditsPerSecond;
         }
+
+        public string Name { get; }
+
+        public Team Team { get; }
 
         /// <summary>Where this player appeared, and where they come back after falling off the map.</summary>
         public PlayerState Spawn { get; }

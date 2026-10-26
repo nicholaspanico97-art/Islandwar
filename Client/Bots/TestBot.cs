@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using IslandWar.Client.Online;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Client.Bots;
@@ -23,6 +24,16 @@ public abstract partial class TestBot : Node
     public string Role { get; init; } = "";
 
     protected VoxelWorld World => Net.World!;
+
+    /// <summary>The builder's tower column: two blocks east of the centre of Red's (west) island.</summary>
+    protected (int X, int Z) TowerColumn
+    {
+        get
+        {
+            (int x, int z) = Net.Data!.Terrain.IslandCentre(World.SizeX, World.SizeZ, Team.Red.IslandIndex());
+            return (x + 2, z);
+        }
+    }
 
     public override void _Ready()
     {

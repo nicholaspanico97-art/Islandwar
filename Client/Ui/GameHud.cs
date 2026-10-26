@@ -10,7 +10,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint, F fly (Space/Ctrl up/down). Left click break, right click place. 1-5 or wheel: block. E: get in a plane. Esc frees the mouse.";
+        "WASD move, Space jump, Shift sprint. Left click break, right click place. 1-5 or wheel: block. E: get in your team's plane. Esc frees the mouse.";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll (steer on the ground), Shift/Ctrl throttle, Space brake. Left click: drop a bomb. Mouse looks around. E: get out.";
@@ -19,6 +19,7 @@ public partial class GameHud : CanvasLayer
     private Label _help = null!;
     private Label _prompt = null!;
     private Label _flight = null!;
+    private Label _identity = null!;
 
     public Hotbar Hotbar { get; private set; } = null!;
 
@@ -37,6 +38,13 @@ public partial class GameHud : CanvasLayer
         _prompt.GrowHorizontal = Control.GrowDirection.Both;
         _prompt.AddThemeFontSizeOverride("font_size", 22);
 
+        _identity = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Right });
+        _identity.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
+        _identity.GrowHorizontal = Control.GrowDirection.Begin;
+        _identity.OffsetRight = -16;
+        _identity.OffsetTop = 8;
+        _identity.AddThemeFontSizeOverride("font_size", 20);
+
         _flight = Outlined(new Label { Visible = false });
         // Anchored to the bottom-left corner and growing upward, so extra lines never run off the screen.
         _flight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
@@ -46,6 +54,13 @@ public partial class GameHud : CanvasLayer
         _flight.OffsetTop = -16;
         _flight.AddThemeFontSizeOverride("font_size", 22);
         ShowOnFoot(null);
+    }
+
+    /// <summary>Who and which side you are, top right.</summary>
+    public void ShowIdentity(string text, Color colour)
+    {
+        _identity.Text = text;
+        _identity.Modulate = colour;
     }
 
     /// <param name="prompt">Text to show above the hotbar, or null for none.</param>

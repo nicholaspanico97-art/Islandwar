@@ -1,0 +1,14 @@
+{
+  // Match presets (game plan: both are real modes). Pick one with the server's --preset=NAME.
+  // M2 adds phase timings, score and concede settings here piece by piece.
+  "compressed": {
+    // 4v4, about 45 minutes.
+    "max_players_per_team": 4,
+    "max_team_imbalance": 1
+  },
+  "full": {
+    // 12v12, 2 to 4 hours.
+    "max_players_per_team": 12,
+    "max_team_imbalance": 1
+  }
+}

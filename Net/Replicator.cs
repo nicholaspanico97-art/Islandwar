@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
 
@@ -8,7 +9,9 @@ namespace IslandWar.Net;
 /// <summary>Everything a client needs to rebuild the current world when it joins.</summary>
 /// <param name="EditsData">Every edit since generation, packed with <c>WireFormat.EncodeEdits</c>.</param>
 /// <param name="Hash">The server's world hash, so the client can check its rebuild.</param>
-public sealed record WorldInit(int Seed, GameData Data, byte[] EditsData, ulong Hash);
+/// <param name="DevMode">The server allows developer conveniences (noclip flying).</param>
+/// <param name="PresetName">The match preset, one of <see cref="GameData.Presets"/>.</param>
+public sealed record WorldInit(int Seed, GameData Data, byte[] EditsData, ulong Hash, bool DevMode, string PresetName);
 
 /// <summary>A bomb left a plane at server tick <see cref="Tick"/>. Clients simulate its fall from here.</summary>
 public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState State);
@@ -39,6 +42,15 @@ public partial class Replicator : Node
 
     /// <summary>Server: a client asks for the world hash (the sync test uses this).</summary>
     public event Action<int>? HashRequested;
+
+    /// <summary>Server: a newly connected client introduces itself (peer id, requested name, requested team).</summary>
+    public event Action<int, string, Team>? HelloReceived;
+
+    /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
+    public event Action<byte[]>? RosterReceived;
+
+    /// <summary>Client: the server is about to disconnect us, and why.</summary>
+    public event Action<string>? Kicked;
 
     /// <summary>Client: the world on joining.</summary>
     public event Action<WorldInit>? WorldReceived;
@@ -72,10 +84,17 @@ public partial class Replicator : Node
 
     public void RequestHash() => RpcId(ServerId, MethodName.ReceiveHashRequest);
 
+    public void SayHello(string name, Team team) => RpcId(ServerId, MethodName.ReceiveHello, name, (int)team);
+
     // ---- Server to client ----
 
     public void SendWorld(int peer, WorldInit world) =>
-        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson, world.Data.WeaponsJson, world.EditsData, (long)world.Hash);
+        RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson,
+            world.Data.WeaponsJson, world.Data.PresetsJson, world.EditsData, (long)world.Hash, world.DevMode, world.PresetName);
+
+    public void BroadcastRoster(byte[] roster) => Rpc(MethodName.ReceiveRoster, roster);
+
+    public void Kick(int peer, string reason) => RpcId(peer, MethodName.ReceiveKick, reason);
 
     // Drops and explosions are reliable and share channel 0 with edits, so a crater never arrives before
     // the edits that came first, and a hash reply follows every crater.
@@ -127,8 +146,24 @@ public partial class Replicator : Node
     }
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, byte[] edits, long hash) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson), edits, (ulong)hash));
+    private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, string presetsJson,
+        byte[] edits, long hash, bool devMode, string presetName) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson), edits, (ulong)hash, devMode, presetName));
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveHello(string name, int team)
+    {
+        if (Multiplayer.IsServer())
+        {
+            HelloReceived?.Invoke(Multiplayer.GetRemoteSenderId(), name, Enum.IsDefined((Team)team) ? (Team)team : Team.None);
+        }
+    }
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveRoster(byte[] roster) => RosterReceived?.Invoke(roster);
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveKick(string reason) => Kicked?.Invoke(reason);
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveBombDrop(int id, int owner, long tick, Vector3 position, Vector3 velocity) =>

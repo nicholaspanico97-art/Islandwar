@@ -5,6 +5,7 @@ using System.Linq;
 using Godot;
 using IslandWar.Client.Game;
 using IslandWar.Net;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Voxels;
@@ -22,6 +23,7 @@ public partial class NetClient : Node, IGameLink
     private readonly Dictionary<int, InterpolationBuffer<RemoteState>> _others = new();
     private readonly Dictionary<int, InterpolationBuffer<RemotePlane>> _planes = new();
     private readonly Dictionary<int, FallingBomb> _bombs = new();
+    private Dictionary<int, RosterEntry> _roster = new();
     private double _serverTick;
     private bool _joined;
 
@@ -33,6 +35,17 @@ public partial class NetClient : Node, IGameLink
 
     /// <summary>True if the world rebuilt on join had the same hash as the server's.</summary>
     public bool WorldMatchedServer { get; private set; }
+
+    /// <summary>The server allows noclip flying (developer mode).</summary>
+    public bool DevMode { get; private set; }
+
+    public string PresetName { get; private set; } = "";
+
+    /// <summary>Everyone connected, by peer id, as of the server's last roster.</summary>
+    public IReadOnlyDictionary<int, RosterEntry> Roster => _roster;
+
+    /// <summary>Our own team, once the server has said.</summary>
+    public Team MyTeam => _roster.TryGetValue(Multiplayer.GetUniqueId(), out RosterEntry me) ? me.Team : Team.None;
 
     /// <summary>The world is rebuilt and the server has placed us: the game can start here.</summary>
     public event Action<PawnState>? Joined;
@@ -46,14 +59,31 @@ public partial class NetClient : Node, IGameLink
     /// <summary>A bomb went off; its crater is already in <see cref="World"/> (and reported by <see cref="WorldChanged"/>).</summary>
     public event Action<Explosion>? Exploded;
 
+    /// <summary>The server is about to disconnect us, and why (full, for example).</summary>
+    public event Action<string>? KickedOut;
+
     public override void _Ready()
     {
         Name = "NetClient";
         Replicator.WorldReceived += OnWorld;
         Replicator.EditReceived += OnEdit;
         Replicator.SnapshotReceived += OnSnapshot;
-        Replicator.BombDropped += drop => _bombs[drop.Id] = new FallingBomb(drop);
+        Replicator.BombDropped += OnBombDropped;
         Replicator.ExplosionReceived += OnExplosion;
+        Replicator.RosterReceived += OnRoster;
+        Replicator.Kicked += OnKicked;
+    }
+
+    public override void _ExitTree()
+    {
+        // The replicator outlives this connection; stop listening to it.
+        Replicator.WorldReceived -= OnWorld;
+        Replicator.EditReceived -= OnEdit;
+        Replicator.SnapshotReceived -= OnSnapshot;
+        Replicator.BombDropped -= OnBombDropped;
+        Replicator.ExplosionReceived -= OnExplosion;
+        Replicator.RosterReceived -= OnRoster;
+        Replicator.Kicked -= OnKicked;
     }
 
     public override void _Process(double delta)
@@ -97,9 +127,16 @@ public partial class NetClient : Node, IGameLink
         return buffers.Where(b => !b.Value.IsEmpty).ToDictionary(b => b.Key, b => b.Value.Sample(renderTick));
     }
 
+    /// <summary>Introduces us to the server, which then assigns a team and sends the world.</summary>
+    public void SayHello(string name, Team team) => Replicator.SayHello(name, team);
+
+    public RosterEntry? Player(int peer) => _roster.TryGetValue(peer, out RosterEntry entry) ? entry : null;
+
     private void OnWorld(WorldInit init)
     {
         Data = init.Data;
+        DevMode = init.DevMode;
+        PresetName = init.PresetName;
         Data.ApplyTickRate();
         IReadOnlyList<VoxelEdit> edits = WireFormat.DecodeEdits(init.EditsData);
         World = IslandGenerator.Rebuild(Data.Terrain, init.Seed, edits);
@@ -114,6 +151,12 @@ public partial class NetClient : Node, IGameLink
             GD.PushError($"[client] rebuilt world hash {hash:x16} differs from the server's {init.Hash:x16}");
         }
     }
+
+    private void OnBombDropped(BombDrop drop) => _bombs[drop.Id] = new FallingBomb(drop);
+
+    private void OnRoster(byte[] data) => _roster = WireFormat.DecodeRoster(data).ToDictionary(e => e.PeerId);
+
+    private void OnKicked(string reason) => KickedOut?.Invoke(reason);
 
     private void OnExplosion(Explosion explosion)
     {
@@ -192,7 +235,7 @@ public partial class NetClient : Node, IGameLink
         foreach (PlaneSnapshot plane in snapshot.Planes)
         {
             Buffer(_planes, plane.Id, InterpolationBuffers.ForPlane)
-                .Add(snapshot.Tick, new RemotePlane(plane.State.Position, plane.State.Rotation, plane.State.Throttle, plane.PilotPeerId));
+                .Add(snapshot.Tick, new RemotePlane(plane.State.Position, plane.State.Rotation, plane.State.Throttle, plane.PilotPeerId, plane.Team));
         }
 
         Prune(_others, snapshot.Players.Select(p => p.PeerId).ToHashSet());

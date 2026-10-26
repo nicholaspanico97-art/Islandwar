@@ -45,17 +45,18 @@ synctest() {
   dotnet build IslandWar.csproj
   local logs port=7790 builder breaker pilot builder_status=0 breaker_status=0 pilot_status=0
   logs="$(mktemp -d)"
-  "$GODOT" --headless --path . -- --server --port=$port >"$logs/server.log" 2>&1 &
+  # Developer mode lets the bots pick their teams and noclip to their plane.
+  "$GODOT" --headless --path . -- --server --port=$port --dev >"$logs/server.log" 2>&1 &
   server_pid=$!  # global: the EXIT trap runs after this function returns
   trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
   wait_for_line "$logs/server.log" "listening on port"
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=builder >"$logs/builder.log" 2>&1 &
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=builder --team=red >"$logs/builder.log" 2>&1 &
   builder=$!
   wait_for_line "$logs/builder.log" "built the tower"
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=breaker >"$logs/breaker.log" 2>&1 &
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=breaker --team=red >"$logs/breaker.log" 2>&1 &
   breaker=$!
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=pilot >"$logs/pilot.log" 2>&1 &
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=pilot --team=blue >"$logs/pilot.log" 2>&1 &
   pilot=$!
   wait "$builder" || builder_status=$?
   wait "$breaker" || breaker_status=$?

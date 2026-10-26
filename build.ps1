@@ -54,14 +54,15 @@ function Invoke-SyncTest {
   New-Item -ItemType Directory -Force $logs | Out-Null
   Get-ChildItem $logs | Remove-Item
   $port = 7790
-  $server = Start-Godot "server" @("--server", "--port=$port")
+  # Developer mode lets the bots pick their teams and noclip to their plane.
+  $server = Start-Godot "server" @("--server", "--port=$port", "--dev")
   $bots = @()
   try {
     Wait-ForLine "server" "listening on port"
-    $bots += Start-Godot "builder" @("--connect=127.0.0.1:$port", "--bot=builder")
+    $bots += Start-Godot "builder" @("--connect=127.0.0.1:$port", "--bot=builder", "--team=red")
     Wait-ForLine "builder" "built the tower"
-    $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker")
-    $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot")
+    $bots += Start-Godot "breaker" @("--connect=127.0.0.1:$port", "--bot=breaker", "--team=red")
+    $bots += Start-Godot "pilot" @("--connect=127.0.0.1:$port", "--bot=pilot", "--team=blue")
     $bots | Wait-Process -Timeout 120
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force

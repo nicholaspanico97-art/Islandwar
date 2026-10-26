@@ -3,19 +3,27 @@ using IslandWar.Client.Bots;
 using IslandWar.Client.Game;
 using IslandWar.Client.Online;
 using IslandWar.Client.Sandbox;
+using IslandWar.Client.Ui;
 using IslandWar.Net;
+using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
 
 namespace IslandWar.Client;
 
 /// <summary>
-/// Client entry. Without <c>--connect</c> it starts the single-player sandbox. With it, it connects to a
-/// server, waits for the world, and then plays the same <see cref="ClientGame"/> with a network link.
+/// Client entry. With <c>--connect</c> it joins that server straight away (bots always do). Otherwise it
+/// shows the main menu, which joins a server or starts the single-player sandbox. Losing the connection
+/// before or during a game goes back to the menu with the reason.
 /// </summary>
 public partial class ClientMain : Node
 {
+    private CanvasLayer _ui = null!;
     private Label _status = null!;
-    private NetClient _net = null!;
+    private Replicator _replicator = null!;
+    private Node? _session;
+    private NetClient? _net;
+    private string _address = "";
+    private (string Name, Team Team) _hello;
 
     public LaunchArgs Args { get; init; } = new();
 
@@ -25,65 +33,136 @@ public partial class ClientMain : Node
         Name = "Game";
         InputActions.Register();
 
-        if (Args.ConnectHost is null)
-        {
-            AddChild(new LocalSandbox { Args = Args });
-            return;
-        }
-
-        var ui = new CanvasLayer { Layer = 10 };
+        _ui = new CanvasLayer { Layer = 10 };
         _status = new Label { Position = new Vector2(16, 40) };
         _status.AddThemeColorOverride("font_outline_color", Colors.Black);
         _status.AddThemeConstantOverride("outline_size", 4);
-        ui.AddChild(_status);
-        AddChild(ui);
+        _ui.AddChild(_status);
+        AddChild(_ui);
 
-        var replicator = new Replicator();
-        AddChild(replicator);
-        _net = new NetClient { Replicator = replicator };
-        AddChild(_net);
+        // One replicator and one set of connection handlers for the client's whole life: a replicator made
+        // per connection could get a different node path while the old one is still being freed.
+        _replicator = new Replicator();
+        AddChild(_replicator);
+        Multiplayer.ConnectedToServer += () =>
+        {
+            SetStatus($"Connected to {_address}. Loading the world...");
+            _net?.SayHello(_hello.Name, _hello.Team);
+        };
+        Multiplayer.ConnectionFailed += () => Fail($"Couldn't reach a server at {_address}.");
+        Multiplayer.ServerDisconnected += () => Fail("The server disconnected.");
+
+        if (Args.ConnectHost is not null)
+        {
+            Connect(Args.ConnectHost, Args.Port, Args.Name ?? Args.Bot ?? PlayerNames.Default, Teams.Parse(Args.Team));
+        }
+        else
+        {
+            ShowMenu(null);
+        }
+    }
+
+    private void ShowMenu(string? message)
+    {
+        EndSession();
+        var menu = new MainMenu();
+        _ui.AddChild(menu);
+        _session = menu;
+        menu.ShowStatus(message ?? "");
+        menu.JoinRequested += (host, port, name, team) => Connect(host, port, name, team);
+        menu.SandboxRequested += () =>
+        {
+            EndSession();
+            _session = new LocalSandbox { Args = Args };
+            AddChild(_session);
+        };
+    }
+
+    private void Connect(string host, int port, string name, Team team)
+    {
+        EndSession();
+        _address = $"{host}:{port}";
+        _hello = (name, team);
+        var session = new Node { Name = "Session" };
+        _session = session;
+        AddChild(session);
+        _net = new NetClient { Replicator = _replicator };
+        session.AddChild(_net);
         _net.Joined += StartGame;
+        _net.KickedOut += reason => Fail($"The server turned us away: {reason}");
 
         var peer = new ENetMultiplayerPeer();
-        Error error = peer.CreateClient(Args.ConnectHost, Args.Port);
+        Error error = peer.CreateClient(host, port);
         if (error != Error.Ok)
         {
-            SetStatus($"Could not start connecting to {Args.ConnectHost}:{Args.Port}: {error}");
+            Fail($"Could not start connecting to {_address}: {error}");
             return;
         }
 
         Multiplayer.MultiplayerPeer = peer;
-        Multiplayer.ConnectedToServer += () => SetStatus($"Connected to {Args.ConnectHost}:{Args.Port} as peer {Multiplayer.GetUniqueId()}. Loading the world...");
-        Multiplayer.ConnectionFailed += () => SetStatus($"Connection to {Args.ConnectHost}:{Args.Port} failed.");
-        Multiplayer.ServerDisconnected += () => SetStatus("Server disconnected.");
-        SetStatus($"Connecting to {Args.ConnectHost}:{Args.Port}...");
+        SetStatus($"Connecting to {_address}...");
     }
 
     private void StartGame(PawnState spawn)
     {
+        NetClient net = _net!;
         if (Args.Bot is not null)
         {
-            AddChild(Args.Bot == "pilot"
-                ? new PilotBot { Net = _net, Role = Args.Bot, Spawn = spawn }
-                : new SyncBot { Net = _net, Role = Args.Bot });
+            _session!.AddChild(Args.Bot == "pilot"
+                ? new PilotBot { Net = net, Role = Args.Bot, Spawn = spawn }
+                : new SyncBot { Net = net, Role = Args.Bot });
             return;
         }
 
-        GameData data = _net.Data!;
+        GameData data = net.Data!;
         var game = new ClientGame
         {
-            World = _net.World!,
+            World = net.World!,
             Terrain = data.Terrain,
             Rules = data.Rules,
             Net = data.Net,
             Spawn = spawn,
-            Link = _net,
+            Link = net,
         };
-        AddChild(game);
-        _net.WorldChanged += game.ShowWorldChange;
-        _net.OwnStateReceived += game.Reconcile;
-        _net.Exploded += game.ShowExplosion;
-        SetStatus($"Playing on {Args.ConnectHost}:{Args.Port} as peer {Multiplayer.GetUniqueId()}.");
+        _session!.AddChild(game);
+        net.WorldChanged += game.ShowWorldChange;
+        net.OwnStateReceived += game.Reconcile;
+        net.Exploded += game.ShowExplosion;
+        SetStatus($"Playing on {_address} ({net.PresetName} preset{(net.DevMode ? ", developer mode" : "")}).");
+        GetTree().CreateTimer(6).Timeout += () => _status.Text = "";
+    }
+
+    /// <summary>Bots exit with a failure; players go back to the menu with the reason.</summary>
+    private void Fail(string reason)
+    {
+        if (_net is null)
+        {
+            return;
+        }
+
+        GD.Print($"[client] {reason}");
+        if (Args.Bot is not null)
+        {
+            GetTree().Quit(1);
+        }
+        else
+        {
+            ShowMenu(reason);
+        }
+    }
+
+    /// <summary>Leaves whatever is running (menu, sandbox or connection) so another can start.</summary>
+    private void EndSession()
+    {
+        _status.Text = "";
+        _session?.QueueFree();
+        _session = null;
+        _net = null;
+        if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer peer)
+        {
+            peer.Close();
+            Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
+        }
     }
 
     private void SetStatus(string text)
