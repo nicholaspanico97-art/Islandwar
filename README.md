@@ -8,9 +8,10 @@ The full design and build order are in [docs/game-plan.md](docs/game-plan.md). D
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
 commands to test each milestone.
 
-**Status:** M0, M1a and M1b done. Players join a dedicated server, see each other, and build and break
-blocks together. The server is authoritative, each client predicts its own movement and edits, and late
-joiners get the current world. `build synctest` checks it with bots. Next: M1c, the plane.
+**Status:** M0, M1a, M1b and M1c done. Players join a dedicated server, see each other, build and break
+blocks together, and take turns flying a plane with arcade controls. The server is authoritative, each
+client predicts its own movement (on foot or flying) and edits, and late joiners get the current world.
+`build synctest` checks it with bots. Next: M1d, the bomb.
 
 ## Versions
 

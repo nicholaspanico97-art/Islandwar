@@ -133,16 +133,49 @@ Each client logs `rebuilt the world: seed 1337 plus N edits, hash ... matches th
 ./build.sh synctest
 ```
 
-Starts a headless server and two headless bots on port 7790. The builder joins and builds a 5-block
-tower two blocks east of the island centre. The breaker joins once the tower is up (a late join),
-checks the tower is in the world it rebuilt, and breaks the top two blocks. Each bot then asks the
+Starts a headless server and three headless bots on port 7790. The builder joins and builds a 5-block
+tower two blocks east of the island centre. Once the tower is up, two more join late: the breaker
+checks the tower is in the world it rebuilt and breaks the top two blocks, and the pilot (M1c) flies
+to the plane, gets in, takes off, climbs 15 blocks and gets out. The pilot predicts every tick like a
+real client and fails if the server ever corrects it by more than 0.05 blocks. Each bot then asks the
 server for its world hash. Expected output ends with:
 
 ```
 [bot builder] PASS: world hash <h>, server <h>
 [bot breaker] PASS: world hash <h>, server <h>
+[bot pilot] got out at height ...; largest correction from the server 0.0000 blocks
+[bot pilot] PASS: world hash <h>, server <h>
 Sync test PASSED
 ```
 
 It exits 1 and prints the log folder if anything differs or a bot times out (60 s). M1d adds a bomb.
+
+## M1c: the plane
+
+Planes are server-side, so use a server and a client (the single-player sandbox has no plane):
+
+```sh
+./build.sh server --port=7777
+./build.sh client --connect=127.0.0.1:7777
+```
+
+The server logs `plane 1 parked at ...`. The plane sits on the water just off the south beach, facing
+out to sea. From the spawn, turn round (it's behind you, to the south) and walk or fly (F) to the beach.
+
+Check, in order:
+1. Near the plane, `Press E to fly the plane` appears above the hotbar. E puts you in; the view
+   switches to a chase camera behind the plane and the HUD shows throttle, speed and altitude.
+2. Shift raises the throttle; the propeller speeds up and the plane rolls along the water. A/D steer
+   on the water; Space brakes.
+3. Past the stall speed (18), hold S to lift the nose: the plane takes off. W/S pitch, A/D roll, and a
+   banked plane turns by itself. The mouse looks around; let go and the view drifts back behind the tail.
+4. Slow below 18 in the air and the HUD turns red with `STALL`; the plane sinks until you nose down
+   or add throttle.
+5. Land on the water or on flat ground: cut the throttle, descend gently, then brake with Space.
+   Flying into a hillside stops the plane dead (no damage yet).
+6. E gets you out beside the left wing, on the ground or in mid-air (you fall).
+7. With a second client: it sees the plane move and turn smoothly, the pilot's body hidden in the
+   seat, and only one player can fly it at a time.
+
+Flight tuning lives in `data/plane.json`.
 

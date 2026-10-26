@@ -57,4 +57,11 @@ that's waiting on a test.
 - 2026-10-25: On join, the server sends its `data/*.json` text, the seed, every edit and its world hash; the client rebuilds and checks the hash. Reason: identical terrain and movement tuning on both sides, and the hash catches drift. For M1 the edits go in one message; split them per chunk when craters make it big.
 - 2026-10-25: Players spawn on a ring of 8 spots around the island centre. Reason: players joining together would otherwise stand inside each other.
 - 2026-10-25: The automated sync test is two headless bot clients (`--bot=builder|breaker`) run by `build synctest`. Reason: the plan's bot sync test; the late-joining breaker also tests late join.
+- 2026-10-25: The plane's arcade flight model is in Sim (`PlaneFlight`), run by the server and predicted by the pilot's client, like walking. Speed lives along the nose; below the stall speed the plane sinks; climbing costs speed and diving gives it back; a banked plane turns on its own. Reason: arcade, not simulation (game plan), and prediction needs the same code on both sides.
+- 2026-10-25: Plane controls reuse the player input: W/S pitch (S pulls up), A/D roll in the air and steer on the ground, Shift/Ctrl throttle, Space brake, E to get in and out. No rudder key. Reason: one input packet for everything, and fewest keys to learn.
+- 2026-10-25: Planes treat the sea surface as solid ground. Reason: gives an endless flat runway around a hilly island, and avoids planes sinking to the seabed. Revisit when ships and crashes arrive.
+- 2026-10-25: The plane collides as an upright box (2 x 1.4 x 2) using the same block sweep as players (`VoxelBox`); wings can overlap blocks. Hitting a wall stops it dead, with no damage. Reason: simplest thing for M1; damage arrives with weapons.
+- 2026-10-25: Getting in and out is decided by the server, on the input that pressed E, and not predicted. The client sees the change one round trip later. Reason: only the server knows if the seat is free; the delay is short enough for M1.
+- 2026-10-25: The single-player sandbox has no plane. Reason: planes are server entities; play M1c with a local server.
+- 2026-10-25: Planes are drawn from boxes (`PlaneModel`) and seen through a chase camera that follows heading and half the pitch, not roll. Reason: placeholder art; a rolling horizon is hard to fly by.
 
