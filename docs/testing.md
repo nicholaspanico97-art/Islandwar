@@ -274,13 +274,17 @@ one. Join one client to each team. Check, in order:
 ./build.sh matchtest
 ```
 
-Two scenarios, one after the other:
+Three scenarios, one after the other:
 - **flow**: a headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher`
   bot per team. Each places a plank in warmup, then checks that the start reset the world (the plank
   gone, the hash matching the server's), that the stages came in order and the time limit ended it.
 - **nuke** (from M2 piece 3): a server on the `nuketest` preset (phase 3 after 3 seconds, developer mode)
   with Red's `nuker` and Blue's `defender`. The nuker waits for the match to start, flies over, and drops
   Red's nuke on Blue's core; both bots must see `Red wins (CoreDestroyed)`.
+- **rejoin** (from M2 piece 4): Red's `leaver` drops out mid-match; a `returner` connects with the same
+  identity token while asking for Blue under another name, and must be seated back on Red as
+  `red-leaver` (developer mode would otherwise grant Blue). Then Blue's `conceder` votes to concede and
+  everyone must see `Red wins (Concede)`.
 
 Every bot finishes by comparing world hashes with the server. Expected output ends with:
 
@@ -292,10 +296,14 @@ Every bot finishes by comparing world hashes with the server. Expected output en
 [bot nuker] PASS: world hash <h2>, server <h2>
 [bot defender] the match ended: Red wins (CoreDestroyed)
 [bot defender] PASS: world hash <h2>, server <h2>
+...
+[bot returner] came back as 'red-leaver' on Red
+[bot returner] the match ended: Red wins (Concede)
+[bot returner] PASS: world hash <h3>, server <h3>
 Match test PASSED
 ```
 
-It takes about a minute.
+It takes about a minute and a half.
 
 ## M2, piece 3: industrial cores and the nuke
 
@@ -318,4 +326,26 @@ Join one client to each team. Check, in order:
 6. A nuke landing on (or within 3 blocks of) the enemy core blasts a radius-9 crater, takes the core to
    about 0%, and ends the match at once: `Red team wins` / `Red's nuke hit the Blue core`.
 7. A nuke that misses only makes a big crater; the match carries on.
+
+## M2, piece 4: score, concede, rejoin and the scoreboard
+
+```sh
+./build.sh server --port=7777 --preset=quick
+./build.sh client
+./build.sh client
+```
+
+Join one client to each team (a third on Red helps with the vote). Check, in order:
+1. Hold Tab: a scoreboard with both teams, each player's ping, concede votes, and each core's health.
+2. The core line says who's ahead at the time limit once one core has taken damage, e.g.
+   `Red core 100%    Blue core 91%    (Red ahead at the time limit)`.
+3. Bomb a core in phase 2 or 3 and let the time run out (5:00 in `quick`): the banner says
+   `Red team wins` / `Time's up: Red kept more of its core.` Untouched cores give `Draw` / `with the cores level`.
+4. F10 votes to concede (F10 again takes it back). With two players on a team, one vote shows
+   `Your team: 1 of 2 votes to concede`; the second ends the match: `Blue team wins` / `Red conceded.`
+   A team of one concedes with its single vote. Votes reset when a match starts.
+5. Rejoin: quit a client mid-match and join again from the same machine (it keeps an identity token in
+   `user://settings.cfg`). You're back on your team with your old name, whatever team you pick in the
+   menu. The server logs `came back as '<name>' on <team>`. Seats are forgotten when the server returns
+   to warmup.
 

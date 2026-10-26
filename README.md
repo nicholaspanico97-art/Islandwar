@@ -8,17 +8,18 @@ The full design and build order are in [docs/game-plan.md](docs/game-plan.md). D
 in [docs/decisions.md](docs/decisions.md), and [docs/testing.md](docs/testing.md) has the exact
 commands to test each milestone.
 
-**Status:** M1, the vertical slice, is done. Players join a dedicated server, see each other, build and
+**Status:** M2, the match loop, is done (M1, the vertical slice, before it). Players join a dedicated server, see each other, build and
 break blocks, fly a plane with arcade controls, and bomb craters into the island. The server is
 authoritative, each client predicts its own movement (on foot or flying) and edits, and late joiners get
 the current world. `build synctest` checks it with bots: one builds a tower, one bombs it, and every world
 must end identical.
 
-M2 (the match loop) is under way. Done so far: two mirrored islands, Red and Blue teams with their own
-spawns and planes, player names, a menu to join a server by address, and the match itself: warmup,
-countdown, three timed phases that unlock and grow bombs, a time limit, and a fresh island each match;
-and an industrial core on each island that bombs chip and a phase-3 nuke wins the match by hitting.
-`build matchtest` checks a whole match, and a nuke win, with bots.
+M2 added: two mirrored islands, Red and Blue teams with their own spawns and planes, player names, a menu
+to join a server by address, and the match itself: warmup, countdown, three timed phases that unlock and
+grow bombs, a fresh island each match, an industrial core on each island that bombs chip and a phase-3
+nuke wins by hitting, a time-limit score from core damage, a concede vote, rejoining your team after a
+disconnect, and a Tab scoreboard. `build matchtest` checks a whole match, a nuke win, and a rejoin with a
+concession, with bots. Next: M3, economy and building (see docs/game-plan.md).
 
 ## Versions
 
@@ -39,7 +40,7 @@ and an industrial core on each island that bombs chip and a phase-3 nuke wins th
 ./build.sh client --connect=127.0.0.1:7777     # a client, in another terminal
 ./build.sh client                              # the menu: join a server by address, or the sandbox
 ./build.sh synctest                            # automated sync test: server + three bots
-./build.sh matchtest                           # automated match tests: a fast match, then a nuke win
+./build.sh matchtest                           # automated match tests: a fast match, a nuke win, a rejoin
 ```
 
 On Windows use `.\build.ps1` with the same arguments. Engine commands need Godot 4.7.2 (.NET) on `PATH`
