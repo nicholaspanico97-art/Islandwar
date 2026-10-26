@@ -22,6 +22,7 @@ public static class InputActions
     public const string Use = "use";
     public const string Concede = "concede";
     public const string Scoreboard = "scoreboard";
+    public const string Craft = "craft";
     public const string HotbarNext = "hotbar_next";
     public const string HotbarPrevious = "hotbar_previous";
     public const string ReleaseMouse = "release_mouse";
@@ -45,6 +46,7 @@ public static class InputActions
         AddKey(Concede, Key.F10);
         AddKey(Scoreboard, Key.Tab);
         AddKey(ReleaseMouse, Key.Escape);
+        AddKey(Craft, Key.C);
         AddMouse(Break, MouseButton.Left);
         AddMouse(Place, MouseButton.Right);
         AddMouse(HotbarNext, MouseButton.WheelDown);

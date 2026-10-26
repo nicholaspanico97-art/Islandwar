@@ -160,6 +160,8 @@ public partial class NetClient : Node, IGameLink
 
     public void RequestTransfer(int storageId, string item, int count, bool intoStorage) => Replicator.RequestTransfer(storageId, item, count, intoStorage);
 
+    public void RequestCraft(string recipeId, int stationId) => Replicator.RequestCraft(recipeId, stationId);
+
     /// <summary>What we compare with the server's hash: our world and our objects.</summary>
     public ulong ComputeHash() => GameHash.Of(World!, Objects!);
 

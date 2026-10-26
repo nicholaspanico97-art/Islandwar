@@ -420,8 +420,8 @@ To try structures by hand:
 ```
 
 Join one client to each team. Check, in order:
-1. The hotbar has three more slots after the blocks, marked with an inner frame: Crate (8), Depot (9) and
-   Workshop (0). Select one: a see-through box shows where it would go, green if it fits and red if not
+1. The hotbar has three more slots after the blocks, marked with an inner frame: Crate, Depot and
+   Workbench (slots 8, 9 and 0 in practice). Select one: a see-through box shows where it would go, green if it fits and red if not
    (no room, nothing to stand on, or you're standing in it). It turns with you in quarter turns.
 2. Right click places it: it appears for both players, as a coloured box with a band in your team's colour
    and its name above. The server logs `peer <id> placed a Depot (object <n>) at (...) for Red`.
@@ -466,4 +466,27 @@ quick preset's first minute has no bombs). Check, in order:
    can't be taken down (`Empty the Crate before taking it down.`). Bomb it (from phase 2) and what it held
    is gone from the stock.
 9. Quit a client mid-match and rejoin: the backpack is as you left it.
+
+## Stone Age, piece 2: crafting, stone tools and structure costs
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+./build.sh client
+```
+
+One client on each team. Check, in order:
+1. Selecting a structure slot shows its cost on the prompt line, e.g. `Crate: 6 planks  (not enough)`. Right
+   click with too little says `A Crate takes 6 planks.` and places nothing.
+2. Mine a tree for logs, press C: the crafting window lists `4 Planks from 1 Log` with a Craft button
+   (greyed when you can't afford it). Craft: the log turns into planks in your backpack.
+3. Place a workbench (4 planks), aim at it: `E to craft`. E opens the window with the axe and pickaxe
+   (3 stone, 2 planks each) as well as planks.
+4. Hold left click on ore without a pickaxe: `You need a stone pickaxe to mine copper ore.` With one in the
+   backpack, ore mines (in half the hand time for stone), and with an axe trees come down faster.
+   Iron ore can't be mined yet (its pickaxe comes in the Bronze Age).
+5. Put logs in a crate, empty your backpack, and craft planks: the logs come out of the crate (the
+   scoreboard's stock drops). Structures are paid the same way.
+6. Hold left click on your own empty crate: it comes down and its 6 planks come back into your backpack.
+7. The other team's workbench answers `That's the other team's workbench.`
 

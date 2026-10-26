@@ -95,11 +95,94 @@ public sealed class Inventory
         _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStorage ? "into" : "out of")} {kind.Name} {storage.Id}");
     }
 
+    /// <summary>Everything a player can spend: their backpack and their team's storage.</summary>
+    public IReadOnlyDictionary<string, int> Available(ServerPlayer player) => player.Backpack.Sum(_teams.Of(player.Team).Stock);
+
+    /// <summary>
+    /// How a cost would be paid: from the backpack first, then from the team's storage structures in id order.
+    /// Null if the player and their team can't afford it.
+    /// </summary>
+    public Payment? Plan(ServerPlayer player, IReadOnlyDictionary<string, int> cost)
+    {
+        if (!Available(player).Covers(cost))
+        {
+            return null;
+        }
+
+        var fromBackpack = new Dictionary<string, int>();
+        var fromStorage = new List<(GameObject Storage, string Item, int Count)>();
+        foreach ((string item, int needed) in cost)
+        {
+            int own = Math.Min(needed, player.Backpack.Of(item));
+            if (own > 0)
+            {
+                fromBackpack[item] = own;
+            }
+
+            int rest = needed - own;
+            foreach (GameObject storage in TeamStorage(player.Team))
+            {
+                if (rest == 0)
+                {
+                    break;
+                }
+
+                int taken = Math.Min(rest, ItemCounts.Contents(storage).Of(item));
+                if (taken > 0)
+                {
+                    fromStorage.Add((storage, item, taken));
+                    rest -= taken;
+                }
+            }
+        }
+
+        return new Payment(fromBackpack, fromStorage);
+    }
+
+    /// <summary>Takes a planned payment and tells everyone concerned.</summary>
+    public void Pay(ServerPlayer player, Payment payment)
+    {
+        foreach ((string item, int count) in payment.FromBackpack)
+        {
+            player.Backpack = player.Backpack.Plus(item, -count);
+        }
+
+        foreach (int id in payment.FromStorage.Select(s => s.Storage.Id).Distinct())
+        {
+            GameObject storage = _state.Objects.Get(id)!;
+            foreach ((_, string item, int count) in payment.FromStorage.Where(s => s.Storage.Id == id))
+            {
+                storage = ItemCounts.WithStored(storage, item, -count);
+            }
+
+            _state.Objects.Set(storage);
+            _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { storage }));
+        }
+
+        SendBackpack(player);
+        if (payment.FromStorage.Count > 0)
+        {
+            RecountStock(player.Team);
+        }
+    }
+
+    /// <summary>Gives items back into the backpack, as many as fit; returns what didn't.</summary>
+    public IReadOnlyDictionary<string, int> Refund(ServerPlayer player, IReadOnlyDictionary<string, int> items)
+    {
+        IReadOnlyDictionary<string, int> lost = ItemCounts.None;
+        foreach ((string item, int count) in items)
+        {
+            int fitted = Give(player, item, count);
+            lost = lost.Plus(item, count - fitted);
+        }
+
+        return lost;
+    }
+
     /// <summary>A team's stock is what its storage structures hold; call after any of them changes or goes.</summary>
     public void RecountStock(Team team)
     {
-        IReadOnlyDictionary<string, int> stock = _state.Objects.All
-            .Where(o => o.Team == team && _state.Objects.KindOf(o).IsStorage)
+        IReadOnlyDictionary<string, int> stock = TeamStorage(team)
             .Aggregate(ItemCounts.None, (total, o) => total.Sum(ItemCounts.Contents(o)));
         if (!stock.SequenceEqual(_teams.Of(team).Stock))
         {
@@ -117,9 +200,18 @@ public sealed class Inventory
         }
     }
 
+    private IEnumerable<GameObject> TeamStorage(Team team) =>
+        _state.Objects.All.Where(o => o.Team == team && _state.Objects.KindOf(o).IsStorage);
+
     private bool InReach(ServerPlayer player, GameObject storage, ObjectKind kind)
     {
         Vector3 eye = player.Pawn.Player.Position + Vector3.UnitY * _state.Data.Player.EyeHeight;
         return storage.Footprint(kind).Any(b => BuildRules.InReach(_state.Data.Player, eye, b));
     }
+}
+
+/// <summary>How a cost is to be paid: some from the backpack, the rest from team storage structures.</summary>
+public sealed record Payment(IReadOnlyDictionary<string, int> FromBackpack, IReadOnlyList<(GameObject Storage, string Item, int Count)> FromStorage)
+{
+    public int FromBackpackTotal => FromBackpack.Values.Sum();
 }

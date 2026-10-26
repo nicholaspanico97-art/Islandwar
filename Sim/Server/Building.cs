@@ -76,12 +76,14 @@ public sealed class Building
         }
     }
 
-    /// <summary>Whether a mine comes no sooner after the last one than the block's hardness allows.</summary>
-    private bool MinedInTime(ServerPlayer player, Block block)
-    {
-        float hardness = _state.Data.Items.RuleFor(block)?.Hardness ?? 0;
-        return _state.Seconds - player.LastMinedSeconds >= hardness - _state.Data.Items.MiningSlackSeconds;
-    }
+    /// <summary>
+    /// Whether a mine comes no sooner after the last one than the block's hardness allows with the best tool
+    /// the player carries.
+    /// </summary>
+    private bool MinedInTime(ServerPlayer player, Block block, float seconds) =>
+        _state.Seconds - player.LastMinedSeconds >= seconds - _state.Data.Items.MiningSlackSeconds;
+
+    private float? MiningSeconds(ServerPlayer player, Block block) => _state.Data.Items.MiningSeconds(block, player.Backpack);
 
     private bool HasItemFor(ServerPlayer player, Block block) =>
         _state.Data.Items.ItemPlacing(block) is { } item && player.Backpack.Of(item.Id) > 0;
@@ -102,7 +104,8 @@ public sealed class Building
             : !BuildRules.InReach(settings, eye, edit.Position) ? "out of reach"
             : edit.Block == Block.Air && !BuildRules.CanBreak(world, edit.Position) ? "can't break that"
             : edit.Block == Block.Air && !Protection.MayBreak(world.OwnerOf(edit.Position), player.PlayerId, player.Team, _state.IsOnline) ? "a teammate built that"
-            : edit.Block == Block.Air && !_state.Creative && !MinedInTime(player, world.Get(edit.Position)) ? "mining too fast"
+            : edit.Block == Block.Air && !_state.Creative && MiningSeconds(player, world.Get(edit.Position)) is null ? "needs a better tool"
+            : edit.Block == Block.Air && !_state.Creative && !MinedInTime(player, world.Get(edit.Position), MiningSeconds(player, world.Get(edit.Position))!.Value) ? "mining too fast"
             : edit.Block != Block.Air && !_state.Creative && !HasItemFor(player, edit.Block) ? "nothing to place"
             : edit.Block != Block.Air && !BuildRules.CanPlace(world, settings, edit.Position, edit.Block, blockers) ? "can't place there"
             : edit.Block != Block.Air && _vehicles.AnyPlaneOverlaps(edit.Position) ? "a plane is in the way"

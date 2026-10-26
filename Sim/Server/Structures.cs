@@ -37,16 +37,23 @@ public sealed class Structures
         }
 
         ObjectKind? kind = _state.Data.Kinds.Get(kindId);
+        Payment? payment = kind is null || _state.Creative ? null : Inventory!.Plan(player, kind.Cost);
         string? reason = kind is null ? "unknown kind"
             : player.Pawn.InPlane ? "flying a plane"
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, GameObject.FootprintOf(kind, origin, facing)) ? "out of reach"
             : ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, facing, Blockers())
-              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way" : null);
+              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way"
+                  : !_state.Creative && payment is null ? "can't afford it" : null);
         if (reason is not null)
         {
             _state.Log($"[server] rejected peer {peer} placing {kindId} at {origin}: {reason}");
             return;
+        }
+
+        if (payment is not null)
+        {
+            Inventory!.Pay(player, payment);
         }
 
         var placed = new GameObject(_nextId++, kind!.Id, player.Team, player.PlayerId, origin, facing, kind.MaxHealth);
@@ -89,6 +96,12 @@ public sealed class Structures
 
         _state.Net.BroadcastObjectRemoved(target.Id);
         _state.Log($"[server] peer {peer} removed {kind.Name} {target.Id}");
+
+        // Taking a structure down by hand gives its materials back, as much as fits.
+        if (!_state.Creative && Inventory!.Refund(player, kind.Cost) is { Count: > 0 } lost)
+        {
+            _state.Log($"[server] '{player.Name}' had no room for {string.Join(", ", lost.Select(l => $"{l.Value} {l.Key}"))} from the {kind.Name}");
+        }
     }
 
     /// <summary>

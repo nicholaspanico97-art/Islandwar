@@ -1,12 +1,17 @@
 {
-  // Kinds of structure players can place. Placeholders until the developer's tech tree arrives: they show
-  // that structures work (placed, seen by everyone, damaged and destroyed by bombs), not what they do.
+  // Kinds of structure players can place. Stone Age first pass, until the developer's tech tree.
   // size is in blocks along x, y (up) and z, before turning; turning 90 degrees swaps x and z.
   // color is how clients draw it until there are models.
+  // capacity: how many items it stores (any mix). Stored items belong to the team and are lost with it.
+  // cost: what placing one takes, from the backpack first, then the team's storage. Taking it down by hand
+  // gives it back (as much as fits in the backpack); a destroyed one gives nothing.
   "kinds": [
-    // capacity: how many items it stores (any mix). Stored items belong to the team and are lost with it.
-    { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444", "capacity": 200 },
-    { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670", "capacity": 1000 },
-    { "id": "workshop", "name": "Workshop", "size": { "x": 4, "y": 3, "z": 2 }, "max_health": 150, "color": "#7a5c8c" },
+    { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444", "capacity": 200,
+      "cost": { "planks": 6 } },
+    { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670", "capacity": 1000,
+      "cost": { "planks": 12, "stone": 20 } },
+    // Crafting station for tools (open it with E).
+    { "id": "workbench", "name": "Workbench", "size": { "x": 2, "y": 1, "z": 1 }, "max_health": 80, "color": "#8c6a3c",
+      "cost": { "planks": 4 } },
   ]
 }

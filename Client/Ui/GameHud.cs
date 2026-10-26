@@ -13,7 +13,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | E plane, storage | Tab scores";
+        "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | C craft | E plane, storage, workbench | Tab scores";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
@@ -42,6 +42,8 @@ public partial class GameHud : CanvasLayer
     public IReadOnlyList<Block>? HotbarBlocks { get; init; }
 
     public StoragePanel Storage { get; private set; } = null!;
+
+    public CraftingPanel Crafting { get; private set; } = null!;
 
     private ProgressBar _mining = null!;
     private Label _backpack = null!;
@@ -85,6 +87,8 @@ public partial class GameHud : CanvasLayer
         AddChild(Scoreboard);
         Storage = new StoragePanel();
         AddChild(Storage);
+        Crafting = new CraftingPanel();
+        AddChild(Crafting);
 
         _mining = new ProgressBar { MinValue = 0, MaxValue = 1, ShowPercentage = false, Visible = false, CustomMinimumSize = new Vector2(120, 8) };
         _mining.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center, Control.LayoutPresetMode.Minsize);

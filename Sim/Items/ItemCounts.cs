@@ -34,6 +34,10 @@ public static class ItemCounts
         return result;
     }
 
+    /// <summary>Whether there is at least as much of every item as <paramref name="cost"/> asks.</summary>
+    public static bool Covers(this IReadOnlyDictionary<string, int> counts, IReadOnlyDictionary<string, int> cost) =>
+        cost.All(c => counts.Of(c.Key) >= c.Value);
+
     /// <summary>Everything in <paramref name="more"/> added to <paramref name="counts"/>.</summary>
     public static IReadOnlyDictionary<string, int> Sum(this IReadOnlyDictionary<string, int> counts, IReadOnlyDictionary<string, int> more) =>
         more.Aggregate(counts, (total, entry) => total.Plus(entry.Key, entry.Value));

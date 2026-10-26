@@ -78,4 +78,7 @@ public interface IGameLink
 
     /// <summary>Moves items between our backpack and one of our team's storage structures.</summary>
     void RequestTransfer(int storageId, string item, int count, bool intoStorage);
+
+    /// <summary>Asks the server to craft a recipe, by hand (station 0) or at one of our team's stations.</summary>
+    void RequestCraft(string recipeId, int stationId);
 }

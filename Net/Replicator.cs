@@ -50,6 +50,9 @@ public partial class Replicator : Node
     /// <summary>Server: a player moves items between their backpack and a storage (peer id, storage id, item, count, into storage).</summary>
     public event Action<int, int, string, int, bool>? TransferRequested;
 
+    /// <summary>Server: a player asks to craft (peer id, recipe id, station object id or 0 by hand).</summary>
+    public event Action<int, string, int>? CraftRequested;
+
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
 
@@ -108,6 +111,8 @@ public partial class Replicator : Node
         RpcId(ServerId, MethodName.ReceivePlaceRequest, kind, origin.X, origin.Y, origin.Z, facing);
 
     public void RequestRemove(int objectId) => RpcId(ServerId, MethodName.ReceiveRemoveRequest, objectId);
+
+    public void RequestCraft(string recipeId, int stationId) => RpcId(ServerId, MethodName.ReceiveCraftRequest, recipeId, stationId);
 
     public void RequestTransfer(int storageId, string item, int count, bool intoStorage) =>
         RpcId(ServerId, MethodName.ReceiveTransferRequest, storageId, item, count, intoStorage);
@@ -228,6 +233,15 @@ public partial class Replicator : Node
         if (Multiplayer.IsServer())
         {
             TransferRequested?.Invoke(Multiplayer.GetRemoteSenderId(), storageId, item, count, intoStorage);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveCraftRequest(string recipeId, int stationId)
+    {
+        if (Multiplayer.IsServer())
+        {
+            CraftRequested?.Invoke(Multiplayer.GetRemoteSenderId(), recipeId, stationId);
         }
     }
 

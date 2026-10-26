@@ -27,6 +27,9 @@ public sealed record ObjectKind
 
     public bool IsStorage => Capacity > 0;
 
+    /// <summary>What placing one takes, by item id.</summary>
+    public IReadOnlyDictionary<string, int> Cost { get; init; } = new Dictionary<string, int>();
+
     /// <summary>How clients draw it until there are models, as <c>#rrggbb</c>.</summary>
     public string Color { get; init; } = "#808080";
 }
@@ -47,6 +50,11 @@ public sealed class ObjectKinds
             if (kind.Id.Length == 0 || kind.Name.Length == 0 || !_byId.TryAdd(kind.Id, kind))
             {
                 throw new InvalidDataException($"structures.json: every kind needs a unique id and a name ('{kind.Id}').");
+            }
+
+            if (kind.Cost.Any(c => c.Value <= 0))
+            {
+                throw new InvalidDataException($"structures.json: '{kind.Id}' has a cost that isn't positive.");
             }
 
             if (kind.Size.X is < 1 or > MaxSide || kind.Size.Y is < 1 or > MaxSide || kind.Size.Z is < 1 or > MaxSide || kind.MaxHealth <= 0 || kind.Capacity < 0)

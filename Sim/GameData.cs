@@ -28,10 +28,13 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     public IReadOnlyDictionary<string, MatchPreset> Presets { get; } = MatchPreset.AllFromJson(PresetsJson);
 
     /// <summary>Items, what each block drops and how long it takes to mine.</summary>
-    public ItemSettings Items { get; } = ItemSettings.FromJson(ItemsJson);
+    public ItemSettings Items => _economy.Items;
 
     /// <summary>The kinds of structure players can place.</summary>
-    public ObjectKinds Kinds { get; } = ObjectKinds.FromJson(StructuresJson);
+    public ObjectKinds Kinds => _economy.Kinds;
+
+    /// <summary>Items and structures, loaded together so the names each uses from the other can be checked.</summary>
+    private readonly (ItemSettings Items, ObjectKinds Kinds) _economy = LoadEconomy(ItemsJson, StructuresJson);
 
     public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
 
@@ -106,5 +109,23 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         }
 
         return plane;
+    }
+
+    /// <summary>Loads items and structures and checks recipe stations and structure costs name things that exist.</summary>
+    private static (ItemSettings, ObjectKinds) LoadEconomy(string itemsJson, string structuresJson)
+    {
+        ItemSettings items = ItemSettings.FromJson(itemsJson);
+        ObjectKinds kinds = ObjectKinds.FromJson(structuresJson);
+        foreach (Recipe recipe in items.Recipes.Where(r => !r.ByHand && kinds.Get(r.Station) is null))
+        {
+            throw new InvalidDataException($"items.json: recipe '{recipe.Id}' is made at '{recipe.Station}', which isn't a structure in structures.json.");
+        }
+
+        foreach (ObjectKind kind in kinds.All.Where(k => k.Cost.Keys.Any(item => items.Item(item) is null)))
+        {
+            throw new InvalidDataException($"structures.json: '{kind.Id}' costs an item that isn't in items.json.");
+        }
+
+        return (items, kinds);
     }
 }

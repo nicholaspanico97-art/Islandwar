@@ -274,14 +274,15 @@ public class InventoryTests
         return (cell, block);
     }
 
-    /// <summary>A crate just beside the player, on ground levelled for it.</summary>
-    private static GameObject PlaceCrate(TestServer test, ServerPlayer player)
+    /// <summary>A crate just beside the player, on ground levelled for it, paid for with planks given to them first.</summary>
+    internal static GameObject PlaceCrate(TestServer test, ServerPlayer player, string kind = "crate")
     {
+        player.Backpack = player.Backpack.Sum(test.State.Data.Kinds.Get(kind)!.Cost);
         Vector3 feet = player.Pawn.Player.Position;
         var origin = new BlockPos((int)MathF.Floor(feet.X) + 2, (int)MathF.Floor(feet.Y), (int)MathF.Floor(feet.Z));
         test.Server.World.SetGenerated(origin, Block.Air);
         test.Server.World.SetGenerated(origin with { Y = origin.Y - 1 }, Block.Stone);
-        test.Server.PlaceRequested(player.Peer, "crate", origin, 0);
+        test.Server.PlaceRequested(player.Peer, kind, origin, 0);
         return test.State.Objects.At(origin) ?? throw new InvalidOperationException(string.Join("\n", test.Log));
     }
 }

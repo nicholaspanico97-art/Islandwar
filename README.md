@@ -31,7 +31,8 @@ placeable structures that bombs damage and destroy, and per-team state sent only
 
 The economy is being built era by era from the developer's draft, starting with the Stone Age. Done so far:
 items, a personal backpack, hold-to-mine with block hardness, ore kinds (copper, tin, iron, coal) and clay,
-and team storage whose contents make the team's stock. Next: crafting, the furnace, then research and eras.
+team storage whose contents make the team's stock, crafting by hand and at a workbench, stone tools, and
+structures that cost materials. Next: the furnace, then research and eras.
 
 ## Versions
 

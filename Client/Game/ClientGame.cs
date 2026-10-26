@@ -120,6 +120,7 @@ public partial class ClientGame : Node3D
             HotbarBlocks = Creative ? null : Items.Items.Select(Items.BlockPlacedBy).OfType<Block>().Order().ToArray(),
         };
         AddChild(_hud);
+        _hud.Crafting.CraftClicked += recipe => Link?.RequestCraft(recipe, _hud.Crafting.StationId);
         _hud.Storage.TransferClicked += (item, count, into) =>
         {
             if (_hud.Storage.StorageId is { } id)
@@ -204,9 +205,9 @@ public partial class ClientGame : Node3D
                 _pitch = Mathf.Clamp(_pitch + pitch, -Mathf.Pi / 2 + 0.01f, Mathf.Pi / 2 - 0.01f);
             }
         }
-        else if (_hud.Storage.StorageId is not null && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse)))
+        else if (WindowOpen && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse) || @event.IsActionPressed(InputActions.Craft)))
         {
-            CloseStorage();
+            CloseWindows();
             GetViewport().SetInputAsHandled();
         }
         else if (@event.IsActionPressed(InputActions.ReleaseMouse))
@@ -218,17 +219,22 @@ public partial class ClientGame : Node3D
             // While the mouse is free, a click only recaptures it; it doesn't edit.
             if (@event is InputEventMouseButton { Pressed: true })
             {
-                CloseStorage();
+                CloseWindows();
                 GetViewport().SetInputAsHandled();
             }
         }
         else if (@event.IsActionPressed(InputActions.Use))
         {
-            // E on our team's storage opens it; anywhere else it's for the plane.
-            if (State.InPlane || !TryOpenStorage())
+            // E on our team's storage or workbench opens it; anywhere else it's for the plane.
+            if (State.InPlane || !TryOpenStructure())
             {
                 _usePressed = true;
             }
+        }
+        else if (@event.IsActionPressed(InputActions.Craft) && !State.InPlane && Link is not null)
+        {
+            _hud.Crafting.Open(null, 0);
+            Input.MouseMode = Input.MouseModeEnum.Visible;
         }
         else if (@event.IsActionPressed(InputActions.Concede) && Link is not null)
         {
@@ -500,6 +506,12 @@ public partial class ClientGame : Node3D
             return "";
         }
 
+        if (!Creative && MiningSeconds(block) is null)
+        {
+            string tool = Items.ToolNeededFor(World.Get(block))?.Name.ToLowerInvariant() ?? "better tool";
+            return $"You need a {tool} to mine {Items.Item(Items.RuleFor(World.Get(block))?.Drops ?? "")?.Name.ToLowerInvariant() ?? "that"}.";
+        }
+
         // Team build protection: the server would refuse, so say why instead of flickering the block.
         BlockOwner owner = World.OwnerOf(block);
         return Link is not null && !Protection.MayBreak(owner, Link.MyPlayerId, Link.MyTeam, online)
@@ -507,9 +519,12 @@ public partial class ClientGame : Node3D
             : null;
     }
 
-    /// <summary>Seconds to mine a block by hand: its hardness, or the structure time for part of a structure.</summary>
-    private float HardnessOf(BlockPos block) =>
-        Link?.Objects?.At(block) is not null ? Items.StructureHardness : Items.RuleFor(World.Get(block))?.Hardness ?? 0;
+    /// <summary>
+    /// Seconds to mine a block with what we carry (the structure time for part of a structure); null if it
+    /// needs a better tool than we have.
+    /// </summary>
+    private float? MiningSeconds(BlockPos block) =>
+        Link?.Objects?.At(block) is not null ? Items.StructureHardness : Items.MiningSeconds(World.Get(block), Link?.Backpack ?? ItemCounts.None);
 
     /// <summary>
     /// Hold to mine: while the button is held on the same block, time builds up to its hardness and then it
@@ -545,7 +560,7 @@ public partial class ClientGame : Node3D
         }
 
         _miningSeconds += delta;
-        float hardness = HardnessOf(hit.Block);
+        float hardness = MiningSeconds(hit.Block) ?? float.PositiveInfinity;
         _hud.ShowMining(hardness > 0 ? Mathf.Min(1, (float)(_miningSeconds / hardness)) : 1);
         if (_miningSeconds >= hardness)
         {
@@ -570,6 +585,20 @@ public partial class ClientGame : Node3D
             _hud.ShowBackpack($"Backpack {backpack.Total()} / {Items.BackpackCapacity}{(contents.Length > 0 ? ":  " + contents : "")}");
         }
 
+        if (_hud.Crafting.IsOpen && Link is not null)
+        {
+            // Close if the workbench went away or we've walked off.
+            if (_hud.Crafting.StationId != 0 && (Link.Objects?.Get(_hud.Crafting.StationId) is not { } bench || !InReach(bench)))
+            {
+                CloseWindows();
+                return;
+            }
+
+            IReadOnlyDictionary<string, int> available = Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None);
+            string where = _hud.Crafting.Station is null ? "Crafting by hand" : $"Crafting at the {Link.Objects!.Kinds.Get(_hud.Crafting.Station)?.Name ?? "station"}";
+            _hud.Crafting.Show(where, Items, available, Creative);
+        }
+
         if (_hud.Storage.StorageId is not { } id)
         {
             return;
@@ -578,7 +607,7 @@ public partial class ClientGame : Node3D
         // Close if it's gone (destroyed, or a new match) or we've walked away from it.
         if (Link?.Objects?.Get(id) is not { } storage || !InReach(storage))
         {
-            CloseStorage();
+            CloseWindows();
             return;
         }
 
@@ -587,29 +616,49 @@ public partial class ClientGame : Node3D
             ItemCounts.Contents(storage), kind.Capacity, Items);
     }
 
-    /// <summary>Opens the storage under the crosshair if it's our team's; false if there isn't one.</summary>
-    private bool TryOpenStorage()
+    /// <summary>
+    /// Opens the storage or crafting station under the crosshair if it's our team's; false if there isn't
+    /// one (so E goes to the plane instead).
+    /// </summary>
+    private bool TryOpenStructure()
     {
-        if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } storage
-            || !objects.KindOf(storage).IsStorage)
+        if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } target)
         {
             return false;
         }
 
-        if (storage.Team != Link.MyTeam)
+        ObjectKind kind = objects.KindOf(target);
+        bool station = Items.Recipes.Any(r => r.Station == kind.Id);
+        if (!kind.IsStorage && !station)
         {
-            _hud.Toast("That's the other team's storage.");
+            return false;
+        }
+
+        if (target.Team != Link.MyTeam)
+        {
+            _hud.Toast($"That's the other team's {kind.Name.ToLowerInvariant()}.");
             return true;
         }
 
-        _hud.Storage.Open(storage.Id);
+        if (kind.IsStorage)
+        {
+            _hud.Storage.Open(target.Id);
+        }
+        else
+        {
+            _hud.Crafting.Open(kind.Id, target.Id);
+        }
+
         Input.MouseMode = Input.MouseModeEnum.Visible;
         return true;
     }
 
-    private void CloseStorage()
+    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen;
+
+    private void CloseWindows()
     {
         _hud.Storage.Close();
+        _hud.Crafting.Close();
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -684,19 +733,40 @@ public partial class ClientGame : Node3D
             return;
         }
 
+        if (!Creative && !Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None).Covers(kind.Cost))
+        {
+            _hud.Toast($"A {kind.Name} takes {CostText(kind)}.");
+            return;
+        }
+
         Link.RequestPlace(kind.Id, placement.Origin, placement.Facing);
     }
 
-    /// <summary>The name, team and health of the structure under the crosshair, for the prompt line.</summary>
+    private string CostText(ObjectKind kind) =>
+        kind.Cost.Count == 0 ? "nothing" : string.Join(", ", kind.Cost.Select(c => $"{c.Value} {Items.Item(c.Key)?.Name.ToLowerInvariant() ?? c.Key}"));
+
+    /// <summary>
+    /// The prompt line: what the selected structure costs, or the name, team and health of the structure
+    /// under the crosshair.
+    /// </summary>
     private string? AimedStructure()
     {
+        if (_hud.Hotbar.Selected.Kind is { } selected && !Creative && Link is not null)
+        {
+            bool afford = Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None).Covers(selected.Cost);
+            return $"{selected.Name}: {CostText(selected)}{(afford ? "" : "  (not enough)")}";
+        }
+
         if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } structure)
         {
             return null;
         }
 
         ObjectKind kind = objects.KindOf(structure);
-        string open = kind.IsStorage && structure.Team == Link.MyTeam ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open" : "";
+        string open = structure.Team != Link.MyTeam ? ""
+            : kind.IsStorage ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open"
+            : Items.Recipes.Any(r => r.Station == kind.Id) ? "   E to craft"
+            : "";
         string take = Creative ? "left click" : "hold left click";
         return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}{open}   ({take} to take it down)";
     }

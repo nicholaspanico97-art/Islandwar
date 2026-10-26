@@ -22,6 +22,7 @@ public sealed class GameServer
     private readonly Structures _structures;
     private readonly TeamStates _teams;
     private readonly Inventory _inventory;
+    private readonly Crafting _crafting;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
@@ -31,6 +32,7 @@ public sealed class GameServer
         _teams = new TeamStates(State);
         _inventory = new Inventory(State, _teams);
         _structures.Inventory = _inventory;
+        _crafting = new Crafting(State, _inventory);
         _weapons = new Weapons(State, _structures);
         _sessions = new Sessions(State, _vehicles, _teams, _inventory);
         _match = new MatchSystem(State);
@@ -86,6 +88,9 @@ public sealed class GameServer
         _inventory.TransferRequested(peer, storageId, item, count, intoStorage);
 
     public Inventory Inventory => _inventory;
+
+    /// <param name="stationId">The structure it's made at, or 0 for by hand.</param>
+    public void CraftRequested(int peer, string recipeId, int stationId) => _crafting.CraftRequested(peer, recipeId, stationId);
 
     /// <summary>The teams' shared state, for systems (and tests) that change it.</summary>
     public TeamStates Teams => _teams;

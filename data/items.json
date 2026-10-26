@@ -1,6 +1,6 @@
 {
-  // Items, and what each block gives when mined. Stone Age first pass: the developer's raw resources list
-  // will replace these. Hardness is the seconds it takes to mine a block by hand; tools come with crafting.
+  // Items, what each block gives when mined, and recipes. Stone Age first pass: the developer's raw
+  // resources list and tech tree will replace these.
   // How many items a player can carry, of any mix.
   "backpack_capacity": 40,
   // The server allows a mine this much faster than the block's hardness, for network timing.
@@ -9,6 +9,9 @@
   "structure_hardness": 1.5,
 
   // places: the block an item puts down when placed from the hotbar (none for raw materials).
+  // tool: what it mines with. A tool of the right kind and at least the block's tier is needed for blocks
+  // that have a tier, and divides every matching block's hardness by its speed. The best one carried is
+  // used; tools don't wear out (yet).
   "items": [
     { "id": "log", "name": "Log", "color": "#5c4024", "places": "wood" },
     { "id": "planks", "name": "Planks", "color": "#b88c54", "places": "planks" },
@@ -20,21 +23,33 @@
     { "id": "tin_ore", "name": "Tin ore", "color": "#bec3cd" },
     { "id": "iron_ore", "name": "Iron ore", "color": "#a06c5c" },
     { "id": "coal", "name": "Coal", "color": "#28282a" },
+    { "id": "stone_axe", "name": "Stone axe", "color": "#8a7a66", "tool": { "kind": "axe", "tier": 1, "speed": 2.5 } },
+    { "id": "stone_pickaxe", "name": "Stone pickaxe", "color": "#7d7d88", "tool": { "kind": "pickaxe", "tier": 1, "speed": 2.0 } },
   ],
 
-  // Every natural or placeable block: seconds to mine by hand, and the item it drops (none for leaves).
+  // Every natural or placeable block: seconds to mine by hand, the item it drops (none for leaves), the
+  // tool that speeds it up, and the tier of that tool it needs (0 or none: bare hands will do).
   "blocks": {
-    "stone": { "hardness": 1.5, "drops": "stone" },
+    "stone": { "hardness": 1.5, "drops": "stone", "tool": "pickaxe" },
     "dirt": { "hardness": 0.5, "drops": "dirt" },
     "grass": { "hardness": 0.6, "drops": "dirt" },
     "sand": { "hardness": 0.5, "drops": "sand" },
-    "planks": { "hardness": 1.0, "drops": "planks" },
-    "wood": { "hardness": 2.0, "drops": "log" },
+    "planks": { "hardness": 1.0, "drops": "planks", "tool": "axe" },
+    "wood": { "hardness": 2.0, "drops": "log", "tool": "axe" },
     "leaves": { "hardness": 0.2 },
-    "copper_ore": { "hardness": 3.0, "drops": "copper_ore" },
-    "tin_ore": { "hardness": 3.0, "drops": "tin_ore" },
-    "iron_ore": { "hardness": 4.0, "drops": "iron_ore" },
-    "coal": { "hardness": 2.5, "drops": "coal" },
+    "copper_ore": { "hardness": 3.0, "drops": "copper_ore", "tool": "pickaxe", "tier": 1 },
+    "tin_ore": { "hardness": 3.0, "drops": "tin_ore", "tool": "pickaxe", "tier": 1 },
+    // Iron needs a better pickaxe than stone: the Bronze Age's.
+    "iron_ore": { "hardness": 4.0, "drops": "iron_ore", "tool": "pickaxe", "tier": 2 },
+    "coal": { "hardness": 2.5, "drops": "coal", "tool": "pickaxe", "tier": 1 },
     "clay": { "hardness": 0.8, "drops": "clay" },
-  }
+  },
+
+  // station: "hand" (crafting window, C) or a structure kind (open it with E). Ingredients come from the
+  // backpack first, then the team's storage; the result goes into the backpack.
+  "recipes": [
+    { "id": "planks", "station": "hand", "takes": { "log": 1 }, "makes": { "planks": 4 } },
+    { "id": "stone_axe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_axe": 1 } },
+    { "id": "stone_pickaxe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_pickaxe": 1 } },
+  ]
 }
