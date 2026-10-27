@@ -34,6 +34,7 @@ public sealed class Crafting
         Payment? payment = recipe is null || _state.Creative ? null : _inventory.Plan(player, recipe.Takes);
         int makes = recipe?.Makes.Values.Sum() ?? 0;
         string? reason = recipe is null ? "unknown recipe"
+            : player.Dead ? "dead"
             : player.Pawn.InPlane ? "flying a plane"
             : !_research.Unlocked(player.Team, Unlock.Recipe(recipe.Id)) ? _research.Needs(Unlock.Recipe(recipe.Id))
             : !recipe.ByHand && !AtStation(player, recipe.Station, stationId) ? $"not at a {recipe.Station}"

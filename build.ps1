@@ -7,7 +7,7 @@
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
 #   .\build.ps1 synctest  (headless server + three bot clients; fails unless every world matches)
-#   .\build.ps1 matchtest (four headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research)
+#   .\build.ps1 matchtest (five headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -153,6 +153,8 @@ function Invoke-MatchTest {
   $bots += @(Invoke-MatchScenario "nuke" 7792 @("--preset=nuketest", "--dev") "nuker" "defender")
   $bots += @(Invoke-RejoinScenario 7793)
   $bots += @(Invoke-ResearchScenario 7794)
+  # Developer mode lets the archer noclip over to the other island; practice is creative (no bow needed).
+  $bots += @(Invoke-MatchScenario "combat" 7795 @("--preset=practice", "--dev") "archer" "target")
   if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
     Write-Host "Match test FAILED. Logs: $logs"
     exit 1

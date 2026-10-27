@@ -13,6 +13,12 @@ namespace IslandWar.Sim.Protocol;
 public sealed record WorldInit(int Seed, GameData Data, byte[] EditsData, byte[] ObjectsData, ulong Hash, bool DevMode, string PresetName);
 
 /// <summary>A bomb (or the nuke) left a plane at server tick <see cref="Tick"/>. Clients simulate its fall from here.</summary>
+/// <summary>An arrow leaving a bow; clients fly it from here until <see cref="ArrowLanded"/>.</summary>
+public sealed record ArrowShot(int Id, int OwnerPeerId, uint Tick, ArrowState State);
+
+/// <summary>Where an arrow stopped, and the player it hit (peer id, or 0 for a block or the sea).</summary>
+public sealed record ArrowLanded(int Id, System.Numerics.Vector3 Position, int HitPeerId);
+
 public sealed record BombDrop(int Id, int OwnerPeerId, uint Tick, BombState State, bool Nuke = false);
 
 /// <summary>

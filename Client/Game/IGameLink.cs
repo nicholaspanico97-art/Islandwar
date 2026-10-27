@@ -31,6 +31,18 @@ public interface IGameLink
     /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative when there's none (phase or era).</summary>
     float NukeReadyIn { get; }
 
+    /// <summary>Arrows in flight by id, positioned for this frame.</summary>
+    IReadOnlyDictionary<int, ArrowState> SampleArrows();
+
+    /// <summary>Our health as of the latest snapshot.</summary>
+    int Health { get; }
+
+    /// <summary>Seconds until we respawn, or negative while alive.</summary>
+    float RespawnIn { get; }
+
+    /// <summary>How many of our arrows have hit someone, to show a hit marker when it goes up.</summary>
+    int MyArrowHits { get; }
+
     /// <summary>The server allows noclip flying (developer mode).</summary>
     bool DevMode { get; }
 

@@ -114,6 +114,7 @@ public sealed class Building
             .Select(p => p.Pawn.Player.Position);
 
         reason = !Enum.IsDefined(edit.Block) ? "unknown block type"
+            : player.Dead ? "dead"
             : player.Pawn.InPlane ? "flying a plane"
             : !player.TrySpendEdit() ? "too many edits"
             : !BuildRules.InReach(settings, eye, edit.Position) ? "out of reach"

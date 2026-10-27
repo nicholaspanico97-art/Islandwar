@@ -23,6 +23,12 @@ public sealed record PlayerSettings
     /// <summary>A player whose feet drop below this height (off the map) respawns.</summary>
     public float RespawnBelowY { get; init; } = -16;
 
+    /// <summary>A player at 0 health dies.</summary>
+    public int MaxHealth { get; init; } = 100;
+
+    /// <summary>How long a dead player waits before coming back at their island.</summary>
+    public float RespawnSeconds { get; init; } = 5;
+
     /// <summary>Width and depth of the player's collision box.</summary>
     public float Width { get; init; } = 0.6f;
 

@@ -41,6 +41,13 @@ public partial class GameHud : CanvasLayer
     /// <summary>Blocks for the hotbar; every placeable one when null (creative).</summary>
     public IReadOnlyList<Block>? HotbarBlocks { get; init; }
 
+    /// <summary>Items held in the hand (the bow), after the structures.</summary>
+    public IReadOnlyList<IslandWar.Sim.Items.ItemKind> HandItems { get; init; } = System.Array.Empty<IslandWar.Sim.Items.ItemKind>();
+
+    private Label _health = null!;
+    private Control _death = null!;
+    private Label _deathDetail = null!;
+
     public StoragePanel Storage { get; private set; } = null!;
 
     public CraftingPanel Crafting { get; private set; } = null!;
@@ -59,7 +66,7 @@ public partial class GameHud : CanvasLayer
         Name = "Hud";
         _crosshair = new Crosshair();
         AddChild(_crosshair);
-        Hotbar = new Hotbar { Kinds = StructureKinds, Blocks = HotbarBlocks };
+        Hotbar = new Hotbar { Kinds = StructureKinds, Blocks = HotbarBlocks, HandItems = HandItems };
         AddChild(Hotbar);
         _help = Outlined(new Label { Position = new Vector2(12, 8) });
 
@@ -149,6 +156,36 @@ public partial class GameHud : CanvasLayer
         _flight.OffsetBottom = -16;
         _flight.OffsetTop = -16;
         _flight.AddThemeFontSizeOverride("font_size", 22);
+
+        _health = Outlined(new Label { Visible = false });
+        _health.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
+        _health.GrowVertical = Control.GrowDirection.Begin;
+        // Above the hotbar, which can run the whole width of a small window.
+        _health.OffsetLeft = 16;
+        _health.OffsetBottom = -84;
+        _health.OffsetTop = -84;
+        _health.AddThemeFontSizeOverride("font_size", 22);
+
+        // Dims the view while dead, with the countdown to coming back.
+        _death = new ColorRect { Color = new Color(0.25f, 0, 0, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        _death.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_death);
+        var died = new Label { Text = "You died", HorizontalAlignment = HorizontalAlignment.Center };
+        died.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        died.GrowHorizontal = Control.GrowDirection.Both;
+        died.OffsetTop = -60;
+        died.AddThemeFontSizeOverride("font_size", 56);
+        died.AddThemeColorOverride("font_outline_color", Colors.Black);
+        died.AddThemeConstantOverride("outline_size", 10);
+        _death.AddChild(died);
+        _deathDetail = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _deathDetail.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _deathDetail.GrowHorizontal = Control.GrowDirection.Both;
+        _deathDetail.OffsetTop = 10;
+        _deathDetail.AddThemeFontSizeOverride("font_size", 24);
+        _deathDetail.AddThemeColorOverride("font_outline_color", Colors.Black);
+        _deathDetail.AddThemeConstantOverride("outline_size", 6);
+        _death.AddChild(_deathDetail);
         ShowOnFoot(null);
     }
 
@@ -205,10 +242,25 @@ public partial class GameHud : CanvasLayer
     /// <summary>The line above the hotbar about what you carry; empty hides it.</summary>
     public void ShowBackpack(string text) => _backpack.Text = text;
 
-    /// <summary>Who and which side you are, top right.</summary>
     /// <summary>Our team's era and points, under our name; empty for none (creative).</summary>
     public void ShowEra(string text) => _era.Text = text;
 
+    /// <summary>Our health, bottom left; red when low. Null hides it (the sandbox).</summary>
+    public void ShowHealth(int? health, int max)
+    {
+        _health.Visible = health is not null;
+        _health.Text = $"Health {health} / {max}";
+        _health.Modulate = health <= max / 4 ? new Color(1, 0.35f, 0.3f) : Colors.White;
+    }
+
+    /// <summary>The death screen with its line ("Back in 3 s"), or null to hide it.</summary>
+    public void ShowDeath(string? detail)
+    {
+        _death.Visible = detail is not null;
+        _deathDetail.Text = detail ?? "";
+    }
+
+    /// <summary>Who and which side you are, top right.</summary>
     public void ShowIdentity(string text, Color colour)
     {
         _identity.Text = text;
@@ -223,6 +275,7 @@ public partial class GameHud : CanvasLayer
         Hotbar.Visible = true;
         _backpack.Visible = true;
         _flight.Visible = false;
+        _health.Visible = _health.Text.Length > 0;
         _prompt.Visible = prompt is not null;
         _prompt.Text = prompt ?? "";
     }
@@ -237,6 +290,7 @@ public partial class GameHud : CanvasLayer
         _backpack.Visible = false;
         _mining.Visible = false;
         _prompt.Visible = false;
+        _health.Visible = false;
         _flight.Visible = true;
         bool stalling = !plane.OnGround && plane.Airspeed < settings.StallSpeed;
         _flight.Text = $"Throttle {plane.Throttle * 100:0}%\nSpeed {plane.Airspeed:0}  (stall {settings.StallSpeed:0})\nAltitude {altitude:0}\n{bombStatus}"

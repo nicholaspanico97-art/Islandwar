@@ -128,6 +128,7 @@ public partial class ClientMain : Node
                 "conceder" => new ConcederBot { Net = net, Role = Args.Bot },
                 "watcher" => new MatchBot { Net = net, Role = Args.Bot },
                 "researcher" => new ResearchBot { Net = net, Role = Args.Bot, Spawn = spawn },
+                "archer" or "target" => new ArcherBot { Net = net, Role = Args.Bot, Spawn = spawn },
                 _ => new SyncBot { Net = net, Role = Args.Bot },
             };
             _session!.AddChild(bot);

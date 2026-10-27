@@ -65,8 +65,7 @@ public partial class ReturnerBot : TestBot
 /// </summary>
 public partial class ConcederBot : TestBot
 {
-    private bool _sawRed;
-    private bool _sawRedLeave;
+    private int? _firstRedPeer;
 
     protected override void Start()
     {
@@ -89,11 +88,14 @@ public partial class ConcederBot : TestBot
         });
     }
 
+    /// <summary>
+    /// Red's player is back on a new connection during the match. Going by the peer id, not by seeing Red
+    /// empty, because the leave and the return can both arrive between two frames.
+    /// </summary>
     private bool RedCameBack()
     {
-        bool redHere = Net.Roster.Values.Any(p => p.Team == Team.Red);
-        _sawRed |= redHere;
-        _sawRedLeave |= _sawRed && !redHere && Net.Match.Playing;
-        return _sawRedLeave && redHere && Net.Match.Playing;
+        int? redPeer = Net.Roster.Values.Where(p => p.Team == Team.Red).Select(p => (int?)p.PeerId).FirstOrDefault();
+        _firstRedPeer ??= redPeer;
+        return redPeer is { } now && now != _firstRedPeer && Net.Match.Playing;
     }
 }

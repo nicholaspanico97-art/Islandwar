@@ -26,6 +26,7 @@ public partial class NetClient : Node, IGameLink
     private readonly Dictionary<int, InterpolationBuffer<RemoteState>> _others = new();
     private readonly Dictionary<int, InterpolationBuffer<RemotePlane>> _planes = new();
     private readonly Dictionary<int, FallingBomb> _bombs = new();
+    private readonly Dictionary<int, FlyingArrow> _arrows = new();
     private Dictionary<int, RosterEntry> _roster = new();
     private double _serverTick;
     private bool _joined;
@@ -71,6 +72,15 @@ public partial class NetClient : Node, IGameLink
     /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
     public float NukeReadyIn { get; private set; } = -1;
 
+    /// <summary>Our health as of the latest snapshot.</summary>
+    public int Health { get; private set; } = 100;
+
+    /// <summary>Seconds until we respawn, or negative while alive.</summary>
+    public float RespawnIn { get; private set; } = -1;
+
+    /// <summary>How many of our arrows have hit someone since we joined.</summary>
+    public int MyArrowHits { get; private set; }
+
     /// <summary>The newest input number sent, so a new prediction after a world reset can carry on from it.</summary>
     public uint LastSentSeq { get; private set; }
 
@@ -109,6 +119,8 @@ public partial class NetClient : Node, IGameLink
         Replicator.SnapshotReceived += OnSnapshot;
         Replicator.BombDropped += OnBombDropped;
         Replicator.ExplosionReceived += OnExplosion;
+        Replicator.ArrowShotReceived += OnArrowShot;
+        Replicator.ArrowLandedReceived += OnArrowLanded;
         Replicator.RosterReceived += OnRoster;
         Replicator.Kicked += OnKicked;
         Replicator.ObjectsReceived += OnObjects;
@@ -125,6 +137,8 @@ public partial class NetClient : Node, IGameLink
         Replicator.SnapshotReceived -= OnSnapshot;
         Replicator.BombDropped -= OnBombDropped;
         Replicator.ExplosionReceived -= OnExplosion;
+        Replicator.ArrowShotReceived -= OnArrowShot;
+        Replicator.ArrowLandedReceived -= OnArrowLanded;
         Replicator.RosterReceived -= OnRoster;
         Replicator.Kicked -= OnKicked;
         Replicator.ObjectsReceived -= OnObjects;
@@ -190,6 +204,21 @@ public partial class NetClient : Node, IGameLink
             b => (b.Value.At(b.Value.Drop.OwnerPeerId == me ? _serverTick : delayed, World, Data.Rules, Data.Net.TickSeconds), b.Value.Drop.Nuke));
     }
 
+    /// <summary>Arrows in flight, flown here from their shot, at the same delay as other players (ours at the present).</summary>
+    public IReadOnlyDictionary<int, ArrowState> SampleArrows()
+    {
+        if (Data is null || World is null)
+        {
+            return new Dictionary<int, ArrowState>();
+        }
+
+        int me = Multiplayer.GetUniqueId();
+        double delayed = _serverTick - Data.Net.InterpolationDelayTicks;
+        return _arrows.ToDictionary(
+            a => a.Key,
+            a => a.Value.At(a.Value.Shot.OwnerPeerId == me ? _serverTick : delayed, World, Data.Arrow, Data.Rules.SeaLevel, Data.Net.TickSeconds));
+    }
+
     private IReadOnlyDictionary<int, T> Sample<T>(Dictionary<int, InterpolationBuffer<T>> buffers)
     {
         double renderTick = _serverTick - (Data?.Net.InterpolationDelayTicks ?? 0);
@@ -238,11 +267,22 @@ public partial class NetClient : Node, IGameLink
             _others.Clear();
             _planes.Clear();
             _bombs.Clear();
+            _arrows.Clear();
             WorldReset?.Invoke();
         }
     }
 
     private void OnBombDropped(BombDrop drop) => _bombs[drop.Id] = new FallingBomb(drop);
+
+    private void OnArrowShot(ArrowShot shot) => _arrows[shot.Id] = new FlyingArrow(shot);
+
+    private void OnArrowLanded(ArrowLanded landed)
+    {
+        if (_arrows.Remove(landed.Id, out FlyingArrow? arrow) && landed.HitPeerId != 0 && arrow.Shot.OwnerPeerId == Multiplayer.GetUniqueId())
+        {
+            MyArrowHits++;
+        }
+    }
 
     private void OnRoster(byte[] data) => _roster = WireFormat.DecodeRoster(data).ToDictionary(e => e.PeerId);
 
@@ -318,6 +358,8 @@ public partial class NetClient : Node, IGameLink
 
         Match = snapshot.Match;
         NukeReadyIn = snapshot.NukeReadyIn;
+        Health = snapshot.Health;
+        RespawnIn = snapshot.RespawnIn;
 
         // Follow the server's clock, but only jump when it has drifted, so remote players move evenly.
         if (Math.Abs(_serverTick - snapshot.Tick) > Data!.Net.SnapshotIntervalTicks * 2)
@@ -415,6 +457,29 @@ public partial class NetClient : Node, IGameLink
                 {
                     _state = next;
                 }
+            }
+
+            return _state;
+        }
+    }
+
+    /// <summary>An arrow between its shot and the server saying where it stopped; it waits where it would hit something.</summary>
+    private sealed class FlyingArrow(ArrowShot shot)
+    {
+        private ArrowState _state = shot.State;
+        private uint _tick = shot.Tick;
+        private bool _landed;
+
+        public ArrowShot Shot { get; } = shot;
+
+        public ArrowState At(double tick, VoxelWorld world, ArrowSettings settings, int seaLevel, float dt)
+        {
+            while (!_landed && _tick + 1 <= tick)
+            {
+                (ArrowState next, System.Numerics.Vector3? landed) = ArrowFlight.Step(world, settings, seaLevel, _state, dt);
+                _tick++;
+                _state = landed is { } at ? _state with { Position = at } : next;
+                _landed = landed is not null;
             }
 
             return _state;

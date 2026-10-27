@@ -17,6 +17,9 @@ public sealed class Inventory
     private readonly ServerState _state;
     private readonly TeamStates _teams;
 
+    /// <summary>Set once the structures exist, to take away dropped backpacks once they're emptied.</summary>
+    public Structures? Structures { get; set; }
+
     public Inventory(ServerState state, TeamStates teams)
     {
         _state = state;
@@ -67,7 +70,9 @@ public sealed class Inventory
 
         ObjectKind kind = _state.Objects.KindOf(target);
         IReadOnlyDictionary<string, int> held = ItemCounts.Contents(target, slot);
-        string? reason = target.Team != player.Team ? "the other team's"
+        string? reason = target.Team != player.Team && !kind.Loot ? "the other team's"
+            : player.Dead ? "dead"
+            : intoStructure && kind.Loot ? "nothing goes into a dropped backpack"
             : player.Pawn.InPlane ? "flying a plane"
             : !InReach(player, target, kind) ? "out of reach"
             : Items.Item(item) is null ? "unknown item"
@@ -93,7 +98,11 @@ public sealed class Inventory
         _state.Objects.Set(changed);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { changed }));
         SendBackpack(player);
-        if (kind.IsStorage)
+        if (kind.Loot && !ItemCounts.HasItems(changed))
+        {
+            Structures?.Remove(changed);
+        }
+        else if (kind.IsStorage)
         {
             RecountStock(player.Team);
         }
@@ -223,8 +232,9 @@ public sealed class Inventory
         }
     }
 
+    /// <summary>A team's storage structures; a dropped backpack isn't one, whoever's it was.</summary>
     private IEnumerable<GameObject> TeamStorage(Team team) =>
-        _state.Objects.All.Where(o => o.Team == team && _state.Objects.KindOf(o).IsStorage);
+        _state.Objects.All.Where(o => o.Team == team && _state.Objects.KindOf(o) is { IsStorage: true, Loot: false });
 
     private bool InReach(ServerPlayer player, GameObject storage, ObjectKind kind)
     {

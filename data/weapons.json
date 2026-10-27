@@ -11,5 +11,16 @@
   "nuke_structure_damage": 1000,
   "cooldown_seconds": 1.0,
   "drop_height": 0.5,
-  "max_lifetime_seconds": 30.0
+  "max_lifetime_seconds": 30.0,
+
+  // Bow and arrows (Archery, Bronze Age). Arrows hurt players of the other team and do no block damage.
+  // draw_seconds is the time between shots; spawn_ahead is how far in front of the eye an arrow starts.
+  "arrow": {
+    "speed": 40.0,
+    "gravity": 15.0,
+    "damage": 25,
+    "draw_seconds": 0.8,
+    "max_lifetime_seconds": 5.0,
+    "spawn_ahead": 0.6
+  }
 }

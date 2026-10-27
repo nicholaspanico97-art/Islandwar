@@ -12,12 +12,14 @@ public sealed class Movement
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
     private readonly Weapons _weapons;
+    private readonly Combat _combat;
 
-    public Movement(ServerState state, Vehicles vehicles, Weapons weapons)
+    public Movement(ServerState state, Vehicles vehicles, Weapons weapons, Combat combat)
     {
         _state = state;
         _vehicles = vehicles;
         _weapons = weapons;
+        _combat = combat;
     }
 
     public void InputsReceived(int peer, byte[] data)
@@ -51,6 +53,13 @@ public sealed class Movement
                     input = input with { Buttons = input.Buttons & ~InputButtons.Fly };
                 }
 
+                // The dead don't move or act, but their inputs are still taken, so the client's numbering carries on.
+                if (player.Dead)
+                {
+                    player.Processed(input);
+                    continue;
+                }
+
                 // Getting in or out happens before the input's movement, and the client replays it the same way.
                 if (input.Has(InputButtons.Use))
                 {
@@ -71,6 +80,11 @@ public sealed class Movement
                     {
                         _weapons.TryDropNuke(player, plane);
                     }
+                }
+                else if (input.Has(InputButtons.Fire))
+                {
+                    // On foot, the trigger is the bow.
+                    _combat.TryShoot(player, input.Yaw, input.Pitch);
                 }
 
                 player.Processed(input);

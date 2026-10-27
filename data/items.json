@@ -30,6 +30,8 @@
     { "id": "stone_axe", "name": "Stone axe", "color": "#8a7a66", "tool": { "kind": "axe", "tier": 1, "speed": 2.5 } },
     { "id": "stone_pickaxe", "name": "Stone pickaxe", "color": "#7d7d88", "tool": { "kind": "pickaxe", "tier": 1, "speed": 2.0 } },
     { "id": "bronze_axe", "name": "Bronze axe", "color": "#a87a3c", "tool": { "kind": "axe", "tier": 2, "speed": 3.5 } },
+    { "id": "bow", "name": "Bow", "color": "#8a5a2b" },
+    { "id": "arrow", "name": "Arrow", "color": "#c8c0a8" },
     { "id": "bronze_pickaxe", "name": "Bronze pickaxe", "color": "#9c7034", "tool": { "kind": "pickaxe", "tier": 2, "speed": 3.0 } },
   ],
 
@@ -57,6 +59,8 @@
     { "id": "planks", "station": "hand", "takes": { "log": 1 }, "makes": { "planks": 4 } },
     { "id": "stone_axe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_axe": 1 } },
     { "id": "stone_pickaxe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_pickaxe": 1 } },
+    { "id": "bow", "station": "workbench", "takes": { "planks": 3, "log": 1 }, "makes": { "bow": 1 } },
+    { "id": "arrows", "station": "workbench", "takes": { "planks": 1, "stone": 1 }, "makes": { "arrow": 4 } },
     { "id": "bronze_axe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_axe": 1 } },
     { "id": "bronze_pickaxe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_pickaxe": 1 } },
   ],

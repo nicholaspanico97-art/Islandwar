@@ -25,6 +25,7 @@ public sealed class GameServer
     private readonly Crafting _crafting;
     private readonly Furnaces _furnaces;
     private readonly Research _research;
+    private readonly Combat _combat;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
@@ -35,12 +36,14 @@ public sealed class GameServer
         _vehicles = new Vehicles(State, _research);
         _structures = new Structures(State, _vehicles, _research);
         _structures.Inventory = _inventory;
+        _inventory.Structures = _structures;
+        _combat = new Combat(State, _structures, _inventory);
         _crafting = new Crafting(State, _inventory, _research);
         _furnaces = new Furnaces(State, _research);
         _weapons = new Weapons(State, _structures, _research);
         _sessions = new Sessions(State, _vehicles, _teams, _inventory);
         _match = new MatchSystem(State);
-        _movement = new Movement(State, _vehicles, _weapons);
+        _movement = new Movement(State, _vehicles, _weapons, _combat);
         _building = new Building(State, _vehicles, _inventory, _research);
         _replication = new Replication(State, _weapons);
 
@@ -67,6 +70,8 @@ public sealed class GameServer
         _movement.Step();
         _vehicles.StepEmpty();
         _weapons.FlyBombs();
+        _combat.FlyArrows();
+        _combat.StepRespawns();
         _furnaces.Step();
         _replication.Step();
     }
@@ -103,6 +108,8 @@ public sealed class GameServer
 
     public Research Research => _research;
 
+    public Combat Combat => _combat;
+
     /// <summary>The teams' shared state, for systems (and tests) that change it.</summary>
     public TeamStates Teams => _teams;
 
@@ -116,6 +123,7 @@ public sealed class GameServer
     {
         State.World = IslandGenerator.Generate(State.Data.Terrain, State.Options.Seed);
         _weapons.Reset();
+        _combat.Reset();
         _structures.Reset();
         _teams.Reset();
         _inventory.Reset();

@@ -26,6 +26,8 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
 
     public BombSettings Bomb { get; } = BombSettings.FromJson(WeaponsJson);
 
+    public ArrowSettings Arrow { get; } = ArrowSettings.FromJson(WeaponsJson);
+
     public IReadOnlyDictionary<string, MatchPreset> Presets { get; } = MatchPreset.AllFromJson(PresetsJson);
 
     /// <summary>Items, what each block drops and how long it takes to mine.</summary>

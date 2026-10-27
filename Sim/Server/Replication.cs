@@ -36,9 +36,13 @@ public sealed class Replication
             .Select(p => new PlayerSnapshot(p.Key, p.Value.Pawn.Player, p.Value.Yaw, p.Value.Pitch, p.Value.Pawn.PlaneId))
             .ToArray();
         PlaneSnapshot[] planes = _state.Planes.Values.Select(p => new PlaneSnapshot(p.Id, p.State, p.PilotPeerId, p.Team)).ToArray();
+        HashSet<int> dead = _state.Players.Where(p => p.Value.Dead).Select(p => p.Key).ToHashSet();
         foreach ((int peer, ServerPlayer player) in _state.Players)
         {
-            var snapshot = new Snapshot(_state.Tick, player.AckSeq, players, planes, _state.Match, _weapons.NukeReadyIn(player.Team));
+            // The dead vanish for everyone else until they respawn; their own client still gets them.
+            PlayerSnapshot[] seen = dead.Count == 0 ? players : players.Where(p => p.PeerId == peer || !dead.Contains(p.PeerId)).ToArray();
+            float respawnIn = player.DeadUntil is { } until ? (float)Math.Max(0, until - _state.Seconds) : -1;
+            var snapshot = new Snapshot(_state.Tick, player.AckSeq, seen, planes, _state.Match, _weapons.NukeReadyIn(player.Team), player.Health, respawnIn);
             _state.Net.SendSnapshot(peer, WireFormat.EncodeSnapshot(snapshot));
         }
     }

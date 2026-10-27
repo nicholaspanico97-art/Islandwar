@@ -25,6 +25,10 @@ public interface IServerTransport
 
     void BroadcastExplosion(Explosion explosion);
 
+    void BroadcastArrowShot(ArrowShot shot);
+
+    void BroadcastArrowLanded(ArrowLanded landed);
+
     void BroadcastEdit(VoxelEdit edit);
 
     void SendEdit(int peer, VoxelEdit edit);

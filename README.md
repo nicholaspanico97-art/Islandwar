@@ -35,8 +35,11 @@ team storage whose contents make the team's stock, crafting by hand and at a wor
 structures that cost materials, a furnace that smelts copper and tin into ingots over time with fuel, and
 per-team research (R) that moves each team through the eras: Stone Age techs unlock the stone tools, the
 furnace and bronze, and Bronze working takes a team into the Bronze Age (bronze tools, stone fortifications,
-prospecting). Real matches now go by eras instead of timed phases, so planes wait for WWI. Next: the rest of
-the Bronze Age (archery, galleys, the catapult, the blast furnace), when the developer is ready.
+prospecting). Real matches now go by eras instead of timed phases, so planes wait for WWI.
+
+The Bronze Age has started: players have health, die and respawn (dropping what they carried), and Archery
+gives a bow and arrows that hurt the other team. Next: building by blueprint (players haul resources to a
+placed blueprint), then the dock and galley, then the blast furnace and the step into the Iron Age.
 
 ## Versions
 

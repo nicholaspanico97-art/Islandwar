@@ -42,6 +42,8 @@ public sealed class Structures
         ObjectKind? kind = _state.Data.Kinds.Get(kindId);
         Payment? payment = kind is null || _state.Creative ? null : Inventory!.Plan(player, kind.Cost);
         string? reason = kind is null ? "unknown kind"
+            : kind.Loot ? "players can't place that"
+            : player.Dead ? "dead"
             : player.Pawn.InPlane ? "flying a plane"
             : !_research.Unlocked(player.Team, Unlock.Structure(kind.Id)) ? _research.Needs(Unlock.Structure(kind.Id))
             : !player.TrySpendEdit() ? "too many edits"
@@ -106,6 +108,44 @@ public sealed class Structures
         {
             _state.Log($"[server] '{player.Name}' had no room for {string.Join(", ", lost.Select(l => $"{l.Value} {l.Key}"))} from the {kind.Name}");
         }
+    }
+
+    /// <summary>
+    /// Leaves a dead player's items in a dropped backpack at <paramref name="cell"/>, or the first free cell
+    /// up to two above it. Null if there's no room (the items are lost).
+    /// </summary>
+    public GameObject? DropLoot(BlockPos cell, ServerPlayer owner, IReadOnlyDictionary<string, int> items)
+    {
+        ObjectKind? kind = _state.Data.Kinds.All.FirstOrDefault(k => k.Loot);
+        BlockPos? free = Enumerable.Range(0, 3).Select(up => cell with { Y = cell.Y + up })
+            .Cast<BlockPos?>()
+            .FirstOrDefault(c => _state.World.InBounds(c!.Value) && _state.World.Get(c.Value) == Block.Air);
+        if (kind is null || free is not { } origin)
+        {
+            return null;
+        }
+
+        var bag = new GameObject(_nextId++, kind.Id, owner.Team, owner.PlayerId, origin, 0, kind.MaxHealth);
+        foreach ((string item, int count) in items)
+        {
+            bag = ItemCounts.WithStored(bag, item, count);
+        }
+
+        Apply(new VoxelEdit(origin, Block.Structure, bag.Owner));
+        _state.Objects.Set(bag);
+        _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { bag }));
+        return bag;
+    }
+
+    /// <summary>Takes an object away at once (an emptied dropped backpack) and tells everyone.</summary>
+    public void Remove(GameObject target)
+    {
+        foreach (VoxelEdit edit in Clear(target))
+        {
+            _state.Net.BroadcastEdit(edit);
+        }
+
+        _state.Net.BroadcastObjectRemoved(target.Id);
     }
 
     /// <summary>

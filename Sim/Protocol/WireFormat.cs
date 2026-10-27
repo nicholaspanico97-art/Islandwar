@@ -21,7 +21,10 @@ public readonly record struct PlaneSnapshot(int Id, PlaneState State, int PilotP
 /// Seconds until the receiving client's team can drop its nuke: 0 when ready, negative when nukes aren't
 /// available at all (outside phase 3).
 /// </param>
-public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes, MatchStatus Match = default, float NukeReadyIn = -1);
+/// <param name="Health">The receiving player's own health.</param>
+/// <param name="RespawnIn">Seconds until the receiving player comes back, or negative while alive.</param>
+public sealed record Snapshot(uint Tick, uint AckSeq, IReadOnlyList<PlayerSnapshot> Players, IReadOnlyList<PlaneSnapshot> Planes, MatchStatus Match = default, float NukeReadyIn = -1,
+    int Health = 100, float RespawnIn = -1);
 
 /// <summary>
 /// Byte layouts for messages sent often or in bulk. Little-endian. Decoders treat the bytes as untrusted:
@@ -97,6 +100,8 @@ public static class WireFormat
             writer.Write((byte)snapshot.Match.Winner);
             writer.Write((byte)snapshot.Match.Reason);
             writer.Write(snapshot.NukeReadyIn);
+            writer.Write(checked((short)snapshot.Health));
+            writer.Write(snapshot.RespawnIn);
             writer.Write((byte)snapshot.Players.Count);
             foreach (PlayerSnapshot player in snapshot.Players)
             {
@@ -134,6 +139,8 @@ public static class WireFormat
         uint ack = reader.ReadUInt32();
         var match = new MatchStatus((MatchStage)reader.ReadByte(), reader.ReadByte(), reader.ReadSingle(), (Team)reader.ReadByte(), (EndReason)reader.ReadByte());
         float nukeReadyIn = reader.ReadSingle();
+        int health = reader.ReadInt16();
+        float respawnIn = Finite(reader.ReadSingle());
         int count = reader.ReadByte();
         var players = new PlayerSnapshot[count];
         for (int i = 0; i < count; i++)
@@ -161,7 +168,7 @@ public static class WireFormat
             planes[i] = new PlaneSnapshot(id, state, pilot, team);
         }
 
-        return new Snapshot(tick, ack, players, planes, match, nukeReadyIn);
+        return new Snapshot(tick, ack, players, planes, match, nukeReadyIn, health, respawnIn);
     });
 
     /// <summary>Block edits with their owners, 13 bytes each. Positions must fit in 0 to 65535, which every map does.</summary>

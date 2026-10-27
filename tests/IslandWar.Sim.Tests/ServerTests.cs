@@ -20,6 +20,8 @@ public sealed class FakeTransport : IServerTransport
     public List<(int Peer, VoxelEdit Edit)> Corrections { get; } = new();
     public List<(int Peer, ulong Hash)> Hashes { get; } = new();
     public List<Explosion> Explosions { get; } = new();
+    public List<ArrowShot> ArrowShots { get; } = new();
+    public List<ArrowLanded> ArrowsLanded { get; } = new();
     public List<(int Peer, Snapshot Snapshot)> Snapshots { get; } = new();
     public List<GameObject> Objects { get; } = new();
     public List<int> RemovedObjects { get; } = new();
@@ -33,6 +35,8 @@ public sealed class FakeTransport : IServerTransport
     public int PingOf(int peer) => 0;
     public void BroadcastBombDrop(BombDrop drop) { }
     public void BroadcastExplosion(Explosion explosion) => Explosions.Add(explosion);
+    public void BroadcastArrowShot(ArrowShot shot) => ArrowShots.Add(shot);
+    public void BroadcastArrowLanded(ArrowLanded landed) => ArrowsLanded.Add(landed);
     public void BroadcastEdit(VoxelEdit edit) => Broadcast.Add(edit);
     public void SendEdit(int peer, VoxelEdit edit) => Corrections.Add((peer, edit));
     public void SendSnapshot(int peer, byte[] snapshot) => Snapshots.Add((peer, WireFormat.DecodeSnapshot(snapshot)));

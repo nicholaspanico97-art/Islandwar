@@ -51,6 +51,17 @@ public sealed class ServerPlayer
 
     public PawnState Pawn { get; set; }
 
+    /// <summary>Health; at 0 the player is dead until <see cref="DeadUntil"/>.</summary>
+    public int Health { get; set; } = 100;
+
+    /// <summary>When a dead player comes back, on the server clock; null while alive.</summary>
+    public double? DeadUntil { get; set; }
+
+    public bool Dead => DeadUntil is not null;
+
+    /// <summary>When they last shot an arrow, on the server clock.</summary>
+    public double LastShotSeconds { get; set; } = double.NegativeInfinity;
+
     /// <summary>The newest input processed, sent back in snapshots so the client can reconcile.</summary>
     public uint AckSeq { get; private set; }
 

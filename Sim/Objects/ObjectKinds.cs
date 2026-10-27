@@ -39,6 +39,12 @@ public sealed record ObjectKind
     /// <summary>What placing one takes, by item id.</summary>
     public IReadOnlyDictionary<string, int> Cost { get; init; } = new Dictionary<string, int>();
 
+    /// <summary>
+    /// Left by the game, not placed by players: a dead player's dropped backpack. Anyone may take from it,
+    /// nothing goes in, it isn't team stock, and it goes once empty.
+    /// </summary>
+    public bool Loot { get; init; }
+
     /// <summary>How clients draw it until there are models, as <c>#rrggbb</c>.</summary>
     public string Color { get; init; } = "#808080";
 }

@@ -80,6 +80,12 @@ public partial class Replicator : Node
     /// <summary>Client: a bomb exploded, with its crater.</summary>
     public event Action<Explosion>? ExplosionReceived;
 
+    /// <summary>Client: an arrow left a bow.</summary>
+    public event Action<ArrowShot>? ArrowShotReceived;
+
+    /// <summary>Client: an arrow stopped.</summary>
+    public event Action<ArrowLanded>? ArrowLandedReceived;
+
     /// <summary>Client: objects that appeared or changed (packed).</summary>
     public event Action<byte[]>? ObjectsReceived;
 
@@ -139,6 +145,12 @@ public partial class Replicator : Node
 
     public void BroadcastExplosion(Explosion explosion) =>
         Rpc(MethodName.ReceiveExplosion, explosion.BombId, ToGodot(explosion.Position), explosion.InWater, explosion.EditsData, explosion.CraterRadius, explosion.Nuke, explosion.Harmless);
+
+    // Arrows share the reliable channel with edits too; they're few.
+    public void BroadcastArrowShot(ArrowShot shot) =>
+        Rpc(MethodName.ReceiveArrowShot, shot.Id, shot.OwnerPeerId, (long)shot.Tick, ToGodot(shot.State.Position), ToGodot(shot.State.Velocity));
+
+    public void BroadcastArrowLanded(ArrowLanded landed) => Rpc(MethodName.ReceiveArrowLanded, landed.Id, ToGodot(landed.Position), landed.HitPeerId);
 
     /// <summary>Tells every client the block (and who placed it) at a position.</summary>
     public void BroadcastEdit(VoxelEdit edit) =>
@@ -284,6 +296,13 @@ public partial class Replicator : Node
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveExplosion(int bombId, Vector3 position, bool inWater, byte[] edits, int craterRadius, bool nuke, bool harmless) =>
         ExplosionReceived?.Invoke(new Explosion(bombId, ToSim(position), inWater, edits, craterRadius, nuke, harmless));
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveArrowShot(int id, int owner, long tick, Vector3 position, Vector3 velocity) =>
+        ArrowShotReceived?.Invoke(new ArrowShot(id, owner, (uint)tick, new ArrowState(ToSim(position), ToSim(velocity))));
+
+    [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveArrowLanded(int id, Vector3 position, int hitPeer) => ArrowLandedReceived?.Invoke(new ArrowLanded(id, ToSim(position), hitPeer));
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveEdit(int x, int y, int z, int block, int ownerId, int ownerTeam) =>

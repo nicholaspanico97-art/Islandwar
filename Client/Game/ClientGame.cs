@@ -39,6 +39,11 @@ public partial class ClientGame : Node3D
     private readonly Dictionary<int, RemoteAvatar> _avatars = new();
     private readonly Dictionary<int, PlaneModel> _planes = new();
     private readonly Dictionary<int, BombModel> _bombs = new();
+    private readonly Dictionary<int, ArrowModel> _arrows = new();
+
+    /// <summary>Health and arrow hits as last shown, to flash a note when they change.</summary>
+    private int _lastHealth = -1;
+    private int _lastHits;
     private Scenery _scenery = null!;
     private GodotVoxelView _view = null!;
     private ObjectViews _objects = null!;
@@ -94,6 +99,16 @@ public partial class ClientGame : Node3D
 
     private PawnState State => _player.State;
 
+    /// <summary>The items the server's combat uses: a bow shoots arrows.</summary>
+    private const string Bow = "bow";
+    private const string Arrow = "arrow";
+
+    /// <summary>Dead, waiting to respawn: no moving, building or shooting.</summary>
+    private bool Dead => Link is { RespawnIn: >= 0 };
+
+    /// <summary>The bow is the selected hotbar slot.</summary>
+    private bool HoldingBow => _hud.Hotbar.Selected.IsHandItem;
+
     public override void _Ready()
     {
         Name = "ClientGame";
@@ -122,7 +137,9 @@ public partial class ClientGame : Node3D
         AddChild(_camera);
         _hud = new GameHud
         {
-            StructureKinds = Link?.Objects?.Kinds.All ?? Array.Empty<ObjectKind>(),
+            // A dropped backpack is left by the game, not placed.
+            StructureKinds = Link?.Objects?.Kinds.All.Where(k => !k.Loot).ToArray() ?? Array.Empty<ObjectKind>(),
+            HandItems = Link is null ? Array.Empty<ItemKind>() : Items.Items.Where(i => i.Id == Bow).ToArray(),
 
             // Out of creative, the hotbar offers the blocks some item places; how many you have shows on each.
             HotbarBlocks = Creative ? null : Items.Items.Select(Items.BlockPlacedBy).OfType<Block>().Order().ToArray(),
@@ -231,6 +248,10 @@ public partial class ClientGame : Node3D
         {
             Input.MouseMode = Input.MouseModeEnum.Visible;
         }
+        else if (Dead)
+        {
+            // The dead only wait.
+        }
         else if (!captured)
         {
             // While the mouse is free, a click only recaptures it; it doesn't edit.
@@ -281,6 +302,10 @@ public partial class ClientGame : Node3D
             {
                 _nukePressed = true;
             }
+        }
+        else if (@event.IsActionPressed(InputActions.Break) && HoldingBow)
+        {
+            Shoot();
         }
         else if (@event.IsActionPressed(InputActions.ToggleFly) && (Link?.DevMode ?? true))
         {
@@ -350,6 +375,7 @@ public partial class ClientGame : Node3D
         ShowPlanes(planes, delta);
         ShowIdentity();
         ShowEra();
+        ShowHealth();
         ShowMatch();
         _bombsight.SetRadius(Math.Max(1, CraterRadius));
         // White where a bomb would do nothing: the sea, or our own half of the map (no friendly fire).
@@ -360,7 +386,48 @@ public partial class ClientGame : Node3D
         {
             ShowOtherPlayers(Link.SampleRemotePlayers());
             ShowBombs(Link.SampleBombs());
+            ShowArrows(Link.SampleArrows());
         }
+    }
+
+    /// <summary>
+    /// Asks the server to shoot (the trigger on foot is the bow), if we carry a bow and an arrow; the server
+    /// decides, including the time to draw the bow again.
+    /// </summary>
+    private void Shoot()
+    {
+        if (!Creative && (Link!.Backpack.Of(Bow) == 0 || Link.Backpack.Of(Arrow) == 0))
+        {
+            _hud.Toast(Link.Backpack.Of(Bow) == 0 ? "You have no bow (Archery research, then the workbench)." : "No arrows (make them at the workbench).");
+            return;
+        }
+
+        _firePressed = true;
+    }
+
+    /// <summary>Health bottom left, the death screen while dead, and a note when we're hurt or our arrow hits.</summary>
+    private void ShowHealth()
+    {
+        if (Link is null)
+        {
+            _hud.ShowHealth(null, Settings.MaxHealth);
+            return;
+        }
+
+        _hud.ShowHealth(Link.Health, Settings.MaxHealth);
+        _hud.ShowDeath(Dead ? $"Back at your island in {Mathf.CeilToInt(Link.RespawnIn)} s\nWhat you carried is where you fell" : null);
+        if (_lastHealth >= 0 && Link.Health < _lastHealth && !Dead)
+        {
+            _hud.Toast($"Hit! -{_lastHealth - Link.Health} health");
+        }
+
+        if (Link.MyArrowHits > _lastHits)
+        {
+            _hud.Toast("Your arrow hit!", 1.2);
+        }
+
+        _lastHealth = Link.Health;
+        _lastHits = Link.MyArrowHits;
     }
 
     private void ShowIdentity()
@@ -448,7 +515,7 @@ public partial class ClientGame : Node3D
 
     private PlayerInput ReadInput()
     {
-        bool captured = Input.MouseMode == Input.MouseModeEnum.Captured;
+        bool captured = Input.MouseMode == Input.MouseModeEnum.Captured && !Dead;
         Vector2 move = captured
             ? Input.GetVector(InputActions.MoveLeft, InputActions.MoveRight, InputActions.MoveForward, InputActions.MoveBack)
             : Vector2.Zero;
@@ -477,6 +544,11 @@ public partial class ClientGame : Node3D
         {
             buttons |= InputButtons.Use;
             _usePressed = false;
+        }
+
+        if (_firePressed && Dead)
+        {
+            _firePressed = false;
         }
 
         if (_firePressed)
@@ -589,7 +661,7 @@ public partial class ClientGame : Node3D
     /// </summary>
     private void Mine(double delta)
     {
-        bool holding = !Creative && !State.InPlane && Input.MouseMode == Input.MouseModeEnum.Captured
+        bool holding = !Creative && !State.InPlane && !Dead && !HoldingBow && Input.MouseMode == Input.MouseModeEnum.Captured
                        && Input.IsActionPressed(InputActions.Break);
         if (!holding || Aim() is not { } hit)
         {
@@ -637,7 +709,9 @@ public partial class ClientGame : Node3D
         else
         {
             IReadOnlyDictionary<string, int> backpack = Link.Backpack;
-            _hud.Hotbar.ShowCounts(slot => slot.IsStructure ? null : Items.ItemPlacing(slot.Block) is { } item ? backpack.Of(item.Id) : 0);
+            _hud.Hotbar.ShowCounts(slot => slot.IsHandItem ? (backpack.Of(Bow) > 0 ? backpack.Of(Arrow) : 0)
+                : slot.IsStructure ? null
+                : Items.ItemPlacing(slot.Block) is { } item ? backpack.Of(item.Id) : 0);
             string contents = string.Join(", ", backpack.Select(b => $"{Items.Item(b.Key)?.Name ?? b.Key} {b.Value}"));
             _hud.ShowBackpack($"Backpack {backpack.Total()} / {Items.BackpackCapacity}{(contents.Length > 0 ? ":  " + contents : "")}");
         }
@@ -679,7 +753,8 @@ public partial class ClientGame : Node3D
         }
 
         ObjectKind kind = Link.Objects.KindOf(storage);
-        _hud.Storage.Show($"{storage.Team} {kind.Name}", Link.Creative ? ItemCounts.None : Link.Backpack, Items.BackpackCapacity,
+        // Nothing goes into a dropped backpack, so it shows no backpack to put in from.
+        _hud.Storage.Show(kind.Loot ? kind.Name : $"{storage.Team} {kind.Name}", Link.Creative || kind.Loot ? ItemCounts.None : Link.Backpack, Items.BackpackCapacity,
             ItemCounts.Contents(storage), kind.Capacity, Items);
     }
 
@@ -753,7 +828,7 @@ public partial class ClientGame : Node3D
             return false;
         }
 
-        if (target.Team != Link.MyTeam)
+        if (target.Team != Link.MyTeam && !kind.Loot)
         {
             _hud.Toast($"That's the other team's {kind.Name.ToLowerInvariant()}.");
             return true;
@@ -795,6 +870,11 @@ public partial class ClientGame : Node3D
 
     private void Place()
     {
+        if (HoldingBow)
+        {
+            return;
+        }
+
         if (_hud.Hotbar.Selected.Kind is { } kind)
         {
             PlaceStructure(kind);
@@ -888,6 +968,13 @@ public partial class ClientGame : Node3D
     /// </summary>
     private string? AimedStructure()
     {
+        if (HoldingBow && Link is not null)
+        {
+            return Creative ? "Bow: left click to shoot"
+                : Link.Backpack.Of(Bow) == 0 ? "Bow: you don't have one"
+                : $"Bow: {Link.Backpack.Of(Arrow)} arrows, left click to shoot";
+        }
+
         if (_hud.Hotbar.Selected.Kind is { } selected && !Creative && Link is not null)
         {
             if (Locked(Unlock.Structure(selected.Id)) is { } locked)
@@ -905,7 +992,8 @@ public partial class ClientGame : Node3D
         }
 
         ObjectKind kind = objects.KindOf(structure);
-        string open = structure.Team != Link.MyTeam ? ""
+        string open = kind.Loot ? $"   {ItemCounts.Contents(structure).Total()} items, E to take"
+            : structure.Team != Link.MyTeam ? ""
             : kind.IsStorage ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open"
             : Items.Recipes.Any(r => r.Station == kind.Id) ? "   E to craft"
             : kind.Smelter is not null ? $"   {(structure.Values.Of(Furnaces.BurnValue) > 0 ? "burning, " : "")}E to open"
@@ -989,6 +1077,27 @@ public partial class ClientGame : Node3D
         {
             _bombs[gone].QueueFree();
             _bombs.Remove(gone);
+        }
+    }
+
+    private void ShowArrows(IReadOnlyDictionary<int, ArrowState> arrows)
+    {
+        foreach ((int id, ArrowState arrow) in arrows)
+        {
+            if (!_arrows.TryGetValue(id, out ArrowModel? model))
+            {
+                model = new ArrowModel();
+                _others.AddChild(model);
+                _arrows[id] = model;
+            }
+
+            model.ShowState(ToGodot(arrow.Position), ToGodot(arrow.Velocity));
+        }
+
+        foreach (int gone in _arrows.Keys.Where(id => !arrows.ContainsKey(id)).ToList())
+        {
+            _arrows[gone].QueueFree();
+            _arrows.Remove(gone);
         }
     }
 

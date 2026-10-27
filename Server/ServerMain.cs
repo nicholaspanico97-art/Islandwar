@@ -99,6 +99,10 @@ public partial class ServerMain : Node, IServerTransport
 
     public void BroadcastExplosion(Explosion explosion) => _net.BroadcastExplosion(explosion);
 
+    public void BroadcastArrowShot(ArrowShot shot) => _net.BroadcastArrowShot(shot);
+
+    public void BroadcastArrowLanded(ArrowLanded landed) => _net.BroadcastArrowLanded(landed);
+
     public void BroadcastEdit(VoxelEdit edit) => _net.BroadcastEdit(edit);
 
     public void SendEdit(int peer, VoxelEdit edit) => _net.SendEdit(peer, edit);

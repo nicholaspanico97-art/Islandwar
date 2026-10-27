@@ -8,7 +8,7 @@
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
 #   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
-#   ./build.sh matchtest          four headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research
+#   ./build.sh matchtest          five headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -151,6 +151,8 @@ matchtest() {
   match_scenario nuke 7792 nuker defender --preset=nuketest --dev
   rejoin_scenario 7793
   research_scenario 7794
+  # Developer mode lets the archer noclip over to the other island; practice is creative (no bow needed).
+  match_scenario combat 7795 archer target --preset=practice --dev
   if [ "$scenario_failed" -ne 0 ]; then
     echo "Match test FAILED. Logs: $logs"
     exit 1

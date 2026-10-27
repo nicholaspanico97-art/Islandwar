@@ -3,20 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using IslandWar.Client.Voxels;
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Client.Ui;
 
-/// <summary>One hotbar slot: a block to place, or a kind of structure.</summary>
-public readonly record struct HotbarItem(Block Block, ObjectKind? Kind = null)
+/// <summary>One hotbar slot: a block to place, a kind of structure, or an item held in the hand (the bow).</summary>
+public readonly record struct HotbarItem(Block Block, ObjectKind? Kind = null, ItemKind? Item = null)
 {
     public bool IsStructure => Kind is not null;
 
-    public string Label => Kind?.Name ?? Block.ToString();
+    public bool IsHandItem => Item is not null;
 
-    public Color Color => Kind is { } kind ? new Color(kind.Color) : BlockColors.Of(Block);
+    public string Label => Item?.Name ?? Kind?.Name ?? Block.ToString();
+
+    public Color Color => Item is { } item ? new Color(item.Color) : Kind is { } kind ? new Color(kind.Color) : BlockColors.Of(Block);
 }
 
 /// <summary>
@@ -40,6 +43,9 @@ public partial class Hotbar : HBoxContainer
     /// <summary>The blocks to offer; every placeable block when null (creative).</summary>
     public IReadOnlyList<Block>? Blocks { get; init; }
 
+    /// <summary>Items held in the hand, offered last.</summary>
+    public IReadOnlyList<ItemKind> HandItems { get; init; } = Array.Empty<ItemKind>();
+
     private readonly List<Label> _counts = new();
     private string _shownCounts = "";
 
@@ -54,6 +60,7 @@ public partial class Hotbar : HBoxContainer
         AddThemeConstantOverride("separation", 6);
         Items = (Blocks ?? Enum.GetValues<Block>().Where(BuildRules.Placeable).Order().ToArray()).Select(b => new HotbarItem(b))
             .Concat(Kinds.Select(k => new HotbarItem(Block.Structure, k)))
+            .Concat(HandItems.Select(i => new HotbarItem(Block.Air, null, i)))
             .ToArray();
         for (int i = 0; i < Items.Count; i++)
         {
@@ -122,7 +129,14 @@ public partial class Hotbar : HBoxContainer
         var swatch = new ColorRect { Color = item.Color, MouseFilter = MouseFilterEnum.Ignore };
         swatch.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 8);
         slot.AddChild(swatch);
-        if (item.IsStructure)
+        if (item.IsHandItem)
+        {
+            // A hand item is a thin diagonal bar: a bow, until there are icons.
+            var bar = new ColorRect { Color = item.Color.Darkened(0.4f), MouseFilter = MouseFilterEnum.Ignore, Size = new Vector2(6, SlotSize - 20),
+                Position = new Vector2(SlotSize / 2 - 3, 10), PivotOffset = new Vector2(3, (SlotSize - 20) / 2), Rotation = Mathf.Pi / 4 };
+            slot.AddChild(bar);
+        }
+        else if (item.IsStructure)
         {
             var inner = new ReferenceRect { BorderColor = new Color(1, 1, 1, 0.8f), BorderWidth = 2, EditorOnly = false, MouseFilter = MouseFilterEnum.Ignore };
             inner.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 14);

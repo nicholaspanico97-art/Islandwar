@@ -276,7 +276,7 @@ the timed phases for trying bombs and the nuke. Join one client to each team. Ch
 ./build.sh matchtest
 ```
 
-Four scenarios, one after the other:
+Five scenarios, one after the other:
 - **flow**: a headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher`
   bot per team. Each places a plank in warmup, then checks that the start reset the world (the plank
   gone, the hash matching the server's), that the stages came in order and the time limit ended it.
@@ -291,6 +291,10 @@ Four scenarios, one after the other:
   alone on Red, so warmup never ends) and Red's `researcher`. It mines stone in reach of its spawn, one block
   per hardness, until the team has 16 Stone Age points; researches Mining and Logging; checks placing stone
   is refused (it needs Fortification).
+- **combat** (from Bronze Age piece 1): a server on the `practice` preset in developer mode (creative, so
+  the bow needs nothing) with Red's `archer` and Blue's `target`. The archer flies with noclip to hover a
+  few blocks from the target and shoots until it dies; the target checks it died and came back at full
+  health, and the archer waits for it to reappear.
 
 Every bot finishes by comparing game hashes (world and structures) with the server. Expected output ends with:
 
@@ -309,6 +313,10 @@ Every bot finishes by comparing game hashes (world and structures) with the serv
 [bot researcher] researched mining and logging; 1 Stone Age points left
 [bot researcher] placing stone was refused (needs Fortification)
 [bot researcher] PASS: game hash <h4>, server <h4>
+[bot archer] the target is down after 4 hits; waiting for it to come back
+[bot archer] PASS: game hash <h5>, server <h5>
+[bot target] respawned with 100 health
+[bot target] PASS: game hash <h5>, server <h5>
 Match test PASSED
 ```
 
@@ -555,4 +563,31 @@ locked until WWI. Check, in order:
 8. Walking up to the plane says `The plane needs the WWI era`, and E does nothing. The scoreboard footer
    (Tab) shows the team's era and how many techs it has.
 9. A practice server (creative) has everything unlocked and shows no era; R says so.
+
+
+
+## Bronze Age, piece 1: health, death and archery
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+./build.sh client
+```
+
+One client on each team, both kept in warmup (or use `--preset=practice`, where the bow needs nothing). To
+get a bow quickly in `quick`, research up to the Bronze Age and then Archery (15 Bronze Age points). Check, in
+order:
+1. `Health 100 / 100` bottom left, above the hotbar. The help line mentions R research.
+2. After Archery, the workbench makes a bow (3 planks and a log) and arrows (a plank and a stone make 4).
+   The last hotbar slot (0) is the bow; its count is your arrows. With it selected the prompt says
+   `Bow: 4 arrows, left click to shoot`, and left click shoots instead of mining. Without a bow or arrows,
+   a note says what's missing.
+3. Arrows fly in an arc and stop at the first block. Hitting the other team's player: they lose 25 health
+   and see `Hit! -25 health`; you see `Your arrow hit!`. Teammates aren't hurt. Arrows don't break blocks.
+4. Four hits kill. The dead player's screen goes dark red: `You died`, `Back at your island in 5 s`. They
+   can't move, build or shoot, and vanish for everyone else. After 5 s they're back at their island with
+   full health.
+5. What the dead player carried is in a dropped backpack where they fell (a small brown block). Anyone, of
+   either team, can press E on it and take things out; nothing goes in, and it disappears once empty. It
+   isn't team stock.
 
