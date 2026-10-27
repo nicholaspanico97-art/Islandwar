@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using IslandWar.Sim.Items;
+using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Research;
 using IslandWar.Sim.Voxels;
@@ -11,7 +12,8 @@ namespace IslandWar.Client.Bots;
 /// The research bot for the automated match test (see docs/testing.md): alone on Red on a real-match preset,
 /// so warmup never ends and nothing resets. From where it spawns it mines stone in reach by hand, one block
 /// per hardness, until the team has the Stone Age points for Mining and Logging; researches both; checks that
-/// placing stone is still refused (it needs Fortification); then compares its game hash with the server's.
+/// placing stone is still refused (it needs Fortification); puts down a depot blueprint and delivers its stone
+/// to it; then compares its game hash with the server's.
 /// </summary>
 public partial class ResearchBot : TestBot
 {
@@ -119,7 +121,43 @@ public partial class ResearchBot : TestBot
             }
 
             Log("placing stone was refused (needs Fortification)");
-            CompareWithServer();
+            PlaceBlueprint();
+        });
+    }
+
+    /// <summary>A depot blueprint in reach, then our stone delivered to it: it must show on the blueprint.</summary>
+    private void PlaceBlueprint()
+    {
+        ObjectKind depot = Net.Objects!.Kinds.Get("depot")!;
+        System.Numerics.Vector3 eye = Eye!.Value;
+        System.Numerics.Vector3 feet = Spawn.Player.Position;
+        int reach = (int)Net.Data!.Player.Reach;
+        BlockPos? spot = (
+            from y in Enumerable.Range((int)eye.Y - reach, reach * 2).Reverse() // on the surface, not in the pit it mined
+            from x in Enumerable.Range((int)eye.X - reach, reach * 2)
+            from z in Enumerable.Range((int)eye.Z - reach, reach * 2)
+            let origin = new BlockPos(x, y, z)
+            where GameObject.FootprintOf(depot, origin, 0).Any(b => BuildRules.InReach(Net.Data.Player, eye, b))
+                  && ObjectRules.WhyNot(World, Net.Data.Player, depot, origin, 0, new[] { feet }) is null
+            select (BlockPos?)origin).FirstOrDefault();
+        if (spot is not { } at)
+        {
+            Finish(false, "found no room for a depot in reach");
+            return;
+        }
+
+        Net.RequestPlace(depot.Id, at, 0);
+        WaitUntil(() => Net.Objects.At(at) is { } placed && placed.IsBlueprint(), () =>
+        {
+            GameObject blueprint = Net.Objects.At(at)!;
+            int stone = System.Math.Min(Net.Backpack.Of("stone"), depot.Cost.Of("stone"));
+            Log($"placed a depot blueprint at {at}; delivering {stone} stone");
+            Net.RequestTransfer(blueprint.Id, Blueprint.DeliveredSlot, "stone", stone, true);
+            WaitUntil(() => Net.Objects.Get(blueprint.Id) is { } after && Blueprint.Delivered(after).Of("stone") == stone, () =>
+            {
+                Log($"the blueprint now needs {string.Join(", ", Blueprint.Missing(Net.Objects.Get(blueprint.Id)!, depot).Select(m => $"{m.Value} {m.Key}"))}");
+                CompareWithServer();
+            });
         });
     }
 }

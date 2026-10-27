@@ -20,7 +20,7 @@ public static class BlockColors
         Block.IronOre => new Color(0.62f, 0.42f, 0.36f),
         Block.Coal => new Color(0.16f, 0.16f, 0.17f),
         Block.Clay => new Color(0.62f, 0.64f, 0.70f),
-        Block.Structure => new Color(0.25f, 0.25f, 0.27f), // hidden under the structure's own model
+        Block.Structure => new Color(0.25f, 0.25f, 0.27f), // not drawn: the structure draws its own model
         _ => new Color(1, 0, 1), // magenta: a new block type without a colour yet
     };
 }

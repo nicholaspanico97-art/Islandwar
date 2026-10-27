@@ -823,7 +823,7 @@ public partial class ClientGame : Node3D
 
         ObjectKind kind = objects.KindOf(target);
         bool station = Items.Recipes.Any(r => r.Station == kind.Id);
-        if (!kind.IsStorage && !station && kind.Smelter is null)
+        if (!kind.IsStorage && !station && kind.Smelter is null && !target.IsBlueprint())
         {
             return false;
         }
@@ -831,6 +831,12 @@ public partial class ClientGame : Node3D
         if (target.Team != Link.MyTeam && !kind.Loot)
         {
             _hud.Toast($"That's the other team's {kind.Name.ToLowerInvariant()}.");
+            return true;
+        }
+
+        if (target.IsBlueprint())
+        {
+            Deliver(target, kind);
             return true;
         }
 
@@ -849,6 +855,27 @@ public partial class ClientGame : Node3D
 
         Input.MouseMode = Input.MouseModeEnum.Visible;
         return true;
+    }
+
+    /// <summary>Carries everything in our backpack that a blueprint still needs to it.</summary>
+    private void Deliver(GameObject blueprint, ObjectKind kind)
+    {
+        IReadOnlyDictionary<string, int> missing = Blueprint.Missing(blueprint, kind);
+        var delivering = missing.Select(m => (Item: m.Key, Count: Math.Min(m.Value, Link!.Backpack.Of(m.Key)))).Where(d => d.Count > 0).ToList();
+        if (delivering.Count == 0)
+        {
+            _hud.Toast($"The {kind.Name.ToLowerInvariant()} needs {CountsText(missing)}. You carry none of it.");
+            return;
+        }
+
+        foreach ((string item, int count) in delivering)
+        {
+            Link!.RequestTransfer(blueprint.Id, Blueprint.DeliveredSlot, item, count, true);
+            missing = missing.Plus(item, -count);
+        }
+
+        string delivered = CountsText(delivering.ToDictionary(d => d.Item, d => d.Count));
+        _hud.Toast(missing.Count == 0 ? $"Delivered {delivered}. The {kind.Name.ToLowerInvariant()} is built!" : $"Delivered {delivered}. Still needs {CountsText(missing)}.");
     }
 
     private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null || _hud.Research.IsOpen;
@@ -950,17 +977,14 @@ public partial class ClientGame : Node3D
             return;
         }
 
-        if (!Creative && !Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None).Covers(kind.Cost))
-        {
-            _hud.Toast($"A {kind.Name} takes {CostText(kind)}.");
-            return;
-        }
-
+        // Placing is free: it puts down a blueprint that players then carry the cost to.
         Link.RequestPlace(kind.Id, placement.Origin, placement.Facing);
     }
 
-    private string CostText(ObjectKind kind) =>
-        kind.Cost.Count == 0 ? "nothing" : string.Join(", ", kind.Cost.Select(c => $"{c.Value} {Items.Item(c.Key)?.Name.ToLowerInvariant() ?? c.Key}"));
+    private string CostText(ObjectKind kind) => kind.Cost.Count == 0 ? "nothing" : CountsText(kind.Cost);
+
+    private string CountsText(IReadOnlyDictionary<string, int> counts) =>
+        string.Join(", ", counts.Select(c => $"{c.Value} {Items.Item(c.Key)?.Name.ToLowerInvariant() ?? c.Key}"));
 
     /// <summary>
     /// The prompt line: what the selected structure costs, or the name, team and health of the structure
@@ -982,8 +1006,7 @@ public partial class ClientGame : Node3D
                 return $"{selected.Name}: {locked.ToLowerInvariant()}";
             }
 
-            bool afford = Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None).Covers(selected.Cost);
-            return $"{selected.Name}: {CostText(selected)}{(afford ? "" : "  (not enough)")}";
+            return selected.Cost.Count == 0 ? selected.Name : $"{selected.Name}: right click for a blueprint, then bring {CostText(selected)}";
         }
 
         if (Link?.Objects is not { } objects || Aim() is not { } hit || objects.At(hit.Block) is not { } structure)
@@ -992,6 +1015,12 @@ public partial class ClientGame : Node3D
         }
 
         ObjectKind kind = objects.KindOf(structure);
+        if (structure.IsBlueprint())
+        {
+            string deliver = structure.Team == Link.MyTeam ? ", E to deliver" : "";
+            return $"{structure.Team} {kind.Name} blueprint: needs {CountsText(Blueprint.Missing(structure, kind))}{deliver}   (hold left click to take it down)";
+        }
+
         string open = kind.Loot ? $"   {ItemCounts.Contents(structure).Total()} items, E to take"
             : structure.Team != Link.MyTeam ? ""
             : kind.IsStorage ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open"
@@ -1010,7 +1039,7 @@ public partial class ClientGame : Node3D
             return "";
         }
 
-        int standing = objects.All.Count(o => o.Team == Link.MyTeam);
+        int standing = objects.All.Count(o => o.Team == Link.MyTeam && !o.IsBlueprint());
         string stock = Link.TeamState is { Stock.Count: > 0 } state
             ? string.Join(", ", state.Stock.Select(s => $"{s.Key} {s.Value}"))
             : "nothing yet";

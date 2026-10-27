@@ -10,7 +10,9 @@ using IslandWar.Sim.Voxels;
 namespace IslandWar.Sim.Server;
 
 /// <summary>
-/// Structures: placing and removing them on request, and bomb damage. A structure's footprint blocks travel
+/// Structures: placing and removing them on request, building blueprints, and bomb damage. In a real match a
+/// placed structure starts as a blueprint (see <see cref="Blueprint"/>) that players finish by carrying its
+/// cost to it; in creative it's built at once. A structure's footprint blocks travel
 /// to clients as ordinary edits, before the object itself, so every client's world and objects agree.
 /// </summary>
 public sealed class Structures
@@ -40,7 +42,6 @@ public sealed class Structures
         }
 
         ObjectKind? kind = _state.Data.Kinds.Get(kindId);
-        Payment? payment = kind is null || _state.Creative ? null : Inventory!.Plan(player, kind.Cost);
         string? reason = kind is null ? "unknown kind"
             : kind.Loot ? "players can't place that"
             : player.Dead ? "dead"
@@ -49,20 +50,19 @@ public sealed class Structures
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, GameObject.FootprintOf(kind, origin, facing)) ? "out of reach"
             : ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, facing, Blockers())
-              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way"
-                  : !_state.Creative && payment is null ? "can't afford it" : null);
+              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way" : null);
         if (reason is not null)
         {
             _state.Log($"[server] rejected peer {peer} placing {kindId} at {origin}: {reason}");
             return;
         }
 
-        if (payment is not null)
+        var placed = new GameObject(_nextId++, kind!.Id, player.Team, player.PlayerId, origin, facing, kind.MaxHealth);
+        if (!_state.Creative && kind.Cost.Count > 0)
         {
-            Inventory!.Pay(player, payment);
+            placed = Blueprint.Start(placed, kind);
         }
 
-        var placed = new GameObject(_nextId++, kind!.Id, player.Team, player.PlayerId, origin, facing, kind.MaxHealth);
         foreach (BlockPos cell in placed.Footprint(kind))
         {
             Apply(new VoxelEdit(cell, Block.Structure, placed.Owner));
@@ -70,7 +70,18 @@ public sealed class Structures
 
         _state.Objects.Set(placed);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { placed }));
-        _state.Log($"[server] peer {peer} placed a {kind.Name} (object {placed.Id}) at {origin} for {player.Team}");
+        _state.Log($"[server] peer {peer} placed a {kind.Name}{(placed.IsBlueprint() ? " blueprint" : "")} (object {placed.Id}) at {origin} for {player.Team}");
+    }
+
+    /// <summary>Builds a blueprint whose cost has all been delivered, and tells everyone.</summary>
+    public GameObject Finish(GameObject blueprint)
+    {
+        ObjectKind kind = _state.Objects.KindOf(blueprint);
+        GameObject built = Blueprint.Finish(blueprint, kind);
+        _state.Objects.Set(built);
+        _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { built }));
+        _state.Log($"[server] {built.Team}'s {kind.Name} {built.Id} is built");
+        return built;
     }
 
     public void RemoveRequested(int peer, int objectId)
@@ -85,7 +96,7 @@ public sealed class Structures
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, target.Footprint(kind)) ? "out of reach"
             : !Protection.MayBreak(target.Owner, player.PlayerId, player.Team, _state.IsOnline) ? "a teammate built that"
-            : ItemCounts.HasItems(target) ? "it isn't empty"
+            : !target.IsBlueprint() && ItemCounts.HasItems(target) ? "it isn't empty"
             : !_state.Creative && _state.Seconds - player.LastMinedSeconds < _state.Data.Items.StructureHardness - _state.Data.Items.MiningSlackSeconds ? "taking it down too fast"
             : null;
         if (reason is not null)
@@ -103,8 +114,10 @@ public sealed class Structures
         _state.Net.BroadcastObjectRemoved(target.Id);
         _state.Log($"[server] peer {peer} removed {kind.Name} {target.Id}");
 
-        // Taking a structure down by hand gives its materials back, as much as fits.
-        if (!_state.Creative && Inventory!.Refund(player, kind.Cost) is { Count: > 0 } lost)
+        // Taking a structure down by hand gives its materials back, as much as fits: a blueprint's, what was
+        // delivered to it so far.
+        IReadOnlyDictionary<string, int> back = target.IsBlueprint() ? Blueprint.Delivered(target) : kind.Cost;
+        if (!_state.Creative && Inventory!.Refund(player, back) is { Count: > 0 } lost)
         {
             _state.Log($"[server] '{player.Name}' had no room for {string.Join(", ", lost.Select(l => $"{l.Value} {l.Key}"))} from the {kind.Name}");
         }

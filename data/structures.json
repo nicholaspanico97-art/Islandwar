@@ -3,8 +3,11 @@
   // size is in blocks along x, y (up) and z, before turning; turning 90 degrees swaps x and z.
   // color is how clients draw it until there are models.
   // capacity: how many items it stores (any mix). Stored items belong to the team and are lost with it.
-  // cost: what placing one takes, from the backpack first, then the team's storage. Taking it down by hand
-  // gives it back (as much as fits in the backpack); a destroyed one gives nothing.
+  // cost: what building one takes. In a real match placing one puts down its blueprint for free; players
+  // then carry the cost to it from their backpacks (E on it) and it's built when nothing is missing. A
+  // blueprint does nothing (stores, smelts, crafts nothing) and has a quarter of the health. Taking one down
+  // by hand gives back what was delivered (a built one, its whole cost), as much as fits in the backpack; a
+  // destroyed one gives nothing. In creative presets structures are built at once.
   "kinds": [
     { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444", "capacity": 200,
       "cost": { "planks": 6 } },

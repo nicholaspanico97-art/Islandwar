@@ -274,10 +274,35 @@ public class InventoryTests
         return (cell, block);
     }
 
-    /// <summary>A crate just beside the player, on ground levelled for it, paid for with planks given to them first.</summary>
+    /// <summary>
+    /// A built crate (or other kind) just beside the player, on ground levelled for it: its blueprint placed
+    /// and then its cost, given to the player first, delivered to it.
+    /// </summary>
     internal static GameObject PlaceCrate(TestServer test, ServerPlayer player, string kind = "crate")
     {
-        player.Backpack = player.Backpack.Sum(test.State.Data.Kinds.Get(kind)!.Cost);
+        GameObject placed = PlaceBlueprint(test, player, kind);
+        if (!placed.IsBlueprint())
+        {
+            return placed;
+        }
+
+        IReadOnlyDictionary<string, int> cost = test.State.Data.Kinds.Get(kind)!.Cost;
+        IReadOnlyDictionary<string, int> kept = player.Backpack;
+        player.Backpack = cost;
+        foreach ((string item, int count) in cost)
+        {
+            test.Server.TransferRequested(player.Peer, placed.Id, Blueprint.DeliveredSlot, item, count, intoStructure: true);
+        }
+
+        player.Backpack = kept;
+        GameObject built = test.State.Objects.Get(placed.Id) ?? throw new InvalidOperationException(string.Join("\n", test.Log));
+        Assert.False(built.IsBlueprint(), string.Join("\n", test.Log));
+        return built;
+    }
+
+    /// <summary>A structure's blueprint (built at once in creative) just beside the player, on ground levelled for it.</summary>
+    internal static GameObject PlaceBlueprint(TestServer test, ServerPlayer player, string kind = "crate")
+    {
         Vector3 feet = player.Pawn.Player.Position;
         var origin = new BlockPos((int)MathF.Floor(feet.X) + 2, (int)MathF.Floor(feet.Y), (int)MathF.Floor(feet.Z));
         test.Server.World.SetGenerated(origin, Block.Air);

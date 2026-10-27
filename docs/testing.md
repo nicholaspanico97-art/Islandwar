@@ -290,7 +290,8 @@ Five scenarios, one after the other:
 - **research** (from Stone Age piece 4): a server on the `quick` preset (a real match, so research is on;
   alone on Red, so warmup never ends) and Red's `researcher`. It mines stone in reach of its spawn, one block
   per hardness, until the team has 16 Stone Age points; researches Mining and Logging; checks placing stone
-  is refused (it needs Fortification).
+  is refused (it needs Fortification). Since Bronze Age piece 2 it then puts down a depot blueprint and
+  delivers its stone to it.
 - **combat** (from Bronze Age piece 1): a server on the `practice` preset in developer mode (creative, so
   the bow needs nothing) with Red's `archer` and Blue's `target`. The archer flies with noclip to hover a
   few blocks from the target and shoots until it dies; the target checks it died and came back at full
@@ -312,6 +313,8 @@ Every bot finishes by comparing game hashes (world and structures) with the serv
 [bot returner] PASS: game hash <h3>, server <h3>
 [bot researcher] researched mining and logging; 1 Stone Age points left
 [bot researcher] placing stone was refused (needs Fortification)
+[bot researcher] placed a depot blueprint at (x, y, z); delivering 17 stone
+[bot researcher] the blueprint now needs 12 planks, 3 stone
 [bot researcher] PASS: game hash <h4>, server <h4>
 [bot archer] the target is down after 4 hits; waiting for it to come back
 [bot archer] PASS: game hash <h5>, server <h5>
@@ -590,4 +593,28 @@ order:
 5. What the dead player carried is in a dropped backpack where they fell (a small brown block). Anyone, of
    either team, can press E on it and take things out; nothing goes in, and it disappears once empty. It
    isn't team stock.
+
+## Bronze Age, piece 2: building by blueprint
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+```
+
+Stay in warmup (keep the other team empty). Check, in order:
+1. Select a structure in the hotbar (crate, depot, workbench, furnace once researched). The prompt says
+   `Depot: right click for a blueprint, then bring 12 planks, 20 stone`. Right click puts it down even
+   with an empty backpack: a pale see-through box in your team's colour, labelled `Depot (blueprint)` and
+   `0% delivered`.
+2. Aiming at it: `Red Depot blueprint: needs 12 planks, 20 stone, E to deliver`.
+3. With some of the cost in your backpack, E delivers everything it still needs that you carry (a note
+   says what went in and what's still missing). A solid block in the structure's colour fills up from the
+   bottom as deliveries come in. Anything it doesn't need stays in your backpack.
+4. A blueprint does nothing: E on a crate or depot blueprint delivers instead of opening storage; a
+   furnace blueprint doesn't smelt; a workbench blueprint doesn't craft. Team stock leaves blueprints out.
+5. The last delivery builds it: note `The depot is built!`, normal look, full health, works as before.
+6. Taking a blueprint down (hold left click) gives back what was delivered so far; a built structure gives
+   its whole cost as before.
+7. The other team can't deliver to your blueprint (`That's the other team's ...`).
+8. On `practice` (creative) structures still appear built at once.
 

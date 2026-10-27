@@ -188,9 +188,15 @@ public partial class GodotVoxelView : Node3D
         library.Call("add_model", ClassDB.Instantiate("VoxelBlockyModelEmpty"));
         foreach (Block block in Enum.GetValues<Block>().Where(b => b != Block.Air).Order())
         {
-            var cube = ClassDB.Instantiate("VoxelBlockyModelCube").AsGodotObject();
-            cube.Set("color", BlockColors.Of(block));
-            if (library.Call("add_model", cube).AsInt32() != (int)block)
+            // A structure's blocks aren't drawn: it draws its own model (a blueprint's is see-through), and the
+            // ground around them keeps its faces.
+            GodotObject model = ClassDB.Instantiate(block == Block.Structure ? "VoxelBlockyModelEmpty" : "VoxelBlockyModelCube").AsGodotObject();
+            if (block != Block.Structure)
+            {
+                model.Set("color", BlockColors.Of(block));
+            }
+
+            if (library.Call("add_model", model).AsInt32() != (int)block)
             {
                 throw new InvalidOperationException($"Block ids must be contiguous; {block} would render as the wrong model.");
             }

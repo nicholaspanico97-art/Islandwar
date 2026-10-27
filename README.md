@@ -38,8 +38,9 @@ furnace and bronze, and Bronze working takes a team into the Bronze Age (bronze 
 prospecting). Real matches now go by eras instead of timed phases, so planes wait for WWI.
 
 The Bronze Age has started: players have health, die and respawn (dropping what they carried), and Archery
-gives a bow and arrows that hurt the other team. Next: building by blueprint (players haul resources to a
-placed blueprint), then the dock and galley, then the blast furnace and the step into the Iron Age.
+gives a bow and arrows that hurt the other team. Structures are now built by blueprint: placing one is
+free, and players haul its cost to it. Next: the dock and galley, then the blast furnace and the step into
+the Iron Age.
 
 ## Versions
 

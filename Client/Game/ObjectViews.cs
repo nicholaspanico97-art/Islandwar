@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using IslandWar.Client.Ui;
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Voxels;
 
@@ -9,7 +10,7 @@ namespace IslandWar.Client.Game;
 
 /// <summary>
 /// Draws every structure as a coloured box over its footprint (hiding the plain structure blocks under it)
-/// with its name and team above, and a see-through preview of where the selected structure would go. Kept
+/// with its name and team above (a blueprint as a see-through box, filling up as its cost is delivered), and a see-through preview of where the selected structure would go. Kept
 /// in step with the link's object store each frame: objects are replaced whole when they change, so a
 /// changed reference means redraw.
 /// </summary>
@@ -82,6 +83,13 @@ public partial class ObjectViews : Node3D
         Vector3 size = SizeOf(kind, obj.Facing);
         var node = new Node3D { Name = $"Object{obj.Id}", Position = new Vector3(obj.Origin.X, obj.Origin.Y, obj.Origin.Z) + size / 2 };
 
+        if (obj.IsBlueprint())
+        {
+            BuildBlueprint(node, obj, kind, size);
+            AddChild(node);
+            return node;
+        }
+
         // Darker as it takes damage, so a hurt structure is visible from the air.
         float health = Mathf.Clamp((float)obj.Health / kind.MaxHealth, 0, 1);
         Color colour = new Color(kind.Color).Darkened(0.5f * (1 - health));
@@ -112,6 +120,50 @@ public partial class ObjectViews : Node3D
         });
         AddChild(node);
         return node;
+    }
+
+    /// <summary>
+    /// A blueprint: a pale see-through shell in the team's colour, a solid part filling up from the bottom as
+    /// its cost is delivered, and what it still needs above.
+    /// </summary>
+    private static void BuildBlueprint(Node3D node, GameObject obj, ObjectKind kind, Vector3 size)
+    {
+        Color team = TeamColors.Of(obj.Team);
+        node.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = size + Vector3.One * Grow * 2 },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(team.Lightened(0.5f), 0.25f),
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        });
+
+        float done = Mathf.Clamp(Blueprint.Progress(obj, kind), 0, 1);
+        if (done > 0)
+        {
+            float height = size.Y * done;
+            node.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(size.X, height, size.Z) },
+                Position = new Vector3(0, (height - size.Y) / 2, 0),
+                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(kind.Color), Roughness = 0.8f },
+            });
+        }
+
+        node.AddChild(new Label3D
+        {
+            Text = $"{kind.Name} (blueprint)\n{Mathf.RoundToInt(done * 100)}% delivered",
+            Position = new Vector3(0, size.Y / 2 + 0.6f, 0),
+            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+            Modulate = team.Lightened(0.4f),
+            OutlineSize = 8,
+            PixelSize = 0.01f,
+            FontSize = 48,
+        });
     }
 
     private static Vector3 SizeOf(ObjectKind kind, int facing) =>

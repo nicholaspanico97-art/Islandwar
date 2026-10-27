@@ -59,7 +59,8 @@ public sealed class Inventory
     /// <summary>
     /// Moves up to <paramref name="count"/> of an item between a player's backpack and a slot of one of their
     /// team's structures (a storage's <c>item</c> slot, or a furnace's input, fuel or output), as much as is
-    /// there and as fits on the other side.
+    /// there and as fits on the other side. Delivering to a blueprint (its <c>delivered</c> slot) only goes in,
+    /// only what it still needs, and builds it once nothing is missing.
     /// </summary>
     public void TransferRequested(int peer, int objectId, string slot, string item, int count, bool intoStructure)
     {
@@ -76,7 +77,10 @@ public sealed class Inventory
             : player.Pawn.InPlane ? "flying a plane"
             : !InReach(player, target, kind) ? "out of reach"
             : Items.Item(item) is null ? "unknown item"
-            : SlotCapacity(kind, slot) is null ? $"no {slot} slot"
+            : target.IsBlueprint() != (slot == Blueprint.DeliveredSlot) ? (target.IsBlueprint() ? "it isn't built yet" : "it's already built")
+            : slot == Blueprint.DeliveredSlot && !intoStructure ? "deliveries stay in"
+            : slot == Blueprint.DeliveredSlot && Blueprint.Missing(target, kind).Of(item) == 0 ? $"it doesn't need {item}"
+            : slot != Blueprint.DeliveredSlot && SlotCapacity(kind, slot) is null ? $"no {slot} slot"
             : intoStructure && !Accepts(slot, item) ? $"{item} doesn't go in the {slot}"
             : null;
         if (reason is not null)
@@ -85,8 +89,9 @@ public sealed class Inventory
             return;
         }
 
+        int room = slot == Blueprint.DeliveredSlot ? Blueprint.Missing(target, kind).Of(item) : SlotCapacity(kind, slot)!.Value - held.Total();
         int moved = intoStructure
-            ? Math.Min(Math.Min(count, player.Backpack.Of(item)), SlotCapacity(kind, slot)!.Value - held.Total())
+            ? Math.Min(Math.Min(count, player.Backpack.Of(item)), room)
             : Math.Min(Math.Min(count, held.Of(item)), Items.BackpackCapacity - player.Backpack.Total());
         if (moved <= 0)
         {
@@ -98,7 +103,12 @@ public sealed class Inventory
         _state.Objects.Set(changed);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { changed }));
         SendBackpack(player);
-        if (kind.Loot && !ItemCounts.HasItems(changed))
+        _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStructure ? "into" : "out of")} {kind.Name} {target.Id} ({slot})");
+        if (changed.IsBlueprint() && Blueprint.Missing(changed, kind).Count == 0)
+        {
+            Structures?.Finish(changed);
+        }
+        else if (kind.Loot && !ItemCounts.HasItems(changed))
         {
             Structures?.Remove(changed);
         }
@@ -106,8 +116,6 @@ public sealed class Inventory
         {
             RecountStock(player.Team);
         }
-
-        _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStructure ? "into" : "out of")} {kind.Name} {target.Id} ({slot})");
     }
 
     /// <summary>How many items a slot of a kind of structure holds, or null if it has no such slot.</summary>
@@ -232,9 +240,9 @@ public sealed class Inventory
         }
     }
 
-    /// <summary>A team's storage structures; a dropped backpack isn't one, whoever's it was.</summary>
+    /// <summary>A team's built storage structures; a dropped backpack isn't one, whoever's it was.</summary>
     private IEnumerable<GameObject> TeamStorage(Team team) =>
-        _state.Objects.All.Where(o => o.Team == team && _state.Objects.KindOf(o) is { IsStorage: true, Loot: false });
+        _state.Objects.All.Where(o => o.Team == team && !o.IsBlueprint() && _state.Objects.KindOf(o) is { IsStorage: true, Loot: false });
 
     private bool InReach(ServerPlayer player, GameObject storage, ObjectKind kind)
     {

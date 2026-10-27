@@ -39,7 +39,7 @@ public sealed class Furnaces
         foreach (GameObject furnace in _state.Objects.All.ToList())
         {
             ObjectKind kind = _state.Objects.KindOf(furnace);
-            if (kind.Smelter is not { } smelter)
+            if (kind.Smelter is not { } smelter || furnace.IsBlueprint())
             {
                 continue;
             }

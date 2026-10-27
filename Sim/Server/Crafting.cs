@@ -62,7 +62,7 @@ public sealed class Crafting
 
     private bool AtStation(ServerPlayer player, string kind, int stationId)
     {
-        if (_state.Objects.Get(stationId) is not { } station || station.Kind != kind || station.Team != player.Team)
+        if (_state.Objects.Get(stationId) is not { } station || station.Kind != kind || station.Team != player.Team || station.IsBlueprint())
         {
             return false;
         }

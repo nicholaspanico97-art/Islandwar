@@ -143,32 +143,6 @@ public class CraftingTests
     }
 
     [Fact]
-    public void StructuresCostTheirMaterialsAndGiveThemBackWhenTakenDown()
-    {
-        var test = new TestServer("quick");
-        ServerPlayer player = test.Join(2, "Builder", Team.Red);
-        ObjectKind crate = Data.Kinds.Get("crate")!;
-        Vector3 feet = player.Pawn.Player.Position;
-        var origin = new BlockPos((int)MathF.Floor(feet.X) + 2, (int)MathF.Floor(feet.Y), (int)MathF.Floor(feet.Z));
-        test.Server.World.SetGenerated(origin, Block.Air);
-        test.Server.World.SetGenerated(origin with { Y = origin.Y - 1 }, Block.Stone);
-
-        test.Server.PlaceRequested(2, "crate", origin, 0);
-        Assert.Equal(0, test.State.Objects.Count);
-        Assert.Contains(test.Log, line => line.Contains("can't afford it"));
-
-        player.Backpack = ItemCounts.None.Sum(crate.Cost);
-        test.Server.PlaceRequested(2, "crate", origin, 0);
-        Assert.Equal(1, test.State.Objects.Count);
-        Assert.Empty(player.Backpack);
-
-        test.Run((int)(Data.Items.StructureHardness * test.State.Data.Net.TickRate) + 1);
-        test.Server.RemoveRequested(2, test.State.Objects.All.Single().Id);
-        Assert.Equal(0, test.State.Objects.Count);
-        Assert.True(player.Backpack.Covers(crate.Cost));
-    }
-
-    [Fact]
     public void MiningOreWithoutAPickaxeIsRefusedAndWithOneItsFaster()
     {
         var test = new TestServer("quick");
