@@ -276,7 +276,7 @@ the timed phases for trying bombs and the nuke. Join one client to each team. Ch
 ./build.sh matchtest
 ```
 
-Five scenarios, one after the other:
+Six scenarios, one after the other:
 - **flow**: a headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher`
   bot per team. Each places a plank in warmup, then checks that the start reset the world (the plank
   gone, the hash matching the server's), that the stages came in order and the time limit ended it.
@@ -296,6 +296,10 @@ Five scenarios, one after the other:
   the bow needs nothing) with Red's `archer` and Blue's `target`. The archer flies with noclip to hover a
   few blocks from the target and shoots until it dies; the target checks it died and came back at full
   health, and the archer waits for it to reappear.
+- **sail** (from Bronze Age piece 3): the `sailor` alone on Red on `practice` in developer mode. It noclips
+  to the shore by its plane's mooring, puts down a dock facing the sea, asks it for a galley (creative: no
+  materials), boards it, rows out for 5 s, turns, rests the oars, and gets off onto dry land. Its prediction
+  must agree with the server throughout (largest correction at most 0.05 blocks).
 
 Every bot finishes by comparing game hashes (world and structures) with the server. Expected output ends with:
 
@@ -320,6 +324,10 @@ Every bot finishes by comparing game hashes (world and structures) with the serv
 [bot archer] PASS: game hash <h5>, server <h5>
 [bot target] respawned with 100 health
 [bot target] PASS: game hash <h5>, server <h5>
+[bot sailor] galley 3 launched at <x, 32, z>; going aboard
+[bot sailor] rowed 25.4 blocks at up to 7.0 blocks/s; turning
+[bot sailor] off the galley at <x, y, z>; largest correction from the server 0.0000 blocks
+[bot sailor] PASS: game hash <h6>, server <h6>
 Match test PASSED
 ```
 
@@ -617,4 +625,29 @@ Stay in warmup (keep the other team empty). Check, in order:
    its whole cost as before.
 7. The other team can't deliver to your blueprint (`That's the other team's ...`).
 8. On `practice` (creative) structures still appear built at once.
+
+## Bronze Age, piece 3: the dock and the galley
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+```
+
+Stay in warmup. Research up to the Bronze Age, then Shipbuilding (20 Bronze Age points). Or use
+`--preset=practice` to skip straight to it (creative: the dock is built at once and E on it launches a galley
+for nothing). Check, in order:
+1. The dock is in the hotbar (a 3 x 6 pier). Its preview is red, with `needs open water in front`, unless
+   you stand on the shore looking out to sea and the water in front of its far end is open (about 4 wide
+   and 9 long). Docks build by blueprint like any structure (20 planks).
+2. Aiming at the built dock: `Red Dock ... Galley: needs 30 planks, 6 logs, 2 bronze ingots, E to deliver`.
+   E delivers what you carry (the backpack holds 40, so it takes more than one trip); the dock's label shows
+   `Galley: N% delivered`.
+3. The last delivery launches a galley into the water in front of the dock, bow out to sea: a brown hull,
+   oars along both sides, a mast with a sail in your team's colour.
+4. Walk to it (`Press E to board the galley`) and press E. The camera follows behind. W rows (the oars
+   sweep), S backs water slowly, A/D turn (slowly even when still). The HUD shows the speed (top 7). The
+   galley stops dead against land. Left and right click do nothing at sea.
+5. E gets you off onto the nearest land or dock within a few blocks; in open water you drop in beside it.
+6. The other team can't board your galley. Another player sees it move smoothly.
+7. A new match (countdown ending) removes every galley along with the docks; the planes stay.
 

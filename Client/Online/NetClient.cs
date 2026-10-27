@@ -396,7 +396,7 @@ public partial class NetClient : Node, IGameLink
         foreach (PlaneSnapshot plane in snapshot.Planes)
         {
             Buffer(_planes, plane.Id, InterpolationBuffers.ForPlane)
-                .Add(snapshot.Tick, new RemotePlane(plane.State.Position, plane.State.Rotation, plane.State.Throttle, plane.PilotPeerId, plane.Team));
+                .Add(snapshot.Tick, new RemotePlane(plane.State.Position, plane.State.Rotation, plane.State.Throttle, plane.PilotPeerId, plane.Team, plane.State.Ship));
         }
 
         Prune(_others, snapshot.Players.Select(p => p.PeerId).ToHashSet());

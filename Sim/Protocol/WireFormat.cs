@@ -129,6 +129,7 @@ public static class WireFormat
                 writer.Write(plane.State.Sink);
                 writer.Write(plane.State.Throttle);
                 writer.Write(plane.State.OnGround);
+                writer.Write(plane.State.Ship ?? "");
             }
         });
     }
@@ -165,6 +166,8 @@ public static class WireFormat
             Vector3 position = Read(reader);
             var rotation = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             var state = new PlaneState(position, rotation, reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadBoolean());
+            string ship = reader.ReadString();
+            state = state with { Ship = ship.Length == 0 ? null : ship };
             planes[i] = new PlaneSnapshot(id, state, pilot, team);
         }
 

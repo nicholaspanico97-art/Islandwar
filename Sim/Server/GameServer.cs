@@ -115,6 +115,8 @@ public sealed class GameServer
 
     public Structures Structures => _structures;
 
+    public Vehicles Vehicles => _vehicles;
+
     /// <summary>
     /// A fair start: the island regenerated from the seed, structures gone, teams back to nothing, planes back
     /// on their moorings, bombs gone, everyone on foot at their team's spawn. Every client gets the fresh world, the same way a late joiner would.

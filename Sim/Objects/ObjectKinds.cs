@@ -1,3 +1,5 @@
+using IslandWar.Sim.Vehicles;
+
 namespace IslandWar.Sim.Objects;
 
 /// <summary>A size in blocks.</summary>
@@ -45,6 +47,9 @@ public sealed record ObjectKind
     /// </summary>
     public bool Loot { get; init; }
 
+    /// <summary>Set for a dock: it builds ships, launched into the water in front of it.</summary>
+    public DockSpec? Dock { get; init; }
+
     /// <summary>How clients draw it until there are models, as <c>#rrggbb</c>.</summary>
     public string Color { get; init; } = "#808080";
 }
@@ -57,14 +62,28 @@ public sealed class ObjectKinds
 
     private readonly Dictionary<string, ObjectKind> _byId;
 
-    public ObjectKinds(IEnumerable<ObjectKind> kinds)
+    public ObjectKinds(IEnumerable<ObjectKind> kinds, IEnumerable<ShipKind>? ships = null)
     {
+        Ships = new Dictionary<string, ShipKind>(StringComparer.Ordinal);
+        foreach (ShipKind ship in ships ?? Array.Empty<ShipKind>())
+        {
+            if (!Ships.TryAdd(ship.Id, ship))
+            {
+                throw new InvalidDataException($"structures.json: two ships are called '{ship.Id}'.");
+            }
+        }
+
         _byId = new Dictionary<string, ObjectKind>(StringComparer.Ordinal);
         foreach (ObjectKind kind in kinds)
         {
             if (kind.Id.Length == 0 || kind.Name.Length == 0 || !_byId.TryAdd(kind.Id, kind))
             {
                 throw new InvalidDataException($"structures.json: every kind needs a unique id and a name ('{kind.Id}').");
+            }
+
+            if (kind.Dock is { } dock && (dock.Ships.Count == 0 || dock.Ships.Any(s => !Ships.ContainsKey(s))))
+            {
+                throw new InvalidDataException($"structures.json: dock '{kind.Id}' must build ships from the ships list.");
             }
 
             if (kind.Smelter is { SlotCapacity: <= 0 })
@@ -91,10 +110,22 @@ public sealed class ObjectKinds
 
     public ObjectKind? Get(string id) => _byId.TryGetValue(id, out ObjectKind? kind) ? kind : null;
 
-    public static ObjectKinds FromJson(string json) => new(DataJson.Parse<KindsFile>(json, "structures.json").Kinds);
+    /// <summary>Every kind of ship, by id.</summary>
+    public Dictionary<string, ShipKind> Ships { get; }
+
+    /// <summary>The ship a dock builds (the first it lists, until there's a choice), or null for any other kind.</summary>
+    public ShipKind? ShipBuiltAt(ObjectKind kind) => kind.Dock is { } dock ? Ships[dock.Ships[0]] : null;
+
+    public static ObjectKinds FromJson(string json)
+    {
+        KindsFile file = DataJson.Parse<KindsFile>(json, "structures.json");
+        return new ObjectKinds(file.Kinds, file.Ships);
+    }
 
     private sealed record KindsFile
     {
         public IReadOnlyList<ObjectKind> Kinds { get; init; } = Array.Empty<ObjectKind>();
+
+        public IReadOnlyList<ShipKind> Ships { get; init; } = Array.Empty<ShipKind>();
     }
 }

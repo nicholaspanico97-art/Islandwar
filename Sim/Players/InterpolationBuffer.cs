@@ -16,14 +16,16 @@ public readonly record struct RemoteState(Vector3 Position, float Yaw, float Pit
 }
 
 /// <summary>A plane as other clients draw it.</summary>
-public readonly record struct RemotePlane(Vector3 Position, Quaternion Rotation, float Throttle, int PilotPeerId, Team Team = Team.None)
+/// <param name="Ship">The ship kind, or null for a plane.</param>
+public readonly record struct RemotePlane(Vector3 Position, Quaternion Rotation, float Throttle, int PilotPeerId, Team Team = Team.None, string? Ship = null)
 {
     public static RemotePlane Lerp(RemotePlane a, RemotePlane b, float t) => new(
         Vector3.Lerp(a.Position, b.Position, t),
         Quaternion.Slerp(a.Rotation, b.Rotation, t),
         a.Throttle + (b.Throttle - a.Throttle) * t,
         t < 0.5f ? a.PilotPeerId : b.PilotPeerId,
-        b.Team);
+        b.Team,
+        b.Ship);
 }
 
 /// <summary>

@@ -4,8 +4,8 @@ using IslandWar.Sim.Voxels;
 namespace IslandWar.Sim.Players;
 
 /// <summary>
-/// What a player controls: their body on foot, or a plane they're flying. While flying, the body rides in
-/// the seat at the plane's position.
+/// What a player controls: their body on foot, or a vehicle (a plane or a ship) they're at the controls of.
+/// Aboard, the body rides at the vehicle's position.
 /// </summary>
 /// <param name="PlaneId">The plane being flown, or 0 on foot.</param>
 /// <param name="Plane">That plane's state; unused on foot.</param>
@@ -26,7 +26,9 @@ public static class Pawn
             return pawn with { Player = PlayerMovement.Step(world, rules.Player, pawn.Player, input, dt) };
         }
 
-        PlaneState plane = PlaneFlight.Step(world, rules.Plane, rules.SeaLevel, pawn.Plane, input, dt);
+        PlaneState plane = pawn.Plane.IsShip
+            ? ShipSailing.Step(world, rules.Ship(pawn.Plane.Ship!), rules.SeaLevel, pawn.Plane, input, dt)
+            : PlaneFlight.Step(world, rules.Plane, rules.SeaLevel, pawn.Plane, input, dt);
         return pawn with { Plane = plane, Player = PlayerState.At(plane.Position) };
     }
 }

@@ -5,6 +5,7 @@ using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
 using IslandWar.Sim.Research;
+using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Sim.Server;
@@ -50,7 +51,9 @@ public sealed class Structures
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, GameObject.FootprintOf(kind, origin, facing)) ? "out of reach"
             : ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, facing, Blockers())
-              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a plane is in the way" : null);
+              ?? (GameObject.FootprintOf(kind, origin, facing).Any(_vehicles.AnyPlaneOverlaps) ? "a vehicle is in the way"
+                  : _state.Objects.Kinds.ShipBuiltAt(kind) is { } ship ? ShipSailing.WhyNoWater(_state.World, _state.Rules.SeaLevel, kind, origin, facing, ship)
+                  : null);
         if (reason is not null)
         {
             _state.Log($"[server] rejected peer {peer} placing {kindId} at {origin}: {reason}");
@@ -71,6 +74,22 @@ public sealed class Structures
         _state.Objects.Set(placed);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { placed }));
         _state.Log($"[server] peer {peer} placed a {kind.Name}{(placed.IsBlueprint() ? " blueprint" : "")} (object {placed.Id}) at {origin} for {player.Team}");
+    }
+
+    /// <summary>Everything an object needed has been delivered: builds a blueprint, or launches a dock's ship.</summary>
+    public void Complete(GameObject obj)
+    {
+        if (obj.IsBlueprint())
+        {
+            Finish(obj);
+        }
+        else if (_state.Objects.Kinds.ShipBuiltAt(_state.Objects.KindOf(obj)) is { } ship)
+        {
+            GameObject emptied = Blueprint.UseUp(obj);
+            _state.Objects.Set(emptied);
+            _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { emptied }));
+            _vehicles.Launch(emptied.Team, ship, ShipSailing.Launch(_state.Objects.KindOf(obj), obj.Origin, obj.Facing, ship, _state.Rules.SeaLevel));
+        }
     }
 
     /// <summary>Builds a blueprint whose cost has all been delivered, and tells everyone.</summary>

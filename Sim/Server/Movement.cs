@@ -71,12 +71,13 @@ public sealed class Movement
                 {
                     ServerPlane plane = _state.Planes[player.Pawn.PlaneId];
                     plane.State = player.Pawn.Plane;
-                    if (input.Has(InputButtons.Fire))
+                    // A galley has no weapons yet (the war galley's catapult is the Iron Age's).
+                    if (!plane.State.IsShip && input.Has(InputButtons.Fire))
                     {
                         _weapons.TryDropBomb(player, plane);
                     }
 
-                    if (input.Has(InputButtons.FireNuke))
+                    if (!plane.State.IsShip && input.Has(InputButtons.FireNuke))
                     {
                         _weapons.TryDropNuke(player, plane);
                     }

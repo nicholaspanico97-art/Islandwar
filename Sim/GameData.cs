@@ -40,9 +40,9 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     public TechTree Techs => _economy.Techs;
 
     /// <summary>Items, structures and techs, loaded together so the names each uses from the others can be checked.</summary>
-    private readonly (ItemSettings Items, ObjectKinds Kinds, TechTree Techs) _economy = LoadEconomy(ItemsJson, StructuresJson, TechsJson);
+    private readonly (ItemSettings Items, ObjectKinds Kinds, TechTree Techs) _economy = LoadEconomy(ItemsJson, StructuresJson, TechsJson, NetSettings.FromJson(NetJson));
 
-    public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
+    public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel, Kinds.Ships);
 
     /// <summary>Reads every data file through <paramref name="read"/>, which gets a file name such as <c>terrain.json</c>.</summary>
     public static GameData Load(Func<string, string> read) => new(
@@ -119,7 +119,7 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     }
 
     /// <summary>Loads items, structures and techs, and checks recipe stations, structure costs and unlocks name things that exist.</summary>
-    private static (ItemSettings, ObjectKinds, TechTree) LoadEconomy(string itemsJson, string structuresJson, string techsJson)
+    private static (ItemSettings, ObjectKinds, TechTree) LoadEconomy(string itemsJson, string structuresJson, string techsJson, NetSettings net)
     {
         ItemSettings items = ItemSettings.FromJson(itemsJson);
         ObjectKinds kinds = ObjectKinds.FromJson(structuresJson);
@@ -131,6 +131,15 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         foreach (ObjectKind kind in kinds.All.Where(k => k.Cost.Keys.Any(item => items.Item(item) is null)))
         {
             throw new InvalidDataException($"structures.json: '{kind.Id}' costs an item that isn't in items.json.");
+        }
+
+        foreach (ShipKind ship in kinds.Ships.Values)
+        {
+            ship.Validate(net.TickRate);
+            if (ship.Cost.Keys.Any(item => items.Item(item) is null))
+            {
+                throw new InvalidDataException($"structures.json: ship '{ship.Id}' costs an item that isn't in items.json.");
+            }
         }
 
         return (items, kinds, TechTree.FromJson(techsJson, items, kinds));

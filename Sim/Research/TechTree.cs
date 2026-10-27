@@ -220,7 +220,7 @@ public sealed record TechTree
         parts.AddRange(unlocks.Structures.Select(s => kinds.Get(s)?.Name ?? s));
         parts.AddRange(unlocks.Smelting.Select(s => $"smelting {item(s)}"));
         parts.AddRange(unlocks.Places.Select(p => $"placing {item(p)}"));
-        parts.AddRange(unlocks.Vehicles.Concat(unlocks.Weapons));
+        parts.AddRange(unlocks.Vehicles.Select(v => kinds.Ships.GetValueOrDefault(v)?.Name ?? v).Concat(unlocks.Weapons));
         parts.AddRange(unlocks.Yield.Select(y => $"{y.Value}x {item(y.Key)} from mining"));
         return string.Join(", ", parts);
     }
@@ -294,12 +294,12 @@ public sealed record TechTree
                 && unlocks.Structures.All(s => kinds.Get(s) is not null)
                 && unlocks.Smelting.All(s => items.Smelting.Any(r => r.Makes == s))
                 && unlocks.Places.All(p => items.Item(p)?.Places is not null)
-                && unlocks.Vehicles.All(v => v == "plane")
+                && unlocks.Vehicles.All(v => v == "plane" || kinds.Ships.ContainsKey(v))
                 && unlocks.Weapons.All(w => w == "nuke")
                 && unlocks.Yield.All(y => items.Item(y.Key) is not null && y.Value >= 1);
             if (!known)
             {
-                throw Bad($"'{source}' unlocks something that doesn't exist (vehicles: plane; weapons: nuke).");
+                throw Bad($"'{source}' unlocks something that doesn't exist (vehicles: plane or a ship; weapons: nuke).");
             }
 
             foreach (string key in unlocks.Keys)

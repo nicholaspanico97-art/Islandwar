@@ -19,7 +19,7 @@ public class BlueprintTests
         ObjectKind depot = test.State.Objects.KindOf(placed);
         Assert.True(placed.IsBlueprint());
         Assert.Equal(depot.MaxHealth / Blueprint.HealthDivisor, placed.Health);
-        Assert.Equal(depot.Cost, Blueprint.Missing(placed, depot));
+        Assert.Equal(depot.Cost, Blueprint.Missing(placed, depot, test.State.Objects.Kinds));
         Assert.Empty(player.Backpack);
         Assert.True(test.Net.Objects.Last().IsBlueprint());
     }
@@ -50,7 +50,7 @@ public class BlueprintTests
         test.Server.TransferRequested(2, placed.Id, Blueprint.DeliveredSlot, "planks", planks - 1, intoStructure: true);
         GameObject partway = test.State.Objects.Get(placed.Id)!;
         Assert.True(partway.IsBlueprint());
-        Assert.Equal(1, Blueprint.Missing(partway, crate).Of("planks"));
+        Assert.Equal(1, Blueprint.Missing(partway, crate, test.State.Objects.Kinds).Of("planks"));
 
         test.Server.TransferRequested(2, placed.Id, Blueprint.DeliveredSlot, "planks", 10, intoStructure: true);
         GameObject built = test.State.Objects.Get(placed.Id)!;

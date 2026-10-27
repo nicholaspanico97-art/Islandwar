@@ -7,7 +7,7 @@
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
 #   .\build.ps1 synctest  (headless server + three bot clients; fails unless every world matches)
-#   .\build.ps1 matchtest (five headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat)
+#   .\build.ps1 matchtest (six headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat, sailing)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -124,20 +124,20 @@ function Invoke-RejoinScenario([int]$Port) {
   return $bots
 }
 
-# The research scenario: one bot alone on Red on the quick preset (so warmup never ends), mining stone for
-# research points and researching Mining and Logging.
-function Invoke-ResearchScenario([int]$Port) {
-  $server = Start-Godot "research-server" @("--server", "--port=$Port", "--preset=quick")
+# A one-bot scenario: the bot alone on Red; for example the researcher on the quick preset (so warmup never
+# ends) or the sailor on practice.
+function Invoke-SoloScenario([string]$Name, [int]$Port, [string[]]$ServerArgs, [string]$Bot) {
+  $server = Start-Godot "$Name-server" (@("--server", "--port=$Port") + $ServerArgs)
   $bots = @()
   try {
-    Wait-ForLine "research-server" "listening on port"
-    $bots += Start-Godot "research-red" @("--connect=127.0.0.1:$Port", "--bot=researcher", "--team=red", "--name=red-researcher")
+    Wait-ForLine "$Name-server" "listening on port"
+    $bots += Start-Godot "$Name-red" @("--connect=127.0.0.1:$Port", "--bot=$Bot", "--team=red", "--name=red-$Bot")
     $bots | Wait-Process -Timeout 200
   } finally {
     $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
   }
 
-  Get-Content (Join-Path $logs "research-red.log") | Select-String "^\[bot" | ForEach-Object { Write-Host $_.Line }
+  Get-Content (Join-Path $logs "$Name-red.log") | Select-String "^\[bot" | ForEach-Object { Write-Host $_.Line }
   return $bots
 }
 
@@ -152,9 +152,11 @@ function Invoke-MatchTest {
   # Developer mode lets the nuker noclip to its plane.
   $bots += @(Invoke-MatchScenario "nuke" 7792 @("--preset=nuketest", "--dev") "nuker" "defender")
   $bots += @(Invoke-RejoinScenario 7793)
-  $bots += @(Invoke-ResearchScenario 7794)
+  $bots += @(Invoke-SoloScenario "research" 7794 @("--preset=quick") "researcher")
   # Developer mode lets the archer noclip over to the other island; practice is creative (no bow needed).
   $bots += @(Invoke-MatchScenario "combat" 7795 @("--preset=practice", "--dev") "archer" "target")
+  # Practice is creative (the dock and galley need nothing); developer mode lets the sailor noclip to the shore.
+  $bots += @(Invoke-SoloScenario "sail" 7796 @("--preset=practice", "--dev") "sailor")
   if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
     Write-Host "Match test FAILED. Logs: $logs"
     exit 1

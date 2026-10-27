@@ -8,7 +8,7 @@ namespace IslandWar.Client.Game;
 /// Placeholder plane built from boxes: fuselage, wings, tail, cockpit, wheels and a propeller that spins
 /// with the throttle. The node's origin is the plane's position (under the wheels), facing -Z.
 /// </summary>
-public partial class PlaneModel : Node3D
+public partial class PlaneModel : Node3D, IVehicleModel
 {
     private static readonly Color Body = new(0.36f, 0.42f, 0.26f);
     private static readonly Color Dark = new(0.15f, 0.16f, 0.14f);

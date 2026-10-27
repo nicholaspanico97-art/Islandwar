@@ -108,6 +108,11 @@ public partial class ObjectViews : Node3D
         });
 
         string damage = obj.Health < kind.MaxHealth ? $"\n{obj.Health} / {kind.MaxHealth}" : "";
+        // A dock says how far along the ship it's building is.
+        if (Objects!.Kinds.ShipBuiltAt(kind) is { } ship && Blueprint.Delivered(obj).Count > 0)
+        {
+            damage += $"\n{ship.Name}: {Mathf.RoundToInt(Blueprint.Progress(obj, kind, Objects.Kinds) * 100)}% delivered";
+        }
         node.AddChild(new Label3D
         {
             Text = $"{kind.Name}{damage}",
@@ -126,7 +131,7 @@ public partial class ObjectViews : Node3D
     /// A blueprint: a pale see-through shell in the team's colour, a solid part filling up from the bottom as
     /// its cost is delivered, and what it still needs above.
     /// </summary>
-    private static void BuildBlueprint(Node3D node, GameObject obj, ObjectKind kind, Vector3 size)
+    private void BuildBlueprint(Node3D node, GameObject obj, ObjectKind kind, Vector3 size)
     {
         Color team = TeamColors.Of(obj.Team);
         node.AddChild(new MeshInstance3D
@@ -142,7 +147,7 @@ public partial class ObjectViews : Node3D
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
 
-        float done = Mathf.Clamp(Blueprint.Progress(obj, kind), 0, 1);
+        float done = Mathf.Clamp(Blueprint.Progress(obj, kind, Objects!.Kinds), 0, 1);
         if (done > 0)
         {
             float height = size.Y * done;

@@ -6,14 +6,18 @@ using IslandWar.Sim.Voxels;
 namespace IslandWar.Sim.Vehicles;
 
 /// <summary>
-/// A plane's state. <see cref="Position"/> is the middle of the underside (the wheels). The plane faces
-/// -Z in its own frame, with +Y up and +X along the right wing, like Godot.
+/// A plane's state, or a ship's (see <see cref="ShipSailing"/>): every vehicle goes through the plane's
+/// snapshots and prediction. <see cref="Position"/> is the middle of the underside (the wheels, or the keel
+/// at the waterline). The vehicle faces -Z in its own frame, with +Y up and +X to the right, like Godot.
 /// </summary>
 /// <param name="Airspeed">Speed along the nose.</param>
 /// <param name="Sink">Extra downward speed when flying too slowly to stay up.</param>
 /// <param name="Throttle">0 to 1.</param>
-public readonly record struct PlaneState(Vector3 Position, Quaternion Rotation, float Airspeed, float Sink, float Throttle, bool OnGround)
+/// <param name="Ship">The <see cref="ShipKind.Id"/> for a ship; null or empty for the plane.</param>
+public readonly record struct PlaneState(Vector3 Position, Quaternion Rotation, float Airspeed, float Sink, float Throttle, bool OnGround, string? Ship = null)
 {
+    public bool IsShip => !string.IsNullOrEmpty(Ship);
+
     public Vector3 Forward => Vector3.Transform(-Vector3.UnitZ, Rotation);
 
     public Vector3 Velocity => Forward * Airspeed - Vector3.UnitY * Sink;

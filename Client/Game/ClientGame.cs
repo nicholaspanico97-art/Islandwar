@@ -37,7 +37,7 @@ public partial class ClientGame : Node3D
     private const int BombsightTicks = 600;
 
     private readonly Dictionary<int, RemoteAvatar> _avatars = new();
-    private readonly Dictionary<int, PlaneModel> _planes = new();
+    private readonly Dictionary<int, IVehicleModel> _planes = new();
     private readonly Dictionary<int, BombModel> _bombs = new();
     private readonly Dictionary<int, ArrowModel> _arrows = new();
 
@@ -353,17 +353,25 @@ public partial class ClientGame : Node3D
             PlaneState from = _previous.InPlane ? _previous.Plane : State.Plane;
             Vector3 position = ToGodot(from.Position).Lerp(ToGodot(State.Plane.Position), fraction) + _renderOffset;
             Quaternion rotation = ToGodot(from.Rotation).Slerp(ToGodot(State.Plane.Rotation), fraction);
-            Plane(State.PlaneId).ShowState(position, rotation, State.Plane.Throttle, delta);
+            Vehicle(State.PlaneId, State.Plane.Ship).ShowState(position, rotation, State.Plane.Throttle, delta);
             _camera.Chase(position, rotation, delta);
             DrawAround(position, flying: true);
-            _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus() + (Link is null ? "" : "\n" + MatchText.Nuke(Link.NukeReadyIn)));
+            if (State.Plane.IsShip)
+            {
+                _hud.ShowSailing(State.Plane, Rules.Ship(State.Plane.Ship!));
+            }
+            else
+            {
+                _hud.ShowFlying(State.Plane, Rules.Plane, State.Plane.Position.Y - Rules.SeaLevel, BombStatus() + (Link is null ? "" : "\n" + MatchText.Nuke(Link.NukeReadyIn)));
+            }
         }
         else
         {
             Vector3 feet = ToGodot(_previous.Player.Position).Lerp(ToGodot(State.Player.Position), fraction) + _renderOffset;
             _camera.FirstPerson(feet + Vector3.Up * Settings.EyeHeight, _yaw, _pitch);
             DrawAround(feet, flying: false);
-            _hud.ShowOnFoot(!CanGetIn(planes) ? AimedStructure()
+            _hud.ShowOnFoot(Boardable(planes) is not { } vehicle ? AimedStructure()
+                : vehicle.Ship is { } ship ? $"Press E to board the {Rules.Ship(ship).Name.ToLowerInvariant()}"
                 : Unlocked(Unlock.Plane) ? "Press E to fly the plane"
                 : $"The plane needs {Techs.UnlockedBy(Unlock.Plane)}");
         }
@@ -572,10 +580,11 @@ public partial class ClientGame : Node3D
         return new PlayerInput(0, move.X, move.Y, _yaw, _pitch, buttons);
     }
 
-    /// <summary>Whether a free plane is close enough to get into. The server makes the real decision.</summary>
-    private bool CanGetIn(IReadOnlyDictionary<int, RemotePlane> planes) =>
-        planes.Values.Any(p => p.PilotPeerId == 0
-            && VehicleRules.InEnterRange(Rules.Plane, State.Player.Position, new PlaneState(p.Position, p.Rotation, 0, 0, 0, true)));
+    /// <summary>A free vehicle of ours close enough to get into, if any. The server makes the real decision.</summary>
+    private RemotePlane? Boardable(IReadOnlyDictionary<int, RemotePlane> planes) =>
+        planes.Values.Where(p => p.PilotPeerId == 0 && (Link is null || p.Team == Link.MyTeam)
+                && VehicleRules.InEnterRange(Rules, State.Player.Position, new PlaneState(p.Position, p.Rotation, 0, 0, 0, true, p.Ship)))
+            .Cast<RemotePlane?>().FirstOrDefault();
 
     private RaycastHit? Aim()
     {
@@ -823,7 +832,7 @@ public partial class ClientGame : Node3D
 
         ObjectKind kind = objects.KindOf(target);
         bool station = Items.Recipes.Any(r => r.Station == kind.Id);
-        if (!kind.IsStorage && !station && kind.Smelter is null && !target.IsBlueprint())
+        if (!kind.IsStorage && !station && kind.Smelter is null && Blueprint.Needs(target, kind, objects.Kinds) is null)
         {
             return false;
         }
@@ -834,7 +843,7 @@ public partial class ClientGame : Node3D
             return true;
         }
 
-        if (target.IsBlueprint())
+        if (Blueprint.Needs(target, kind, objects.Kinds) is not null)
         {
             Deliver(target, kind);
             return true;
@@ -857,14 +866,26 @@ public partial class ClientGame : Node3D
         return true;
     }
 
-    /// <summary>Carries everything in our backpack that a blueprint still needs to it.</summary>
+    /// <summary>
+    /// Carries everything in our backpack that a blueprint (or a dock, for its ship) still needs to it. In
+    /// creative nothing is needed: one empty delivery builds it.
+    /// </summary>
     private void Deliver(GameObject blueprint, ObjectKind kind)
     {
-        IReadOnlyDictionary<string, int> missing = Blueprint.Missing(blueprint, kind);
+        ObjectKinds kinds = Link!.Objects!.Kinds;
+        string what = kinds.ShipBuiltAt(kind) is { } ship && !blueprint.IsBlueprint() ? ship.Name.ToLowerInvariant() : kind.Name.ToLowerInvariant();
+        if (Creative)
+        {
+            Link.RequestTransfer(blueprint.Id, Blueprint.DeliveredSlot, Items.Items[0].Id, 1, true);
+            _hud.Toast($"Building the {what}.");
+            return;
+        }
+
+        IReadOnlyDictionary<string, int> missing = Blueprint.Missing(blueprint, kind, kinds);
         var delivering = missing.Select(m => (Item: m.Key, Count: Math.Min(m.Value, Link!.Backpack.Of(m.Key)))).Where(d => d.Count > 0).ToList();
         if (delivering.Count == 0)
         {
-            _hud.Toast($"The {kind.Name.ToLowerInvariant()} needs {CountsText(missing)}. You carry none of it.");
+            _hud.Toast($"The {what} needs {CountsText(missing)}. You carry none of it.");
             return;
         }
 
@@ -875,7 +896,8 @@ public partial class ClientGame : Node3D
         }
 
         string delivered = CountsText(delivering.ToDictionary(d => d.Item, d => d.Count));
-        _hud.Toast(missing.Count == 0 ? $"Delivered {delivered}. The {kind.Name.ToLowerInvariant()} is built!" : $"Delivered {delivered}. Still needs {CountsText(missing)}.");
+        string done = kinds.ShipBuiltAt(kind) is not null && !blueprint.IsBlueprint() ? "is launched" : "is built";
+        _hud.Toast(missing.Count == 0 ? $"Delivered {delivered}. The {what} {done}!" : $"Delivered {delivered}. The {what} still needs {CountsText(missing)}.");
     }
 
     private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null || _hud.Research.IsOpen;
@@ -943,7 +965,9 @@ public partial class ClientGame : Node3D
         int facing = ObjectRules.FacingFor(_yaw);
         BlockPos origin = ObjectRules.OriginFor(kind, hit.Before, facing);
         System.Numerics.Vector3[] blockers = State.Player.Flying ? Array.Empty<System.Numerics.Vector3>() : new[] { State.Player.Position };
-        return (kind, origin, facing, ObjectRules.WhyNot(World, Settings, kind, origin, facing, blockers));
+        string? whyNot = ObjectRules.WhyNot(World, Settings, kind, origin, facing, blockers)
+            ?? (Link?.Objects?.Kinds.ShipBuiltAt(kind) is { } ship ? ShipSailing.WhyNoWater(World, Rules.SeaLevel, kind, origin, facing, ship) : null);
+        return (kind, origin, facing, whyNot);
     }
 
     private void ShowPlacement()
@@ -1018,7 +1042,13 @@ public partial class ClientGame : Node3D
         if (structure.IsBlueprint())
         {
             string deliver = structure.Team == Link.MyTeam ? ", E to deliver" : "";
-            return $"{structure.Team} {kind.Name} blueprint: needs {CountsText(Blueprint.Missing(structure, kind))}{deliver}   (hold left click to take it down)";
+            return $"{structure.Team} {kind.Name} blueprint: needs {CountsText(Blueprint.Missing(structure, kind, objects.Kinds))}{deliver}   (hold left click to take it down)";
+        }
+
+        if (objects.Kinds.ShipBuiltAt(kind) is { } ship && structure.Team == Link.MyTeam)
+        {
+            string needs = Creative ? "E to build one" : $"needs {CountsText(Blueprint.Missing(structure, kind, objects.Kinds))}, E to deliver";
+            return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}   {ship.Name}: {needs}";
         }
 
         string open = kind.Loot ? $"   {ItemCounts.Contents(structure).Total()} items, E to take"
@@ -1057,33 +1087,34 @@ public partial class ClientGame : Node3D
         }
     }
 
-    private PlaneModel Plane(int id)
+    /// <summary>The model a vehicle is drawn with: a plane, or a ship of its kind.</summary>
+    private IVehicleModel Vehicle(int id, string? ship)
     {
-        if (!_planes.TryGetValue(id, out PlaneModel? model))
+        if (!_planes.TryGetValue(id, out IVehicleModel? model))
         {
-            model = new PlaneModel { PlaneId = id };
-            _others.AddChild(model);
+            model = ship is null ? new PlaneModel { PlaneId = id } : new ShipModel { PlaneId = id, Kind = Rules.Ship(ship) };
+            _others.AddChild((Node)model);
             _planes[id] = model;
         }
 
         return model;
     }
 
-    /// <summary>Draws every plane except the one being flown here, which <see cref="_Process"/> draws from prediction.</summary>
+    /// <summary>Draws every vehicle except the one being flown or sailed here, which <see cref="_Process"/> draws from prediction.</summary>
     private void ShowPlanes(IReadOnlyDictionary<int, RemotePlane> planes, double delta)
     {
         foreach ((int id, RemotePlane plane) in planes)
         {
-            Plane(id).SetTeam(plane.Team);
+            Vehicle(id, plane.Ship).SetTeam(plane.Team);
             if (id != State.PlaneId)
             {
-                Plane(id).ShowState(ToGodot(plane.Position), ToGodot(plane.Rotation), plane.Throttle, delta);
+                Vehicle(id, plane.Ship).ShowState(ToGodot(plane.Position), ToGodot(plane.Rotation), plane.Throttle, delta);
             }
         }
 
         foreach (int gone in _planes.Keys.Where(id => !planes.ContainsKey(id) && id != State.PlaneId).ToList())
         {
-            _planes[gone].QueueFree();
+            ((Node)_planes[gone]).QueueFree();
             _planes.Remove(gone);
         }
     }

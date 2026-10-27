@@ -11,6 +11,11 @@
   "kinds": [
     { "id": "crate", "name": "Crate", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 60, "color": "#a07444", "capacity": 200,
       "cost": { "planks": 6 } },
+    // Builds ships (Shipbuilding research). Place it at the shore facing the sea: the water in front of its
+    // far end (the slip, as long as the ship and a little wider) must be open water. Once it's built, E on it
+    // delivers what its ship needs, and the ship is launched into the slip when nothing is missing.
+    { "id": "dock", "name": "Dock", "size": { "x": 3, "y": 1, "z": 6 }, "max_health": 150, "color": "#8a6a44",
+      "cost": { "planks": 20 }, "dock": { "ships": ["galley"] } },
     { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670", "capacity": 1000,
       "cost": { "planks": 12, "stone": 20 } },
     // Smelts ore into ingots (and logs into charcoal) over time while fuel burns. Open it with E. Each of its
@@ -24,5 +29,14 @@
     // Crafting station for tools (open it with E).
     { "id": "workbench", "name": "Workbench", "size": { "x": 2, "y": 1, "z": 1 }, "max_health": 80, "color": "#8c6a3c",
       "cost": { "planks": 4 } },
-  ]
+  ],
+
+  // Ships, built at a dock. One player sails one (W row, S back water, A/D turn, E to get out onto the
+  // nearest land or dock). Speeds in blocks per second, turn_rate in radians per second; width is the beam
+  // and the collision box's side, length is for drawing and the slip.
+  "ships": [
+    { "id": "galley", "name": "Galley", "cost": { "planks": 30, "log": 6, "bronze_ingot": 2 },
+      "max_speed": 7.0, "reverse_speed": 2.0, "acceleration": 2.5, "turn_rate": 0.6,
+      "width": 3.0, "length": 9.0, "height": 2.0, "enter_distance": 6.0, "color": "#7a5230" },
+  ],
 }

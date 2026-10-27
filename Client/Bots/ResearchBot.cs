@@ -155,7 +155,7 @@ public partial class ResearchBot : TestBot
             Net.RequestTransfer(blueprint.Id, Blueprint.DeliveredSlot, "stone", stone, true);
             WaitUntil(() => Net.Objects.Get(blueprint.Id) is { } after && Blueprint.Delivered(after).Of("stone") == stone, () =>
             {
-                Log($"the blueprint now needs {string.Join(", ", Blueprint.Missing(Net.Objects.Get(blueprint.Id)!, depot).Select(m => $"{m.Value} {m.Key}"))}");
+                Log($"the blueprint now needs {string.Join(", ", Blueprint.Missing(Net.Objects.Get(blueprint.Id)!, depot, Net.Objects.Kinds).Select(m => $"{m.Value} {m.Key}"))}");
                 CompareWithServer();
             });
         });

@@ -59,8 +59,9 @@ public sealed class Inventory
     /// <summary>
     /// Moves up to <paramref name="count"/> of an item between a player's backpack and a slot of one of their
     /// team's structures (a storage's <c>item</c> slot, or a furnace's input, fuel or output), as much as is
-    /// there and as fits on the other side. Delivering to a blueprint (its <c>delivered</c> slot) only goes in,
-    /// only what it still needs, and builds it once nothing is missing.
+    /// there and as fits on the other side. Delivering to a blueprint or a dock (its <c>delivered</c> slot) only
+    /// goes in, only what it still needs, and builds the structure or launches the ship once nothing is missing
+    /// (in creative, the first delivery does, with nothing needed).
     /// </summary>
     public void TransferRequested(int peer, int objectId, string slot, string item, int count, bool intoStructure)
     {
@@ -77,9 +78,11 @@ public sealed class Inventory
             : player.Pawn.InPlane ? "flying a plane"
             : !InReach(player, target, kind) ? "out of reach"
             : Items.Item(item) is null ? "unknown item"
-            : target.IsBlueprint() != (slot == Blueprint.DeliveredSlot) ? (target.IsBlueprint() ? "it isn't built yet" : "it's already built")
+            : target.IsBlueprint() && slot != Blueprint.DeliveredSlot ? "it isn't built yet"
+            : slot == Blueprint.DeliveredSlot && Blueprint.Needs(target, kind, _state.Objects.Kinds) is null ? "it isn't being built"
             : slot == Blueprint.DeliveredSlot && !intoStructure ? "deliveries stay in"
-            : slot == Blueprint.DeliveredSlot && Blueprint.Missing(target, kind).Of(item) == 0 ? $"it doesn't need {item}"
+            : slot == Blueprint.DeliveredSlot && _state.Creative ? null
+            : slot == Blueprint.DeliveredSlot && Blueprint.Missing(target, kind, _state.Objects.Kinds).Of(item) == 0 ? $"it doesn't need {item}"
             : slot != Blueprint.DeliveredSlot && SlotCapacity(kind, slot) is null ? $"no {slot} slot"
             : intoStructure && !Accepts(slot, item) ? $"{item} doesn't go in the {slot}"
             : null;
@@ -89,7 +92,14 @@ public sealed class Inventory
             return;
         }
 
-        int room = slot == Blueprint.DeliveredSlot ? Blueprint.Missing(target, kind).Of(item) : SlotCapacity(kind, slot)!.Value - held.Total();
+        if (slot == Blueprint.DeliveredSlot && _state.Creative)
+        {
+            // Creative needs nothing: asking is enough.
+            Structures?.Complete(target);
+            return;
+        }
+
+        int room = slot == Blueprint.DeliveredSlot ? Blueprint.Missing(target, kind, _state.Objects.Kinds).Of(item) : SlotCapacity(kind, slot)!.Value - held.Total();
         int moved = intoStructure
             ? Math.Min(Math.Min(count, player.Backpack.Of(item)), room)
             : Math.Min(Math.Min(count, held.Of(item)), Items.BackpackCapacity - player.Backpack.Total());
@@ -104,9 +114,9 @@ public sealed class Inventory
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { changed }));
         SendBackpack(player);
         _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStructure ? "into" : "out of")} {kind.Name} {target.Id} ({slot})");
-        if (changed.IsBlueprint() && Blueprint.Missing(changed, kind).Count == 0)
+        if (slot == Blueprint.DeliveredSlot && Blueprint.Missing(changed, kind, _state.Objects.Kinds).Count == 0)
         {
-            Structures?.Finish(changed);
+            Structures?.Complete(changed);
         }
         else if (kind.Loot && !ItemCounts.HasItems(changed))
         {

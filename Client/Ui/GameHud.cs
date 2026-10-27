@@ -15,6 +15,8 @@ public partial class GameHud : CanvasLayer
     private const string OnFootHelp =
         "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | C craft, R research | E plane or structure | Tab scores";
 
+    private const string SailingHelp = "W row, S back water, A/D turn | Mouse looks | E get out (onto land or a dock if one is near)";
+
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
 
@@ -296,6 +298,15 @@ public partial class GameHud : CanvasLayer
         _flight.Text = $"Throttle {plane.Throttle * 100:0}%\nSpeed {plane.Airspeed:0}  (stall {settings.StallSpeed:0})\nAltitude {altitude:0}\n{bombStatus}"
             + (stalling ? "\nSTALL - nose down, more throttle" : plane.OnGround ? "\nOn the ground" : "");
         _flight.Modulate = stalling ? new Color(1, 0.4f, 0.3f) : Colors.White;
+    }
+
+    public void ShowSailing(PlaneState ship, ShipKind kind)
+    {
+        ShowFlying(ship, new PlaneSettings(), 0, "");
+        _help.Text = SailingHelp;
+        _flight.Modulate = Colors.White;
+        string going = ship.Airspeed > 0.1f ? "ahead" : ship.Airspeed < -0.1f ? "astern" : "still";
+        _flight.Text = $"{kind.Name}\nSpeed {Mathf.Abs(ship.Airspeed):0.0} {going}  (top {kind.MaxSpeed:0})";
     }
 
     private Label Outlined(Label label)

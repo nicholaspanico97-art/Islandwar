@@ -8,7 +8,7 @@
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
 #   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
-#   ./build.sh matchtest          five headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat
+#   ./build.sh matchtest          six headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research, combat, sailing
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -121,20 +121,21 @@ rejoin_scenario() {
   fi
 }
 
-# The research scenario: one bot alone on Red on the quick preset (so warmup never ends), mining stone for
-# research points and researching Mining and Logging. Sets scenario_failed=1 if it fails.
-research_scenario() {
-  local port=$1 researcher_status=0
-  "$GODOT" --headless --path . -- --server --port=$port --preset=quick >"$logs/research-server.log" 2>&1 &
+# A one-bot scenario: name, port, bot (alone on Red), then server arguments; for example the researcher on
+# the quick preset (so warmup never ends) or the sailor on practice. Sets scenario_failed=1 if it fails.
+solo_scenario() {
+  local name=$1 port=$2 bot=$3 bot_status=0
+  shift 3
+  "$GODOT" --headless --path . -- --server --port=$port "$@" >"$logs/$name-server.log" 2>&1 &
   server_pid=$!  # global: the EXIT trap runs after this function returns
   trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
-  wait_for_line "$logs/research-server.log" "listening on port"
-  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=researcher --team=red --name=red-researcher >"$logs/research-red.log" 2>&1 || researcher_status=$?
+  wait_for_line "$logs/$name-server.log" "listening on port"
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=$bot --team=red --name=red-$bot >"$logs/$name-red.log" 2>&1 || bot_status=$?
   kill "$server_pid" 2>/dev/null || true
 
-  grep -h "^\[bot" "$logs/research-red.log" || true
-  if [ "$researcher_status" -ne 0 ]; then
+  grep -h "^\[bot" "$logs/$name-red.log" || true
+  if [ "$bot_status" -ne 0 ]; then
     scenario_failed=1
   fi
 }
@@ -150,9 +151,11 @@ matchtest() {
   # Developer mode lets the nuker noclip to its plane.
   match_scenario nuke 7792 nuker defender --preset=nuketest --dev
   rejoin_scenario 7793
-  research_scenario 7794
+  solo_scenario research 7794 researcher --preset=quick
   # Developer mode lets the archer noclip over to the other island; practice is creative (no bow needed).
   match_scenario combat 7795 archer target --preset=practice --dev
+  # Practice is creative (the dock and galley need nothing); developer mode lets the sailor noclip to the shore.
+  solo_scenario sail 7796 sailor --preset=practice --dev
   if [ "$scenario_failed" -ne 0 ]; then
     echo "Match test FAILED. Logs: $logs"
     exit 1

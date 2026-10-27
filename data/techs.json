@@ -58,6 +58,10 @@
       "id": "prospecting", "name": "Prospecting", "era": "bronze", "points": 30, "requires": ["bronze_tools"],
       "unlocks": { "yield": { "iron_ore": 2 } },
     },
-    // Still to come in the Bronze Age: ship building and the blast furnace. The catapult is the Iron Age's.
+    {
+      "id": "shipbuilding", "name": "Shipbuilding", "era": "bronze", "points": 20,
+      "unlocks": { "structures": ["dock"], "vehicles": ["galley"] },
+    },
+    // Still to come in the Bronze Age: the blast furnace. The catapult is the Iron Age's.
   ],
 }
