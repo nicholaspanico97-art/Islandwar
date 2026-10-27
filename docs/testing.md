@@ -248,13 +248,14 @@ start a server, and connect three `--bot=builder --team=red --name=Nick` clients
 ## M2, piece 2: match clock, phases, warmup, end and reset
 
 ```sh
-./build.sh server --port=7777 --preset=quick
+./build.sh server --port=7777 --preset=phases
 ./build.sh client
 ./build.sh client
 ```
 
-`quick` runs a five-minute match (phase 2 at 1:00, phase 3 at 3:00); `compressed` is the real 45-minute
-one. Join one client to each team. Check, in order:
+`phases` runs a five-minute match (phase 2 at 1:00, phase 3 at 3:00). Since Stone Age piece 4 real matches
+(`quick`, `compressed`, `full`) go by eras instead, with no planes before WWI; `phases` is creative and keeps
+the timed phases for trying bombs and the nuke. Join one client to each team. Check, in order:
 1. With one team empty, the top of the screen says `Warmup: the match starts when both teams have 1`.
    Anything goes in warmup, bombs included.
 2. When both teams have a player: `Match starts in 10 s`, counting down. Leaving cancels it (the server
@@ -275,7 +276,7 @@ one. Join one client to each team. Check, in order:
 ./build.sh matchtest
 ```
 
-Three scenarios, one after the other:
+Four scenarios, one after the other:
 - **flow**: a headless server on the `test` preset (a whole match in about 20 seconds) and one `watcher`
   bot per team. Each places a plank in warmup, then checks that the start reset the world (the plank
   gone, the hash matching the server's), that the stages came in order and the time limit ended it.
@@ -286,6 +287,10 @@ Three scenarios, one after the other:
   identity token while asking for Blue under another name, and must be seated back on Red as
   `red-leaver` (developer mode would otherwise grant Blue). Then Blue's `conceder` votes to concede and
   everyone must see `Red wins (Concede)`.
+- **research** (from Stone Age piece 4): a server on the `quick` preset (a real match, so research is on;
+  alone on Red, so warmup never ends) and Red's `researcher`. It mines stone in reach of its spawn, one block
+  per hardness, until the team has 16 Stone Age points; researches Mining and Logging; checks placing stone
+  is refused (it needs Fortification).
 
 Every bot finishes by comparing game hashes (world and structures) with the server. Expected output ends with:
 
@@ -301,6 +306,9 @@ Every bot finishes by comparing game hashes (world and structures) with the serv
 [bot returner] came back as 'red-leaver' on Red
 [bot returner] the match ended: Red wins (Concede)
 [bot returner] PASS: game hash <h3>, server <h3>
+[bot researcher] researched mining and logging; 1 Stone Age points left
+[bot researcher] placing stone was refused (needs Fortification)
+[bot researcher] PASS: game hash <h4>, server <h4>
 Match test PASSED
 ```
 
@@ -312,14 +320,14 @@ The industrial core this piece first added was removed on 2026-10-26 (see docs/d
 landing anywhere on the enemy island wins.
 
 ```sh
-./build.sh server --port=7777 --preset=quick
+./build.sh server --port=7777 --preset=phases
 ./build.sh client
 ./build.sh client
 ```
 
 Join one client to each team. Check, in order:
 1. The flight readout shows the nuke: `Nuke: phase 3` before it, then `NUKE READY: right click over the
-   enemy island`, and `Nuke in 0:25` after a drop (`quick` has a 30-second cooldown).
+   enemy island`, and `Nuke in 0:25` after a drop (`phases` has a 30-second cooldown).
 2. Right click in the air in phase 3 drops the nuke: twice the size of a bomb, with a yellow band.
 3. A nuke landing anywhere on the enemy island blasts a radius-9 crater and ends the match at once:
    `Red team wins` / `Red's nuke hit the Blue island.`
@@ -329,14 +337,14 @@ Join one client to each team. Check, in order:
 ## M2, piece 4: score, concede, rejoin and the scoreboard
 
 ```sh
-./build.sh server --port=7777 --preset=quick
+./build.sh server --port=7777 --preset=phases
 ./build.sh client
 ./build.sh client
 ```
 
 Join one client to each team (a third on Red helps with the vote). Check, in order:
 1. Hold Tab: a scoreboard with both teams, each player's ping and concede votes.
-2. Let the time run out (5:00 in `quick`): the banner says `Draw` / `Time's up.` (a score comes later).
+2. Let the time run out (5:00 in `phases`): the banner says `Draw` / `Time's up.` (a score comes later).
 3. F10 votes to concede (F10 again takes it back). With two players on a team, one vote shows
    `Your team: 1 of 2 votes to concede`; the second ends the match: `Blue team wins` / `Red conceded.`
    A team of one concedes with its single vote. Votes reset when a match starts.
@@ -348,7 +356,7 @@ Join one client to each team (a third on Red helps with the vote). Check, in ord
 ## M3, piece 1: team build protection
 
 ```sh
-./build.sh server --port=7777 --preset=quick
+./build.sh server --port=7777 --preset=phases
 ./build.sh client
 ./build.sh client
 ./build.sh client
@@ -511,4 +519,40 @@ One client on each team. Check, in order:
 5. Stone won't go in. A full `Done` slot (32) stops the furnace until it's emptied.
 6. Ingots taken out and put in a crate show in the scoreboard's stock; what's in the furnace doesn't.
 7. A furnace with anything in it can't be taken down; a bombed one loses everything in it.
+
+## Stone Age, piece 4: research, eras and the Bronze Age
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+./build.sh client
+```
+
+`quick` is now a 30-minute real match. Research starts again when the match starts (the island resets),
+so for a long try keep one team empty: warmup never ends. Stone tools and the furnace now need research
+(steps in the earlier Stone Age sections that use them come after it), and in real matches the plane is
+locked until WWI. Check, in order:
+1. Under your name, top right: `Stone Age: 0 research points (R)`. Chop logs or mine stone by hand: each
+   block is a point for the whole team (both clients on a team see the same count; the other team's
+   doesn't move). Dirt, sand and ore give none.
+2. R opens the research window: `To reach the Bronze Age: research Bronze working`, then the Stone Age
+   techs with cost, what each unlocks, and why it can't be researched yet (`needs 8 Stone Age points`,
+   `needs Mining`). R, Esc or a click outside closes it.
+3. Before Mining, the workbench says `Needs Mining research` on the stone pickaxe; before Smelting the
+   furnace slot's prompt says `Furnace: needs smelting research` and right click refuses.
+4. At 8 points, `Research` on Mining: the pickaxe can be crafted, and the points go down by 8. Logging the
+   same for the axe; Smelting (20, after both) unlocks the furnace.
+5. Bronze working costs 30 points and 6 copper ingots and 2 tin ingots (from your backpack, then the team's
+   storage). Researching it shows a gold banner, `The Bronze Age`, on both of the team's clients, and the
+   line under your name changes to `Bronze Age: 0 research points`.
+6. In a furnace, 3 copper ingots and 1 tin ingot make 4 bronze ingots in 10 s. Before Bronze working the
+   status says `Stopped: bronze ingot needs bronze working research`; with only copper, `Waiting: bronze
+   ingot takes 3 copper ingot and 1 tin ingot`. Each bronze ingot made is 2 Bronze Age points.
+7. Bronze Age techs: Bronze tools (bronze pickaxe and axe at the workbench, 3 bronze ingots and 2 planks;
+   the bronze pickaxe mines iron ore), Fortification (placing stone blocks: until then right click with
+   stone says `Placing stone: needs fortification research.`; after, each stone placed is a Bronze Age
+   point) and Prospecting (two iron ore per block).
+8. Walking up to the plane says `The plane needs the WWI era`, and E does nothing. The scoreboard footer
+   (Tab) shows the team's era and how many techs it has.
+9. A practice server (creative) has everything unlocked and shows no era; R says so.
 

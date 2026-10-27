@@ -19,6 +19,7 @@ public static class MatchText
             MatchStage.Warmup =>
                 $"Warmup: the match starts when both teams have {preset.MinPlayersPerTeam} (Red {red}, Blue {blue}). Anything goes; the island resets at the start.",
             MatchStage.Countdown => $"Match starts in {Seconds(next)}",
+            MatchStage.Playing when !preset.TimedPhases => $"Match on: research your way up the eras | time limit in {Clock(next)}",
             MatchStage.Playing => match.Phase switch
             {
                 1 => $"Phase 1 of 3: scouting, no bombs | phase 2 in {Clock(next)}",
@@ -32,7 +33,12 @@ public static class MatchText
     /// <summary>A big announcement when the match moves on, or null when nothing worth announcing changed.</summary>
     public static (string Title, string Detail)? Announcement(MatchStatus before, MatchStatus now, MatchPreset preset)
     {
-        if (now.Stage == MatchStage.Playing && (before.Stage != MatchStage.Playing || before.Phase != now.Phase))
+        if (now.Stage == MatchStage.Playing && before.Stage != MatchStage.Playing && !preset.TimedPhases)
+        {
+            return ("The match has started", "Gather, research and build. Planes come with WWI.");
+        }
+
+        if (now.Stage == MatchStage.Playing && preset.TimedPhases && (before.Stage != MatchStage.Playing || before.Phase != now.Phase))
         {
             return now.Phase switch
             {
@@ -66,7 +72,7 @@ public static class MatchText
 
     /// <summary>The nuke line in the flight readout.</summary>
     public static string Nuke(float readyIn) =>
-        readyIn < 0 ? "Nuke: phase 3"
+        readyIn < 0 ? "Nuke: not yet (phase 3, or the Cold War)"
         : readyIn == 0 ? "NUKE READY: right click over the enemy island"
         : $"Nuke in {Clock(readyIn)}";
 

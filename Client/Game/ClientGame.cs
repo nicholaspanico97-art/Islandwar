@@ -10,6 +10,7 @@ using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Server;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
@@ -59,6 +60,9 @@ public partial class ClientGame : Node3D
     private bool _nukePressed;
     private MatchStatus _lastMatch;
 
+    /// <summary>Our team's era as last shown, to announce reaching a new one; null until the team state arrives.</summary>
+    private int? _lastEra;
+
     /// <summary>The block being mined (hold to mine), and for how long it has been.</summary>
     private BlockPos? _miningAt;
     private double _miningSeconds;
@@ -74,6 +78,9 @@ public partial class ClientGame : Node3D
 
     /// <summary>Items, what each block drops and how long it takes to mine.</summary>
     public ItemSettings Items { get; init; } = null!;
+
+    /// <summary>The eras and techs, and what research unlocks.</summary>
+    public TechTree Techs { get; init; } = null!;
 
     /// <summary>Where the local player starts. The server's spawn when online.</summary>
     public PawnState Spawn { get; init; }
@@ -122,6 +129,7 @@ public partial class ClientGame : Node3D
         };
         AddChild(_hud);
         _hud.Crafting.CraftClicked += recipe => Link?.RequestCraft(recipe, _hud.Crafting.StationId);
+        _hud.Research.ResearchClicked += tech => Link?.RequestResearch(tech);
         _hud.Furnace.TransferClicked += (slot, item, count, into) =>
         {
             if (_hud.Furnace.FurnaceId is { } id)
@@ -213,7 +221,8 @@ public partial class ClientGame : Node3D
                 _pitch = Mathf.Clamp(_pitch + pitch, -Mathf.Pi / 2 + 0.01f, Mathf.Pi / 2 - 0.01f);
             }
         }
-        else if (WindowOpen && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse) || @event.IsActionPressed(InputActions.Craft)))
+        else if (WindowOpen && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse)
+                                || @event.IsActionPressed(InputActions.Craft) || @event.IsActionPressed(InputActions.Research)))
         {
             CloseWindows();
             GetViewport().SetInputAsHandled();
@@ -243,6 +252,18 @@ public partial class ClientGame : Node3D
         {
             _hud.Crafting.Open(null, 0);
             Input.MouseMode = Input.MouseModeEnum.Visible;
+        }
+        else if (@event.IsActionPressed(InputActions.Research) && !State.InPlane && Link is not null)
+        {
+            if (Creative)
+            {
+                _hud.Toast("Everything is unlocked on this server.");
+            }
+            else
+            {
+                _hud.Research.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+            }
         }
         else if (@event.IsActionPressed(InputActions.Concede) && Link is not null)
         {
@@ -317,7 +338,9 @@ public partial class ClientGame : Node3D
             Vector3 feet = ToGodot(_previous.Player.Position).Lerp(ToGodot(State.Player.Position), fraction) + _renderOffset;
             _camera.FirstPerson(feet + Vector3.Up * Settings.EyeHeight, _yaw, _pitch);
             DrawAround(feet, flying: false);
-            _hud.ShowOnFoot(CanGetIn(planes) ? "Press E to fly the plane" : AimedStructure());
+            _hud.ShowOnFoot(!CanGetIn(planes) ? AimedStructure()
+                : Unlocked(Unlock.Plane) ? "Press E to fly the plane"
+                : $"The plane needs {Techs.UnlockedBy(Unlock.Plane)}");
         }
 
         ShowPlacement();
@@ -326,6 +349,7 @@ public partial class ClientGame : Node3D
 
         ShowPlanes(planes, delta);
         ShowIdentity();
+        ShowEra();
         ShowMatch();
         _bombsight.SetRadius(Math.Max(1, CraterRadius));
         // White where a bomb would do nothing: the sea, or our own half of the map (no friendly fire).
@@ -349,6 +373,31 @@ public partial class ClientGame : Node3D
         {
             _hud.ShowIdentity($"{me.Name} - {me.Team} team", TeamColors.Of(me.Team).Lightened(0.3f));
         }
+    }
+
+    /// <summary>Whether our team may use something research can lock; everything is open in creative.</summary>
+    private bool Unlocked(string key) => Creative || (Link?.TeamState is { } team && Techs.IsUnlocked(team, key));
+
+    /// <summary>"Needs Mining research" for something locked, or null if our team may use it.</summary>
+    private string? Locked(string key) => Unlocked(key) ? null : $"Needs {Techs.UnlockedBy(key)}";
+
+    /// <summary>Our team's era and points under our name, and a banner when the team reaches a new era.</summary>
+    private void ShowEra()
+    {
+        if (Creative || Link?.TeamState is not { } team)
+        {
+            _hud.ShowEra("");
+            return;
+        }
+
+        Era era = Techs.EraOf(team);
+        _hud.ShowEra($"{era.Name}: {team.Points.Of(era.Id)} research points (R)");
+        if (_lastEra is { } last && team.Era > last)
+        {
+            _hud.Announce($"The {era.Name}", "Your team has reached a new era. R to see what it can research.", Colors.Gold);
+        }
+
+        _lastEra = team.Era;
     }
 
     /// <summary>The crater a bomb dropped now would make (0 = bombs locked), from the match phase.</summary>
@@ -604,12 +653,17 @@ public partial class ClientGame : Node3D
 
             IReadOnlyDictionary<string, int> available = Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None);
             string where = _hud.Crafting.Station is null ? "Crafting by hand" : $"Crafting at the {Link.Objects!.Kinds.Get(_hud.Crafting.Station)?.Name ?? "station"}";
-            _hud.Crafting.Show(where, Items, available, Creative);
+            _hud.Crafting.Show(where, Items, available, Creative, recipe => Locked(Unlock.Recipe(recipe.Id)));
         }
 
         if (_hud.Furnace.FurnaceId is { } furnaceId)
         {
             ShowFurnace(furnaceId);
+        }
+
+        if (_hud.Research.IsOpen && Link?.TeamState is { } team)
+        {
+            _hud.Research.Show(Techs, team, Link.Backpack.Sum(team.Stock), Items, Link.Objects!.Kinds);
         }
 
         if (_hud.Storage.StorageId is not { } id)
@@ -650,15 +704,24 @@ public partial class ClientGame : Node3D
     private string FurnaceStatus(GameObject furnace, SmelterSpec smelter)
     {
         IReadOnlyDictionary<string, int> input = ItemCounts.Contents(furnace, ItemCounts.InputSlot);
-        SmeltingRecipe? recipe = input.Keys.Select(Items.SmeltingFor).FirstOrDefault(r => r is not null);
+        SmeltingRecipe? recipe = Furnaces.RecipeIn(furnace, Items, r => Unlocked(Unlock.Smelting(r.Makes)));
         int burn = furnace.Values.Of(Furnaces.BurnValue);
         bool fuel = ItemCounts.Contents(furnace, ItemCounts.FuelSlot).Count > 0;
         if (recipe is null)
         {
+            // Something partway there: locked behind research, or short of an ingredient (bronze takes copper and tin).
+            string name(string item) => Items.Item(item)?.Name.ToLowerInvariant() ?? item;
+            if (input.Keys.Select(Items.SmeltingFor).OfType<SmeltingRecipe>().FirstOrDefault() is { } partial)
+            {
+                return Locked(Unlock.Smelting(partial.Makes)) is { } why
+                    ? $"Stopped: {name(partial.Makes)} {why.ToLowerInvariant()}"
+                    : $"Waiting: {name(partial.Makes)} takes {string.Join(" and ", partial.Takes.Select(t => $"{t.Value} {name(t.Key)}"))}";
+            }
+
             return burn > 0 ? $"Idle, {burn / 1000f:0} s of fuel still burning" : "Idle: put in something to smelt";
         }
 
-        if (ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() >= smelter.SlotCapacity)
+        if (ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() + recipe.Count > smelter.SlotCapacity)
         {
             return "Stopped: take out what's done";
         }
@@ -713,13 +776,14 @@ public partial class ClientGame : Node3D
         return true;
     }
 
-    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null;
+    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null || _hud.Research.IsOpen;
 
     private void CloseWindows()
     {
         _hud.Storage.Close();
         _hud.Crafting.Close();
         _hud.Furnace.Close();
+        _hud.Research.Close();
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -741,6 +805,12 @@ public partial class ClientGame : Node3D
         if (!Creative && Items.ItemPlacing(block) is { } item && Link!.Backpack.Of(item.Id) == 0)
         {
             _hud.Toast($"No {item.Name.ToLowerInvariant()} in your backpack.");
+            return;
+        }
+
+        if (Items.ItemPlacing(block) is { } placing && Locked(Unlock.Place(placing.Id)) is { } locked)
+        {
+            _hud.Toast($"Placing {placing.Name.ToLowerInvariant()}: {locked.ToLowerInvariant()}.");
             return;
         }
 
@@ -788,6 +858,12 @@ public partial class ClientGame : Node3D
             return;
         }
 
+        if (Locked(Unlock.Structure(kind.Id)) is { } locked)
+        {
+            _hud.Toast($"The {kind.Name}: {locked.ToLowerInvariant()}.");
+            return;
+        }
+
         if (placement.WhyNot is { } reason)
         {
             _hud.Toast($"Can't place a {kind.Name} there: {reason}.");
@@ -814,6 +890,11 @@ public partial class ClientGame : Node3D
     {
         if (_hud.Hotbar.Selected.Kind is { } selected && !Creative && Link is not null)
         {
+            if (Locked(Unlock.Structure(selected.Id)) is { } locked)
+            {
+                return $"{selected.Name}: {locked.ToLowerInvariant()}";
+            }
+
             bool afford = Link.Backpack.Sum(Link.TeamState?.Stock ?? ItemCounts.None).Covers(selected.Cost);
             return $"{selected.Name}: {CostText(selected)}{(afford ? "" : "  (not enough)")}";
         }
@@ -845,7 +926,8 @@ public partial class ClientGame : Node3D
         string stock = Link.TeamState is { Stock.Count: > 0 } state
             ? string.Join(", ", state.Stock.Select(s => $"{s.Key} {s.Value}"))
             : "nothing yet";
-        return $"Your team: {standing} structure{(standing == 1 ? "" : "s")} standing. Stock: {stock}.";
+        string era = Creative || Link.TeamState is not { } team ? "" : $"{Techs.EraOf(team).Name}, {team.Researched.Count} techs. ";
+        return $"Your team: {era}{standing} structure{(standing == 1 ? "" : "s")} standing. Stock: {stock}.";
     }
 
     /// <summary>Applies an edit at once. Online, the server confirms it or sends back the real block.</summary>

@@ -251,10 +251,19 @@ public static class WireFormat
     {
         writer.Write((byte)state.Team);
         WriteValues(writer, state.Stock);
+        writer.Write(checked((byte)state.Era));
+        WriteValues(writer, state.Points);
+        WriteValues(writer, state.Researched.ToDictionary(tech => tech, _ => 1));
     });
 
     public static TeamState DecodeTeamState(byte[] data) => Decode(data, reader =>
-        new TeamState((Team)reader.ReadByte()) { Stock = ReadValues(reader, data.Length) });
+        new TeamState((Team)reader.ReadByte())
+        {
+            Stock = ReadValues(reader, data.Length),
+            Era = reader.ReadByte(),
+            Points = ReadValues(reader, data.Length),
+            Researched = ReadValues(reader, data.Length).Keys.ToList(),
+        });
 
     /// <summary>Every connected player's name and team.</summary>
     public static byte[] EncodeRoster(IReadOnlyCollection<RosterEntry> roster) => Encode(writer =>

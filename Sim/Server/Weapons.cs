@@ -1,5 +1,6 @@
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
 
@@ -10,19 +11,22 @@ public sealed class Weapons
 {
     private readonly ServerState _state;
     private readonly Structures _structures;
+    private readonly Research _research;
 
     /// <summary>When each team last dropped its nuke, on the match clock; null for not yet this match.</summary>
     private readonly Dictionary<Team, float?> _lastNukeDrop = new() { [Team.Red] = null, [Team.Blue] = null };
     private int _nextBombId = 1;
 
-    public Weapons(ServerState state, Structures structures)
+    public Weapons(ServerState state, Structures structures, Research research)
     {
         _state = state;
         _structures = structures;
+        _research = research;
     }
 
-    /// <summary>Seconds until a team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
-    public float NukeReadyIn(Team team) => MatchFlow.NukeReadyIn(_state.Match, _state.Preset, _lastNukeDrop[team]);
+    /// <summary>Seconds until a team's nuke is ready: 0 when ready, negative outside phase 3 or before the team's era allows one.</summary>
+    public float NukeReadyIn(Team team) =>
+        _research.Unlocked(team, Unlock.Nuke) ? MatchFlow.NukeReadyIn(_state.Match, _state.Preset, _lastNukeDrop[team]) : -1;
 
     /// <summary>No bombs in the air and every nuke unused (a fresh match).</summary>
     public void Reset()

@@ -163,6 +163,8 @@ public partial class NetClient : Node, IGameLink
 
     public void RequestCraft(string recipeId, int stationId) => Replicator.RequestCraft(recipeId, stationId);
 
+    public void RequestResearch(string techId) => Replicator.RequestResearch(techId);
+
     /// <summary>What we compare with the server's hash: our world and our objects.</summary>
     public ulong ComputeHash() => GameHash.Of(World!, Objects!);
 

@@ -127,6 +127,7 @@ public partial class ClientMain : Node
                 "returner" => new ReturnerBot { Net = net, Role = Args.Bot },
                 "conceder" => new ConcederBot { Net = net, Role = Args.Bot },
                 "watcher" => new MatchBot { Net = net, Role = Args.Bot },
+                "researcher" => new ResearchBot { Net = net, Role = Args.Bot, Spawn = spawn },
                 _ => new SyncBot { Net = net, Role = Args.Bot },
             };
             _session!.AddChild(bot);
@@ -146,6 +147,7 @@ public partial class ClientMain : Node
             Rules = data.Rules,
             Net = data.Net,
             Items = data.Items,
+            Techs = data.Techs,
             Spawn = spawn,
             Link = net,
         };

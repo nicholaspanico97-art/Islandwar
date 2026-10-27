@@ -7,7 +7,7 @@
 #   .\build.ps1 server --port=7777
 #   .\build.ps1 client --connect=127.0.0.1:7777
 #   .\build.ps1 synctest  (headless server + three bot clients; fails unless every world matches)
-#   .\build.ps1 matchtest (three headless scenarios: a whole fast match, a nuke win, a rejoin and concession)
+#   .\build.ps1 matchtest (four headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research)
 param([string]$Command = "build", [Parameter(ValueFromRemainingArguments = $true)][string[]]$GameArgs = @())
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -124,6 +124,23 @@ function Invoke-RejoinScenario([int]$Port) {
   return $bots
 }
 
+# The research scenario: one bot alone on Red on the quick preset (so warmup never ends), mining stone for
+# research points and researching Mining and Logging.
+function Invoke-ResearchScenario([int]$Port) {
+  $server = Start-Godot "research-server" @("--server", "--port=$Port", "--preset=quick")
+  $bots = @()
+  try {
+    Wait-ForLine "research-server" "listening on port"
+    $bots += Start-Godot "research-red" @("--connect=127.0.0.1:$Port", "--bot=researcher", "--team=red", "--name=red-researcher")
+    $bots | Wait-Process -Timeout 200
+  } finally {
+    $bots + $server | Where-Object { -not $_.HasExited } | Stop-Process -Force
+  }
+
+  Get-Content (Join-Path $logs "research-red.log") | Select-String "^\[bot" | ForEach-Object { Write-Host $_.Line }
+  return $bots
+}
+
 # The automated match test (docs/testing.md). First a whole match on the fast test preset, followed by a
 # watcher bot per team: stages, world reset and hashes. Then a nuke match: Red's nuker flies over and
 # nukes Blue's core in phase 3, and both bots must see Red win by core hit.
@@ -135,6 +152,7 @@ function Invoke-MatchTest {
   # Developer mode lets the nuker noclip to its plane.
   $bots += @(Invoke-MatchScenario "nuke" 7792 @("--preset=nuketest", "--dev") "nuker" "defender")
   $bots += @(Invoke-RejoinScenario 7793)
+  $bots += @(Invoke-ResearchScenario 7794)
   if (($bots | Where-Object { $_.ExitCode -ne 0 }).Count -gt 0) {
     Write-Host "Match test FAILED. Logs: $logs"
     exit 1

@@ -3,6 +3,7 @@ using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
@@ -13,7 +14,7 @@ namespace IslandWar.Sim;
 /// The tunables from <c>data/</c>. The server sends its raw JSON to each client on join, so clients
 /// generate the same island and predict movement with the same numbers as the server.
 /// </summary>
-public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson, string WeaponsJson, string PresetsJson, string StructuresJson, string ItemsJson)
+public sealed record GameData(string TerrainJson, string PlayerJson, string NetJson, string PlaneJson, string WeaponsJson, string PresetsJson, string StructuresJson, string ItemsJson, string TechsJson)
 {
     public IslandSettings Terrain { get; } = IslandSettings.FromJson(TerrainJson);
 
@@ -33,8 +34,11 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
     /// <summary>The kinds of structure players can place.</summary>
     public ObjectKinds Kinds => _economy.Kinds;
 
-    /// <summary>Items and structures, loaded together so the names each uses from the other can be checked.</summary>
-    private readonly (ItemSettings Items, ObjectKinds Kinds) _economy = LoadEconomy(ItemsJson, StructuresJson);
+    /// <summary>The eras and techs, and what research unlocks.</summary>
+    public TechTree Techs => _economy.Techs;
+
+    /// <summary>Items, structures and techs, loaded together so the names each uses from the others can be checked.</summary>
+    private readonly (ItemSettings Items, ObjectKinds Kinds, TechTree Techs) _economy = LoadEconomy(ItemsJson, StructuresJson, TechsJson);
 
     public GameRules Rules => new(Player, Plane, Bomb, Terrain.SeaLevel);
 
@@ -47,7 +51,8 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         read("weapons.json"),
         read("presets.json"),
         read("structures.json"),
-        read("items.json"));
+        read("items.json"),
+        read("techs.json"));
 
     /// <summary>
     /// Where a player appears, standing on the top block of their team's island. Slot 0 is the centre;
@@ -111,8 +116,8 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         return plane;
     }
 
-    /// <summary>Loads items and structures and checks recipe stations and structure costs name things that exist.</summary>
-    private static (ItemSettings, ObjectKinds) LoadEconomy(string itemsJson, string structuresJson)
+    /// <summary>Loads items, structures and techs, and checks recipe stations, structure costs and unlocks name things that exist.</summary>
+    private static (ItemSettings, ObjectKinds, TechTree) LoadEconomy(string itemsJson, string structuresJson, string techsJson)
     {
         ItemSettings items = ItemSettings.FromJson(itemsJson);
         ObjectKinds kinds = ObjectKinds.FromJson(structuresJson);
@@ -126,6 +131,6 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
             throw new InvalidDataException($"structures.json: '{kind.Id}' costs an item that isn't in items.json.");
         }
 
-        return (items, kinds);
+        return (items, kinds, TechTree.FromJson(techsJson, items, kinds));
     }
 }

@@ -53,6 +53,9 @@ public partial class Replicator : Node
     /// <summary>Server: a player asks to craft (peer id, recipe id, station object id or 0 by hand).</summary>
     public event Action<int, string, int>? CraftRequested;
 
+    /// <summary>Server: a player asks to research a tech for their team (peer id, tech id).</summary>
+    public event Action<int, string>? ResearchRequested;
+
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
 
@@ -114,6 +117,8 @@ public partial class Replicator : Node
 
     public void RequestCraft(string recipeId, int stationId) => RpcId(ServerId, MethodName.ReceiveCraftRequest, recipeId, stationId);
 
+    public void RequestResearch(string techId) => RpcId(ServerId, MethodName.ReceiveResearchRequest, techId);
+
     public void RequestTransfer(int objectId, string slot, string item, int count, bool intoStructure) =>
         RpcId(ServerId, MethodName.ReceiveTransferRequest, objectId, slot, item, count, intoStructure);
 
@@ -121,7 +126,7 @@ public partial class Replicator : Node
 
     public void SendWorld(int peer, WorldInit world) =>
         RpcId(peer, MethodName.ReceiveWorld, world.Seed, world.Data.TerrainJson, world.Data.PlayerJson, world.Data.NetJson, world.Data.PlaneJson,
-            world.Data.WeaponsJson, world.Data.PresetsJson, world.Data.StructuresJson, world.Data.ItemsJson, world.EditsData, world.ObjectsData, (long)world.Hash, world.DevMode, world.PresetName);
+            world.Data.WeaponsJson, world.Data.PresetsJson, world.Data.StructuresJson, world.Data.ItemsJson, world.Data.TechsJson, world.EditsData, world.ObjectsData, (long)world.Hash, world.DevMode, world.PresetName);
 
     public void BroadcastRoster(byte[] roster) => Rpc(MethodName.ReceiveRoster, roster);
 
@@ -187,8 +192,8 @@ public partial class Replicator : Node
 
     [Rpc(TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ReceiveWorld(int seed, string terrainJson, string playerJson, string netJson, string planeJson, string weaponsJson, string presetsJson,
-        string structuresJson, string itemsJson, byte[] edits, byte[] objects, long hash, bool devMode, string presetName) =>
-        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson, structuresJson, itemsJson),
+        string structuresJson, string itemsJson, string techsJson, byte[] edits, byte[] objects, long hash, bool devMode, string presetName) =>
+        WorldReceived?.Invoke(new WorldInit(seed, new GameData(terrainJson, playerJson, netJson, planeJson, weaponsJson, presetsJson, structuresJson, itemsJson, techsJson),
             edits, objects, (ulong)hash, devMode, presetName));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -242,6 +247,15 @@ public partial class Replicator : Node
         if (Multiplayer.IsServer())
         {
             CraftRequested?.Invoke(Multiplayer.GetRemoteSenderId(), recipeId, stationId);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveResearchRequest(string techId)
+    {
+        if (Multiplayer.IsServer())
+        {
+            ResearchRequested?.Invoke(Multiplayer.GetRemoteSenderId(), techId);
         }
     }
 

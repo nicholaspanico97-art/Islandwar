@@ -17,10 +17,10 @@ public sealed record MatchPreset
     /// <summary>Length of the countdown before the match starts. Dropping below the minimum cancels it.</summary>
     public float CountdownSeconds { get; init; } = 10;
 
-    /// <summary>When phase 2 begins, in minutes from the start. Phase 1 is everything before it.</summary>
+    /// <summary>When phase 2 begins, in minutes from the start. Phase 1 is everything before it. Creative presets only.</summary>
     public float Phase2StartMinutes { get; init; } = 8;
 
-    /// <summary>When phase 3 begins, in minutes from the start.</summary>
+    /// <summary>When phase 3 begins, in minutes from the start. Creative presets only.</summary>
     public float Phase3StartMinutes { get; init; } = 25;
 
     /// <summary>The match ends here at the latest.</summary>
@@ -50,9 +50,16 @@ public sealed record MatchPreset
     /// <summary>A team concedes once this share of its players (rounded up) have voted to.</summary>
     public float ConcedeFraction { get; init; } = 0.66f;
 
-    public float Phase2StartSeconds => Phase2StartMinutes * 60;
+    /// <summary>
+    /// Whether the clock unlocks bombs and the nuke phase by phase. Only creative presets (practice, tests) do;
+    /// real matches go by each team's era instead, so for them the match is in phase 3 from the start and the
+    /// clock holds nothing back.
+    /// </summary>
+    public bool TimedPhases => Creative;
 
-    public float Phase3StartSeconds => Phase3StartMinutes * 60;
+    public float Phase2StartSeconds => TimedPhases ? Phase2StartMinutes * 60 : 0;
+
+    public float Phase3StartSeconds => TimedPhases ? Phase3StartMinutes * 60 : 0;
 
     public float TimeLimitSeconds => TimeLimitMinutes * 60;
 
@@ -74,7 +81,7 @@ public sealed record MatchPreset
             throw new InvalidDataException($"Preset '{name}' in presets.json has a value out of range.");
         }
 
-        if (!(Phase2StartMinutes > 0 && Phase3StartMinutes > Phase2StartMinutes && TimeLimitMinutes > Phase3StartMinutes))
+        if (TimeLimitMinutes <= 0 || (TimedPhases && !(Phase2StartMinutes > 0 && Phase3StartMinutes > Phase2StartMinutes && TimeLimitMinutes > Phase3StartMinutes)))
         {
             throw new InvalidDataException($"Preset '{name}': phases must start in order before the time limit (0 < phase 2 < phase 3 < time limit).");
         }

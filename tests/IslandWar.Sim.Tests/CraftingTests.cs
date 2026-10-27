@@ -84,6 +84,7 @@ public class CraftingTests
         ServerPlayer player = test.Join(2, "Crafter", Team.Red);
         GameObject bench = InventoryTests.PlaceCrate(test, player, "workbench");
         player.Backpack = ItemCounts.None.Plus("stone", 3).Plus("planks", 2);
+        test.Research(Team.Red, "mining");
 
         test.Server.CraftRequested(2, "stone_pickaxe", 0);
         Assert.Equal(0, player.Backpack.Of("stone_pickaxe"));

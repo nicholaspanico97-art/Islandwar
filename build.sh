@@ -8,7 +8,7 @@
 #   ./build.sh server [args...]   run the headless dedicated server, e.g. ./build.sh server --port=7777
 #   ./build.sh client [args...]   run a client, e.g. ./build.sh client --connect=127.0.0.1:7777
 #   ./build.sh synctest           headless server + three bot clients; fails unless every world matches
-#   ./build.sh matchtest          three headless scenarios: a whole fast match, a nuke win, a rejoin and concession
+#   ./build.sh matchtest          four headless scenarios: a whole fast match, a nuke win, a rejoin and concession, research
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -121,6 +121,24 @@ rejoin_scenario() {
   fi
 }
 
+# The research scenario: one bot alone on Red on the quick preset (so warmup never ends), mining stone for
+# research points and researching Mining and Logging. Sets scenario_failed=1 if it fails.
+research_scenario() {
+  local port=$1 researcher_status=0
+  "$GODOT" --headless --path . -- --server --port=$port --preset=quick >"$logs/research-server.log" 2>&1 &
+  server_pid=$!  # global: the EXIT trap runs after this function returns
+  trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+  wait_for_line "$logs/research-server.log" "listening on port"
+  "$GODOT" --headless --path . -- --connect=127.0.0.1:$port --bot=researcher --team=red --name=red-researcher >"$logs/research-red.log" 2>&1 || researcher_status=$?
+  kill "$server_pid" 2>/dev/null || true
+
+  grep -h "^\[bot" "$logs/research-red.log" || true
+  if [ "$researcher_status" -ne 0 ]; then
+    scenario_failed=1
+  fi
+}
+
 # The automated match test (docs/testing.md). First a whole match on the fast test preset, followed by a
 # watcher bot per team: stages, world reset and hashes. Then a nuke match: Red's nuker flies over and
 # nukes Blue's core in phase 3, and both bots must see Red win by core hit.
@@ -132,6 +150,7 @@ matchtest() {
   # Developer mode lets the nuker noclip to its plane.
   match_scenario nuke 7792 nuker defender --preset=nuketest --dev
   rejoin_scenario 7793
+  research_scenario 7794
   if [ "$scenario_failed" -ne 0 ]; then
     echo "Match test FAILED. Logs: $logs"
     exit 1

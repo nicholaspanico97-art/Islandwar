@@ -45,12 +45,14 @@ public sealed record Recipe
     public bool ByHand => Station == "hand";
 }
 
-/// <summary>One thing a furnace makes: one item in, one out, taking this long while fuel burns.</summary>
+/// <summary>One thing a furnace makes: what it takes (an ore, or copper and tin for bronze), what it makes and how many, taking this long while fuel burns.</summary>
 public sealed record SmeltingRecipe
 {
-    public string Takes { get; init; } = "";
+    public IReadOnlyDictionary<string, int> Takes { get; init; } = new Dictionary<string, int>();
 
     public string Makes { get; init; } = "";
+
+    public int Count { get; init; } = 1;
 
     public float Seconds { get; init; } = 5;
 }
@@ -94,8 +96,8 @@ public sealed record ItemSettings
 
     public IReadOnlyList<SmeltingRecipe> Smelting { get; init; } = Array.Empty<SmeltingRecipe>();
 
-    /// <summary>The smelting recipe for an item, or null if it doesn't smelt.</summary>
-    public SmeltingRecipe? SmeltingFor(string item) => Smelting.FirstOrDefault(s => s.Takes == item);
+    /// <summary>The smelting recipe an item goes into, or null if it doesn't smelt.</summary>
+    public SmeltingRecipe? SmeltingFor(string item) => Smelting.FirstOrDefault(s => s.Takes.ContainsKey(item));
 
     public bool IsFuel(string item) => Fuel.ContainsKey(item);
 
@@ -208,11 +210,14 @@ public sealed record ItemSettings
             }
         }
 
+        List<string> smelted = Smelting.SelectMany(s => s.Takes.Keys).ToList();
         if (Fuel.Any(f => !_items.ContainsKey(f.Key) || f.Value <= 0)
-            || Smelting.Any(s => !_items.ContainsKey(s.Takes) || !_items.ContainsKey(s.Makes) || s.Seconds <= 0)
-            || Smelting.Select(s => s.Takes).Distinct().Count() != Smelting.Count)
+            || Smelting.Any(s => s.Takes.Count == 0 || s.Takes.Any(t => !_items.ContainsKey(t.Key) || t.Value <= 0) || !_items.ContainsKey(s.Makes) || s.Count <= 0 || s.Seconds <= 0)
+            || smelted.Distinct().Count() != smelted.Count
+            || Smelting.Select(s => s.Makes).Distinct().Count() != Smelting.Count)
         {
-            throw new InvalidDataException("items.json: fuel and smelting must name items that exist, with positive seconds, and one smelting recipe per item.");
+            throw new InvalidDataException(
+                "items.json: fuel and smelting must name items that exist, with positive amounts and seconds; an item goes into one smelting recipe at most, and each recipe makes something different.");
         }
 
         // Every block players can meet must say how it's mined.

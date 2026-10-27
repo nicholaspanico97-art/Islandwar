@@ -13,6 +13,8 @@ public class MatchFlowTests
         TimeLimitMinutes = 3,
         ResultsSeconds = 5,
         CraterRadiusByPhase = new[] { 0, 3, 5 },
+        // Only creative presets keep the timed phases.
+        Creative = true,
     };
 
     /// <summary>Steps the match in one-second ticks, collecting the events.</summary>
@@ -130,7 +132,8 @@ public class MatchFlowTests
     }
 
     [Theory]
-    [InlineData("""{ "bad": { "phase2_start_minutes": 10, "phase3_start_minutes": 5 } }""")]
+    [InlineData("""{ "bad": { "creative": true, "phase2_start_minutes": 10, "phase3_start_minutes": 5 } }""")]
+    [InlineData("""{ "bad": { "time_limit_minutes": 0 } }""")]
     [InlineData("""{ "bad": { "crater_radius_by_phase": [1, 2] } }""")]
     [InlineData("""{ "bad": { "min_players_per_team": 0 } }""")]
     public void BadPresetsAreRejected(string json)

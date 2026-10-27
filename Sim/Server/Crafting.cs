@@ -1,6 +1,7 @@
 using System.Numerics;
 using IslandWar.Sim.Items;
 using IslandWar.Sim.Players;
+using IslandWar.Sim.Research;
 
 namespace IslandWar.Sim.Server;
 
@@ -12,11 +13,13 @@ public sealed class Crafting
 {
     private readonly ServerState _state;
     private readonly Inventory _inventory;
+    private readonly Research _research;
 
-    public Crafting(ServerState state, Inventory inventory)
+    public Crafting(ServerState state, Inventory inventory, Research research)
     {
         _state = state;
         _inventory = inventory;
+        _research = research;
     }
 
     /// <param name="stationId">The structure it's made at, or 0 for by hand.</param>
@@ -32,6 +35,7 @@ public sealed class Crafting
         int makes = recipe?.Makes.Values.Sum() ?? 0;
         string? reason = recipe is null ? "unknown recipe"
             : player.Pawn.InPlane ? "flying a plane"
+            : !_research.Unlocked(player.Team, Unlock.Recipe(recipe.Id)) ? _research.Needs(Unlock.Recipe(recipe.Id))
             : !recipe.ByHand && !AtStation(player, recipe.Station, stationId) ? $"not at a {recipe.Station}"
             : !_state.Creative && payment is null ? "can't afford it"
             : player.Backpack.Total() - (payment?.FromBackpackTotal ?? 0) + makes > _state.Data.Items.BackpackCapacity ? "no room in the backpack"

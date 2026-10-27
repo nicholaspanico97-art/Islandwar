@@ -105,14 +105,14 @@ public class InventoryTests
         ServerPlayer player = test.Join(2, "Builder", Team.Red);
         BlockPos target = ServerTests.FreeCellBeside(test, player);
 
-        test.Server.EditRequested(2, new VoxelEdit(target, Block.Stone));
+        test.Server.EditRequested(2, new VoxelEdit(target, Block.Dirt));
         Assert.Equal(Block.Air, test.Server.World.Get(target));
         Assert.Contains(test.Log, line => line.Contains("nothing to place"));
 
-        player.Backpack = player.Backpack.Plus("stone", 2);
-        test.Server.EditRequested(2, new VoxelEdit(target, Block.Stone));
-        Assert.Equal(Block.Stone, test.Server.World.Get(target));
-        Assert.Equal(1, player.Backpack.Of("stone"));
+        player.Backpack = player.Backpack.Plus("dirt", 2);
+        test.Server.EditRequested(2, new VoxelEdit(target, Block.Dirt));
+        Assert.Equal(Block.Dirt, test.Server.World.Get(target));
+        Assert.Equal(1, player.Backpack.Of("dirt"));
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class InventoryTests
 
         Assert.Equal(Block.Air, test.Server.World.Get(ground));
         Assert.Equal(Data.Items.BackpackCapacity, player.Backpack.Total());
-        Assert.Contains(test.Log, line => line.Contains("is lost"));
+        Assert.Contains(test.Log, line => line.Contains("full backpack"));
     }
 
     [Fact]

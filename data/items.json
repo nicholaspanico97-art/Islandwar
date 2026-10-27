@@ -1,6 +1,6 @@
 {
-  // Items, what each block gives when mined, and recipes. Stone Age first pass: the developer's raw
-  // resources list and tech tree will replace these.
+  // Items, what each block gives when mined, and recipes: the Stone and Bronze Ages so far. What's locked
+  // behind research is in techs.json.
   // How many items a player can carry, of any mix.
   "backpack_capacity": 40,
   // The server allows a mine this much faster than the block's hardness, for network timing.
@@ -26,8 +26,11 @@
     { "id": "charcoal", "name": "Charcoal", "color": "#3a3230" },
     { "id": "copper_ingot", "name": "Copper ingot", "color": "#d9824a" },
     { "id": "tin_ingot", "name": "Tin ingot", "color": "#d0d4dc" },
+    { "id": "bronze_ingot", "name": "Bronze ingot", "color": "#b5833a" },
     { "id": "stone_axe", "name": "Stone axe", "color": "#8a7a66", "tool": { "kind": "axe", "tier": 1, "speed": 2.5 } },
     { "id": "stone_pickaxe", "name": "Stone pickaxe", "color": "#7d7d88", "tool": { "kind": "pickaxe", "tier": 1, "speed": 2.0 } },
+    { "id": "bronze_axe", "name": "Bronze axe", "color": "#a87a3c", "tool": { "kind": "axe", "tier": 2, "speed": 3.5 } },
+    { "id": "bronze_pickaxe", "name": "Bronze pickaxe", "color": "#9c7034", "tool": { "kind": "pickaxe", "tier": 2, "speed": 3.0 } },
   ],
 
   // Every natural or placeable block: seconds to mine by hand, the item it drops (none for leaves), the
@@ -54,15 +57,21 @@
     { "id": "planks", "station": "hand", "takes": { "log": 1 }, "makes": { "planks": 4 } },
     { "id": "stone_axe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_axe": 1 } },
     { "id": "stone_pickaxe", "station": "workbench", "takes": { "stone": 3, "planks": 2 }, "makes": { "stone_pickaxe": 1 } },
+    { "id": "bronze_axe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_axe": 1 } },
+    { "id": "bronze_pickaxe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_pickaxe": 1 } },
   ],
 
   // What burns in a furnace, and for how many seconds per item.
   "fuel": { "log": 15, "planks": 5, "charcoal": 30, "coal": 40 },
 
-  // What a furnace makes, one item at a time, while it has fuel burning.
+  // What a furnace makes while it has fuel burning: once its input holds everything a recipe takes, that
+  // many turn into count of what it makes after seconds. An item goes into one recipe at most; recipes are
+  // tried in this order.
   "smelting": [
-    { "takes": "copper_ore", "makes": "copper_ingot", "seconds": 5 },
-    { "takes": "tin_ore", "makes": "tin_ingot", "seconds": 5 },
-    { "takes": "log", "makes": "charcoal", "seconds": 8 },
+    { "takes": { "copper_ore": 1 }, "makes": "copper_ingot", "seconds": 5 },
+    { "takes": { "tin_ore": 1 }, "makes": "tin_ingot", "seconds": 5 },
+    { "takes": { "log": 1 }, "makes": "charcoal", "seconds": 8 },
+    // Bronze: three parts copper to one of tin.
+    { "takes": { "copper_ingot": 3, "tin_ingot": 1 }, "makes": "bronze_ingot", "count": 4, "seconds": 10 },
   ]
 }

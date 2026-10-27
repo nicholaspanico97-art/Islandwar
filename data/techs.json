@@ -1,0 +1,62 @@
+{
+  // Eras and research, from the developer's tech tree (Documents\Island War Gameplay Basics.txt). Each team
+  // researches on its own; being behind the other team is part of the game.
+  //
+  // eras, in order. minutes: the average time a team should spend in the era (a balancing target, not a rule).
+  // points: what earns this era's research points, once the team has reached it. Each era has its own pool,
+  //   spent only on its own techs. mine and place go by block name; smelt by the item a furnace makes.
+  // advance: the techs that take the team into the next era once all are researched (none: not yet reachable).
+  // unlocks: what reaching the era gives on its own, without research.
+  //
+  // techs. points: what it costs from its era's pool. costs: items too, paid like crafting (backpack first,
+  //   then the team's storage). requires: techs researched first.
+  // unlocks (on a tech or an era): recipes and structures by id, smelting by the item made, places by item
+  //   (placing that block from the hotbar), vehicles and weapons, and yield (drops multiplied, by item).
+  //   Anything named in an unlocks is locked until then; everything else is open from the start.
+  "eras": [
+    {
+      "id": "stone", "name": "Stone Age", "minutes": 10,
+      "points": { "mine": { "wood": 1, "stone": 1 } },
+      "advance": ["bronze_working"],
+    },
+    {
+      // Dealing damage to enemy structures earns points too, once there's a Bronze Age weapon that can.
+      "id": "bronze", "name": "Bronze Age", "minutes": 15,
+      "points": { "smelt": { "bronze_ingot": 2 }, "place": { "stone": 1 } },
+      // The way on (research the blast furnace, then build one) comes with the Iron Age.
+    },
+    { "id": "iron", "name": "Iron Age", "minutes": 15 },
+    { "id": "renaissance", "name": "Renaissance Age", "minutes": 20 },
+    { "id": "exploration", "name": "Exploration Age", "minutes": 30 },
+    { "id": "industrial", "name": "Industrial Age", "minutes": 45 },
+    // Planes (and their bombs) wait for WWI and the nuke for the Cold War; creative presets have everything.
+    { "id": "ww1", "name": "WWI", "minutes": 45, "unlocks": { "vehicles": ["plane"] } },
+    { "id": "ww2", "name": "WWII", "minutes": 45 },
+    { "id": "cold_war", "name": "Cold War", "minutes": 0, "unlocks": { "weapons": ["nuke"] } },
+  ],
+
+  "techs": [
+    { "id": "mining", "name": "Mining", "era": "stone", "points": 8, "unlocks": { "recipes": ["stone_pickaxe"] } },
+    { "id": "logging", "name": "Logging", "era": "stone", "points": 8, "unlocks": { "recipes": ["stone_axe"] } },
+    {
+      "id": "smelting", "name": "Smelting", "era": "stone", "points": 20, "requires": ["mining", "logging"],
+      "unlocks": { "structures": ["furnace"] },
+    },
+    {
+      "id": "bronze_working", "name": "Bronze working", "era": "stone", "points": 30, "requires": ["smelting"],
+      "costs": { "copper_ingot": 6, "tin_ingot": 2 },
+      "unlocks": { "smelting": ["bronze_ingot"] },
+    },
+
+    {
+      "id": "bronze_tools", "name": "Bronze tools", "era": "bronze", "points": 20,
+      "unlocks": { "recipes": ["bronze_pickaxe", "bronze_axe"] },
+    },
+    { "id": "fortification", "name": "Fortification", "era": "bronze", "points": 15, "unlocks": { "places": ["stone"] } },
+    {
+      "id": "prospecting", "name": "Prospecting", "era": "bronze", "points": 30, "requires": ["bronze_tools"],
+      "unlocks": { "yield": { "iron_ore": 2 } },
+    },
+    // Still to come in the Bronze Age: archery, ship building, catapult and the blast furnace.
+  ],
+}

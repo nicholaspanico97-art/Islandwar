@@ -2,6 +2,7 @@ using System.Numerics;
 using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Sim.Server;
@@ -12,12 +13,14 @@ public sealed class Building
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
     private readonly Inventory _inventory;
+    private readonly Research _research;
 
-    public Building(ServerState state, Vehicles vehicles, Inventory inventory)
+    public Building(ServerState state, Vehicles vehicles, Inventory inventory, Research research)
     {
         _state = state;
         _vehicles = vehicles;
         _inventory = inventory;
+        _research = research;
     }
 
     public void EditRequested(int peer, VoxelEdit edit)
@@ -56,8 +59,9 @@ public sealed class Building
     }
 
     /// <summary>
-    /// Mining gives the block's item if it fits in the backpack (otherwise it's lost); placing uses one up.
-    /// <see cref="Allowed"/> has already checked there was one to place.
+    /// Mining gives the block's item (more with a yield researched) as far as the backpack has room (the rest
+    /// is lost); placing uses one up. <see cref="Allowed"/> has already checked there was one to place. Either
+    /// may earn the team research points.
     /// </summary>
     private void Gather(ServerPlayer player, Block before, VoxelEdit edit)
     {
@@ -65,16 +69,27 @@ public sealed class Building
         if (edit.Block == Block.Air)
         {
             player.LastMinedSeconds = _state.Seconds;
-            if (items.RuleFor(before)?.Drops is { } drop && _inventory.Give(player, drop, 1) == 0)
+            if (items.RuleFor(before)?.Drops is { } drop)
             {
-                _state.Log($"[server] '{player.Name}' mined {before} with a full backpack: the {drop} is lost");
+                int count = _research.Yield(player.Team, drop);
+                if (_inventory.Give(player, drop, count) < count)
+                {
+                    _state.Log($"[server] '{player.Name}' mined {before} with a full backpack: {drop} lost");
+                }
             }
+
+            _research.Earn(player.Team, PointSource.Mine, BlockNames.Of(before));
         }
         else if (items.ItemPlacing(edit.Block) is { } item)
         {
             _inventory.Take(player, item.Id, 1);
+            _research.Earn(player.Team, PointSource.Place, BlockNames.Of(edit.Block));
         }
     }
+
+    /// <summary>Whether the player's team may place a block from the hotbar (stone needs Fortification).</summary>
+    private bool MayPlace(ServerPlayer player, Block block) =>
+        _state.Data.Items.ItemPlacing(block) is not { } item || _research.Unlocked(player.Team, Unlock.Place(item.Id));
 
     /// <summary>
     /// Whether a mine comes no sooner after the last one than the block's hardness allows with the best tool
@@ -107,6 +122,7 @@ public sealed class Building
             : edit.Block == Block.Air && !_state.Creative && MiningSeconds(player, world.Get(edit.Position)) is null ? "needs a better tool"
             : edit.Block == Block.Air && !_state.Creative && !MinedInTime(player, world.Get(edit.Position), MiningSeconds(player, world.Get(edit.Position))!.Value) ? "mining too fast"
             : edit.Block != Block.Air && !_state.Creative && !HasItemFor(player, edit.Block) ? "nothing to place"
+            : edit.Block != Block.Air && !MayPlace(player, edit.Block) ? _research.Needs(Unlock.Place(_state.Data.Items.ItemPlacing(edit.Block)!.Id))
             : edit.Block != Block.Air && !BuildRules.CanPlace(world, settings, edit.Position, edit.Block, blockers) ? "can't place there"
             : edit.Block != Block.Air && _vehicles.AnyPlaneOverlaps(edit.Position) ? "a plane is in the way"
             : null;

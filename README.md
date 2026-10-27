@@ -17,7 +17,7 @@ must end identical.
 
 M2 added: two mirrored islands, Red and Blue teams with their own spawns and planes, player names, a menu
 to join a server by address, and the match itself: warmup, countdown, three timed phases that unlock and
-grow bombs, a fresh island each match, a phase-3 nuke that wins by landing anywhere on the enemy island,
+grow bombs (since replaced by eras in real matches; the creative presets keep them), a fresh island each match, a phase-3 nuke that wins by landing anywhere on the enemy island,
 a concede vote, rejoining your team after a disconnect, and a Tab scoreboard. (The industrial core and its
 score were removed on 2026-10-26; the time limit is a draw for now.) `build matchtest` checks a whole match, a nuke win, and a rejoin with a
 concession, with bots.
@@ -32,8 +32,11 @@ placeable structures that bombs damage and destroy, and per-team state sent only
 The economy is being built era by era from the developer's draft, starting with the Stone Age. Done so far:
 items, a personal backpack, hold-to-mine with block hardness, ore kinds (copper, tin, iron, coal) and clay,
 team storage whose contents make the team's stock, crafting by hand and at a workbench, stone tools, and
-structures that cost materials, and a furnace that smelts copper and tin into ingots over time with fuel.
-Next: research and eras (the step into the Bronze Age).
+structures that cost materials, a furnace that smelts copper and tin into ingots over time with fuel, and
+per-team research (R) that moves each team through the eras: Stone Age techs unlock the stone tools, the
+furnace and bronze, and Bronze working takes a team into the Bronze Age (bronze tools, stone fortifications,
+prospecting). Real matches now go by eras instead of timed phases, so planes wait for WWI. Next: the rest of
+the Bronze Age (archery, galleys, the catapult, the blast furnace), when the developer is ready.
 
 ## Versions
 

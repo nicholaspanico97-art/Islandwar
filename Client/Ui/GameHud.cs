@@ -13,7 +13,7 @@ namespace IslandWar.Client.Ui;
 public partial class GameHud : CanvasLayer
 {
     private const string OnFootHelp =
-        "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | C craft | E plane or structure | Tab scores";
+        "WASD move, Space jump, Shift sprint | Hold left click mine, right click place, 1-0 pick | C craft, R research | E plane or structure | Tab scores";
 
     private const string FlyingHelp =
         "W/S pitch, A/D roll, Shift/Ctrl throttle, Space brake | Left click bomb, right click nuke | Mouse looks | E get out";
@@ -46,6 +46,10 @@ public partial class GameHud : CanvasLayer
     public CraftingPanel Crafting { get; private set; } = null!;
 
     public FurnacePanel Furnace { get; private set; } = null!;
+
+    public ResearchPanel Research { get; private set; } = null!;
+
+    private Label _era = null!;
 
     private ProgressBar _mining = null!;
     private Label _backpack = null!;
@@ -93,6 +97,16 @@ public partial class GameHud : CanvasLayer
         AddChild(Crafting);
         Furnace = new FurnacePanel();
         AddChild(Furnace);
+        Research = new ResearchPanel();
+        AddChild(Research);
+
+        _era = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Right });
+        _era.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
+        _era.GrowHorizontal = Control.GrowDirection.Begin;
+        _era.OffsetRight = -16;
+        _era.OffsetTop = 62;
+        _era.AddThemeFontSizeOverride("font_size", 18);
+        _era.Modulate = new Color(1, 0.85f, 0.5f);
 
         _mining = new ProgressBar { MinValue = 0, MaxValue = 1, ShowPercentage = false, Visible = false, CustomMinimumSize = new Vector2(120, 8) };
         _mining.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center, Control.LayoutPresetMode.Minsize);
@@ -192,6 +206,9 @@ public partial class GameHud : CanvasLayer
     public void ShowBackpack(string text) => _backpack.Text = text;
 
     /// <summary>Who and which side you are, top right.</summary>
+    /// <summary>Our team's era and points, under our name; empty for none (creative).</summary>
+    public void ShowEra(string text) => _era.Text = text;
+
     public void ShowIdentity(string text, Color colour)
     {
         _identity.Text = text;

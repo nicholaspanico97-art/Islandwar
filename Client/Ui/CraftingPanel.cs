@@ -74,10 +74,11 @@ public partial class CraftingPanel : PanelContainer
 
     /// <summary>Redraws the rows if what can be afforded changed.</summary>
     /// <param name="available">Everything the player can spend: backpack and team storage together.</param>
-    public void Show(string title, ItemSettings items, IReadOnlyDictionary<string, int> available, bool free)
+    /// <param name="locked">Why a recipe is locked ("Needs Mining research"), or null if our team may make it.</param>
+    public void Show(string title, ItemSettings items, IReadOnlyDictionary<string, int> available, bool free, Func<Recipe, string?> locked)
     {
         Recipe[] recipes = items.Recipes.Where(r => r.ByHand || r.Station == Station).ToArray();
-        string content = $"{title}|{string.Join(",", recipes.Select(r => free || available.Covers(r.Takes)))}";
+        string content = $"{title}|{string.Join(",", recipes.Select(r => $"{free || available.Covers(r.Takes)}{locked(r)}"))}";
         if (content == _shown)
         {
             return;
@@ -96,6 +97,13 @@ public partial class CraftingPanel : PanelContainer
                 string.Join(", ", counts.Select(c => $"{c.Value} {items.Item(c.Key)?.Name ?? c.Key}"));
             var row = new HBoxContainer();
             row.AddChild(new Label { Text = $"{Names(recipe.Makes)}   from {Names(recipe.Takes)}", SizeFlagsHorizontal = SizeFlags.ExpandFill });
+            if (locked(recipe) is { } why)
+            {
+                row.AddChild(new Label { Text = why, Modulate = new Color(1, 1, 1, 0.5f) });
+                _rows.AddChild(row);
+                continue;
+            }
+
             var craft = new Button { Text = "Craft", Disabled = !free && !available.Covers(recipe.Takes) };
             craft.Pressed += () => CraftClicked?.Invoke(recipe.Id);
             row.AddChild(craft);

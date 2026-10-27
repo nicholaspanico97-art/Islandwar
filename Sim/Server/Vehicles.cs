@@ -1,6 +1,7 @@
 using System.Numerics;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Players;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Vehicles;
 
 namespace IslandWar.Sim.Server;
@@ -11,10 +12,12 @@ public sealed class Vehicles
     private static readonly PlayerInput Idle = new(0, 0, 0, 0, 0, InputButtons.None);
 
     private readonly ServerState _state;
+    private readonly Research _research;
 
-    public Vehicles(ServerState state)
+    public Vehicles(ServerState state, Research research)
     {
         _state = state;
+        _research = research;
     }
 
     /// <summary>One plane per team, parked off its own island. Ids start at 1; 0 means "no plane".</summary>
@@ -61,6 +64,12 @@ public sealed class Vehicles
             .FirstOrDefault();
         if (nearest is null)
         {
+            return;
+        }
+
+        if (!_research.Unlocked(player.Team, Unlock.Plane))
+        {
+            _state.Log($"[server] rejected peer {player.Peer} getting into plane {nearest.Id}: {_research.Needs(Unlock.Plane)}");
             return;
         }
 

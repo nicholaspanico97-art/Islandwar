@@ -72,7 +72,7 @@ public static class MatchFlow
                 }
 
                 return seconds >= preset.CountdownSeconds
-                    ? (new MatchStatus(MatchStage.Playing, 1, 0, Team.None, EndReason.None), MatchEvent.MatchStarted)
+                    ? (new MatchStatus(MatchStage.Playing, PhaseAt(preset, 0), 0, Team.None, EndReason.None), MatchEvent.MatchStarted)
                     : (status with { StageSeconds = seconds }, MatchEvent.None);
 
             case MatchStage.Playing:

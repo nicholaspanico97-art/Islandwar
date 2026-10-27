@@ -28,7 +28,7 @@ public interface IGameLink
     /// <summary>Falling bombs (and nukes) by id, positioned for this frame.</summary>
     IReadOnlyDictionary<int, (BombState State, bool Nuke)> SampleBombs();
 
-    /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative outside phase 3.</summary>
+    /// <summary>Seconds until our team's nuke is ready: 0 when ready, negative when there's none (phase or era).</summary>
     float NukeReadyIn { get; }
 
     /// <summary>The server allows noclip flying (developer mode).</summary>
@@ -81,4 +81,7 @@ public interface IGameLink
 
     /// <summary>Asks the server to craft a recipe, by hand (station 0) or at one of our team's stations.</summary>
     void RequestCraft(string recipeId, int stationId);
+
+    /// <summary>Asks the server to research a tech for our team.</summary>
+    void RequestResearch(string techId);
 }

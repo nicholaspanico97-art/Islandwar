@@ -67,6 +67,7 @@ public class FurnaceTests
     {
         var test = new TestServer("quick");
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
+        test.Research(Team.Red, "mining", "logging", "smelting");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
         player.Backpack = ItemCounts.None.Plus("copper_ore", 2).Plus("coal", 1);
 
@@ -89,6 +90,7 @@ public class FurnaceTests
     {
         var test = new TestServer("quick");
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
+        test.Research(Team.Red, "mining", "logging", "smelting");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
         player.Backpack = ItemCounts.None.Plus("stone", 5).Plus("log", 5).Plus("copper_ingot", 1);
 
@@ -111,6 +113,7 @@ public class FurnaceTests
     {
         var test = new TestServer("quick");
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
+        test.Research(Team.Red, "mining", "logging", "smelting");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
         test.State.Objects.Set(ItemCounts.WithSlot(furnace, ItemCounts.FuelSlot, "coal", 1));
         test.Run(test.State.Data.Net.TickRate * 2);
@@ -126,6 +129,7 @@ public class FurnaceTests
     {
         var test = new TestServer("quick");
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
+        test.Research(Team.Red, "mining", "logging", "smelting");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
         player.Backpack = ItemCounts.None.Plus("coal", 3);
 

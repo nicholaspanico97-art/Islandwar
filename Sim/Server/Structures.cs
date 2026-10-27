@@ -4,6 +4,7 @@ using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Voxels;
 
 namespace IslandWar.Sim.Server;
@@ -16,6 +17,7 @@ public sealed class Structures
 {
     private readonly ServerState _state;
     private readonly Vehicles _vehicles;
+    private readonly Research _research;
 
     /// <summary>Set once the inventory exists (it needs the team states, which need nothing).</summary>
     public Inventory? Inventory { get; set; }
@@ -23,10 +25,11 @@ public sealed class Structures
     /// <summary>Object ids are never reused, even across matches.</summary>
     private int _nextId = 1;
 
-    public Structures(ServerState state, Vehicles vehicles)
+    public Structures(ServerState state, Vehicles vehicles, Research research)
     {
         _state = state;
         _vehicles = vehicles;
+        _research = research;
     }
 
     public void PlaceRequested(int peer, string kindId, BlockPos origin, int facing)
@@ -40,6 +43,7 @@ public sealed class Structures
         Payment? payment = kind is null || _state.Creative ? null : Inventory!.Plan(player, kind.Cost);
         string? reason = kind is null ? "unknown kind"
             : player.Pawn.InPlane ? "flying a plane"
+            : !_research.Unlocked(player.Team, Unlock.Structure(kind.Id)) ? _research.Needs(Unlock.Structure(kind.Id))
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, GameObject.FootprintOf(kind, origin, facing)) ? "out of reach"
             : ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, facing, Blockers())

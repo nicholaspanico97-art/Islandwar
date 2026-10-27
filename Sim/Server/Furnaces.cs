@@ -1,6 +1,7 @@
 using IslandWar.Sim.Items;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 
 namespace IslandWar.Sim.Server;
 
@@ -16,10 +17,12 @@ public sealed class Furnaces
     public const string ProgressValue = "progress_ms";
 
     private readonly ServerState _state;
+    private readonly Research _research;
 
-    public Furnaces(ServerState state)
+    public Furnaces(ServerState state, Research research)
     {
         _state = state;
+        _research = research;
     }
 
     private int StepTicks => Math.Max(1, _state.Data.Net.TickRate / 2);
@@ -36,10 +39,21 @@ public sealed class Furnaces
         foreach (GameObject furnace in _state.Objects.All.ToList())
         {
             ObjectKind kind = _state.Objects.KindOf(furnace);
-            if (kind.Smelter is { } smelter && Smelt(furnace, smelter, _state.Data.Items, elapsedMs) is { } after)
+            if (kind.Smelter is not { } smelter)
+            {
+                continue;
+            }
+
+            bool allowed(SmeltingRecipe recipe) => _research.Unlocked(furnace.Team, Unlock.Smelting(recipe.Makes));
+            if (Smelt(furnace, smelter, _state.Data.Items, elapsedMs, allowed) is { } after)
             {
                 _state.Objects.Set(after);
                 changed.Add(after);
+                if (RecipeIn(furnace, _state.Data.Items, allowed) is { } recipe
+                    && ItemCounts.Contents(after, ItemCounts.OutputSlot).Of(recipe.Makes) > ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Of(recipe.Makes))
+                {
+                    _research.Earn(furnace.Team, PointSource.Smelt, recipe.Makes, recipe.Count);
+                }
             }
         }
 
@@ -50,14 +64,24 @@ public sealed class Furnaces
     }
 
     /// <summary>
-    /// One step of smelting <paramref name="elapsedMs"/> long: the furnace as it is after, or null if nothing
-    /// happened (nothing to smelt, no fuel, or no room for the result).
+    /// What a furnace would smelt now: the first recipe (in data order) its team may use whose ingredients are
+    /// all in its input, or null.
     /// </summary>
-    public static GameObject? Smelt(GameObject furnace, SmelterSpec smelter, ItemSettings items, int elapsedMs)
+    public static SmeltingRecipe? RecipeIn(GameObject furnace, ItemSettings items, Func<SmeltingRecipe, bool>? allowed = null)
     {
         IReadOnlyDictionary<string, int> input = ItemCounts.Contents(furnace, ItemCounts.InputSlot);
-        SmeltingRecipe? recipe = input.Keys.Select(items.SmeltingFor).FirstOrDefault(r => r is not null);
-        if (recipe is null || ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() >= smelter.SlotCapacity)
+        return items.Smelting.FirstOrDefault(r => input.Covers(r.Takes) && (allowed?.Invoke(r) ?? true));
+    }
+
+    /// <summary>
+    /// One step of smelting <paramref name="elapsedMs"/> long: the furnace as it is after, or null if nothing
+    /// happened (nothing it may smelt, no fuel, or no room for the result).
+    /// </summary>
+    /// <param name="allowed">Whether the furnace's team may use a recipe (bronze needs research); null for all.</param>
+    public static GameObject? Smelt(GameObject furnace, SmelterSpec smelter, ItemSettings items, int elapsedMs, Func<SmeltingRecipe, bool>? allowed = null)
+    {
+        SmeltingRecipe? recipe = RecipeIn(furnace, items, allowed);
+        if (recipe is null || ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() + recipe.Count > smelter.SlotCapacity)
         {
             return null;
         }
@@ -80,8 +104,12 @@ public sealed class Furnaces
         burn -= elapsedMs;
         if (progress >= recipe.Seconds * 1000)
         {
-            after = ItemCounts.WithSlot(after, ItemCounts.InputSlot, recipe.Takes, -1);
-            after = ItemCounts.WithSlot(after, ItemCounts.OutputSlot, recipe.Makes, 1);
+            foreach ((string item, int count) in recipe.Takes)
+            {
+                after = ItemCounts.WithSlot(after, ItemCounts.InputSlot, item, -count);
+            }
+
+            after = ItemCounts.WithSlot(after, ItemCounts.OutputSlot, recipe.Makes, recipe.Count);
             progress = 0;
         }
 

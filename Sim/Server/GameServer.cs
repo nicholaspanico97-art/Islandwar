@@ -24,22 +24,24 @@ public sealed class GameServer
     private readonly Inventory _inventory;
     private readonly Crafting _crafting;
     private readonly Furnaces _furnaces;
+    private readonly Research _research;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
         State = new ServerState(data, options, net, log);
-        _vehicles = new Vehicles(State);
-        _structures = new Structures(State, _vehicles);
         _teams = new TeamStates(State);
         _inventory = new Inventory(State, _teams);
+        _research = new Research(State, _teams, _inventory);
+        _vehicles = new Vehicles(State, _research);
+        _structures = new Structures(State, _vehicles, _research);
         _structures.Inventory = _inventory;
-        _crafting = new Crafting(State, _inventory);
-        _furnaces = new Furnaces(State);
-        _weapons = new Weapons(State, _structures);
+        _crafting = new Crafting(State, _inventory, _research);
+        _furnaces = new Furnaces(State, _research);
+        _weapons = new Weapons(State, _structures, _research);
         _sessions = new Sessions(State, _vehicles, _teams, _inventory);
         _match = new MatchSystem(State);
         _movement = new Movement(State, _vehicles, _weapons);
-        _building = new Building(State, _vehicles, _inventory);
+        _building = new Building(State, _vehicles, _inventory, _research);
         _replication = new Replication(State, _weapons);
 
         _match.Started += ResetWorld;
@@ -95,6 +97,11 @@ public sealed class GameServer
 
     /// <param name="stationId">The structure it's made at, or 0 for by hand.</param>
     public void CraftRequested(int peer, string recipeId, int stationId) => _crafting.CraftRequested(peer, recipeId, stationId);
+
+    /// <summary>A player asks to research a tech for their team.</summary>
+    public void ResearchRequested(int peer, string techId) => _research.ResearchRequested(peer, techId);
+
+    public Research Research => _research;
 
     /// <summary>The teams' shared state, for systems (and tests) that change it.</summary>
     public TeamStates Teams => _teams;

@@ -1,36 +1,44 @@
 {
   // Match presets (game plan: both are real modes). Pick one with the server's --preset=NAME.
-  // Times are in minutes unless the name says seconds. Phase 1 runs from the start to phase2_start_minutes.
-  // crater_radius_by_phase: bomb crater radius in phases 1, 2, 3; 0 = no bombs (phase 1 is scouting only).
-  // nuke_cooldown_minutes: each team gets a nuke when phase 3 starts, and another this long after each drop.
+  // Times are in minutes unless the name says seconds.
+  // Real matches go by eras: each team researches its way forward (techs.json), and planes and bombs wait for
+  // WWI, the nuke for the Cold War. Creative presets (practice and tests) have everything and keep the old
+  // timed phases instead: phase 1 runs from the start to phase2_start_minutes, crater_radius_by_phase is the
+  // bomb crater radius in phases 1, 2, 3 (0 = no bombs) and each team gets a nuke when phase 3 starts.
+  // nuke_cooldown_minutes: another nuke this long after each drop.
   "compressed": {
-    // 4v4, about 45 minutes. The default.
+    // 4v4, about 45 minutes. The default. (The eras' average times add up to far more: to balance.)
     "max_players_per_team": 4,
     "max_team_imbalance": 1,
     "min_players_per_team": 1,
     "countdown_seconds": 10,
-    "phase2_start_minutes": 8,
-    "phase3_start_minutes": 25,
     "time_limit_minutes": 45,
     "results_seconds": 20,
-    "crater_radius_by_phase": [0, 3, 5],
     "nuke_cooldown_minutes": 4
   },
   "full": {
-    // 12v12, about 3 hours. Phase 1 starts at 20 minutes for playtests (game plan review note 6).
+    // 12v12, about 3 hours. (The eras' average times add up to about 3 h 45 min: to balance.)
     "max_players_per_team": 12,
     "max_team_imbalance": 1,
     "min_players_per_team": 2,
     "countdown_seconds": 20,
-    "phase2_start_minutes": 20,
-    "phase3_start_minutes": 120,
     "time_limit_minutes": 180,
     "results_seconds": 30,
-    "crater_radius_by_phase": [0, 3, 5],
     "nuke_cooldown_minutes": 10
   },
   "quick": {
-    // A five-minute match to see every phase: demos and short playtests.
+    // Half an hour: long enough for the Stone Age and into the Bronze Age, for demos and short playtests.
+    "max_players_per_team": 4,
+    "max_team_imbalance": 1,
+    "min_players_per_team": 1,
+    "countdown_seconds": 10,
+    "time_limit_minutes": 30,
+    "results_seconds": 15,
+    "nuke_cooldown_minutes": 0.5
+  },
+  "phases": {
+    // The old quick match, creative: five minutes with timed phases, bombs and the nuke, to try them by hand.
+    "creative": true,
     "max_players_per_team": 4,
     "max_team_imbalance": 1,
     "min_players_per_team": 1,

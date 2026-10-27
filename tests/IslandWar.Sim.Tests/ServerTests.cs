@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Research;
 using IslandWar.Sim.Server;
 using IslandWar.Sim.Voxels;
 
@@ -72,6 +73,24 @@ public sealed class TestServer
         Server.PeerConnected(peer, _now);
         Server.Hello(peer, name, team, token.Length > 0 ? token : $"token-{peer}");
         return State.Players[peer];
+    }
+
+    /// <summary>Gives a team techs as if it had researched them (and the eras they lead to), without the points.</summary>
+    public void Research(Team team, params string[] techs)
+    {
+        TechTree tree = State.Data.Techs;
+        TeamState state = State.TeamStates[team];
+        state = state with
+        {
+            Era = techs.Select(t => tree.EraIndex(tree.Tech(t)!.Era)).Append(state.Era).Max(),
+            Researched = state.Researched.Concat(techs).Distinct().Order(StringComparer.Ordinal).ToList(),
+        };
+        while (tree.EraOf(state).Advance is { Count: > 0 } advance && advance.All(state.HasResearched) && state.Era < tree.Eras.Count - 1)
+        {
+            state = state with { Era = state.Era + 1 };
+        }
+
+        State.TeamStates[team] = state;
     }
 
     public void Run(int ticks, ulong msecPerTick = 16)
