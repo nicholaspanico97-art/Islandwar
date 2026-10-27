@@ -51,6 +51,21 @@ public sealed record MatchPreset
     public float ConcedeFraction { get; init; } = 0.66f;
 
     /// <summary>
+    /// For playtest presets: techs every team starts with (and the eras they lead to, where no building is
+    /// needed to move on). Real presets start from nothing.
+    /// </summary>
+    public IReadOnlyList<string> StartResearch { get; init; } = Array.Empty<string>();
+
+    /// <summary>For playtest presets: research points every team starts with, by era id.</summary>
+    public IReadOnlyDictionary<string, int> StartPoints { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>For playtest presets: what every player carries on joining and at a match's start.</summary>
+    public IReadOnlyDictionary<string, int> StartBackpack { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>For playtest presets: a built depot by each team's spawn holding these items.</summary>
+    public IReadOnlyDictionary<string, int> StartDepot { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>
     /// Whether the clock unlocks bombs and the nuke phase by phase. Only creative presets (practice, tests) do;
     /// real matches go by each team's era instead, so for them the match is in phase 3 from the start and the
     /// clock holds nothing back.

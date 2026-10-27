@@ -93,7 +93,7 @@ public sealed class Sessions
             _playerIds[token] = playerId;
         }
 
-        players[peer] = new ServerPlayer(peer, name, team, token, playerId, _state.NextSpawn(team), _state.Data.Net) { Backpack = returning ? seat.Backpack : ItemCounts.None, Health = _state.Data.Player.MaxHealth };
+        players[peer] = new ServerPlayer(peer, name, team, token, playerId, _state.NextSpawn(team), _state.Data.Net) { Backpack = returning ? seat.Backpack : _inventory.StartingBackpack, Health = _state.Data.Player.MaxHealth };
         _state.Net.SendWorld(peer, _state.CurrentWorld());
         _teams.SendTo(players[peer]);
         _inventory.SendBackpack(players[peer]);

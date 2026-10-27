@@ -36,6 +36,24 @@
     "results_seconds": 15,
     "nuke_cooldown_minutes": 0.5
   },
+  "bronze": {
+    // Playtesting the Bronze Age without the Stone Age first. Real rules (gathering, blueprints, research),
+    // but it never starts a match (endless warmup). Each team starts in the Bronze Age with its basic techs
+    // and points for Shipbuilding and the Blast furnace (and Smithing once in the Iron Age); each player with
+    // bronze tools and a bow; each team with a stocked depot a few blocks from its spawn.
+    "max_players_per_team": 12,
+    "max_team_imbalance": 12,
+    "min_players_per_team": 1000,
+    "countdown_seconds": 10,
+    "time_limit_minutes": 30,
+    "results_seconds": 10,
+    "nuke_cooldown_minutes": 1,
+    "start_research": ["mining", "logging", "smelting", "bronze_working", "bronze_tools", "archery", "fortification", "prospecting"],
+    "start_points": { "bronze": 60, "iron": 30 },
+    "start_backpack": { "bronze_pickaxe": 1, "bronze_axe": 1, "bow": 1, "arrow": 12 },
+    "start_depot": { "planks": 200, "log": 60, "stone": 150, "clay": 40, "bronze_ingot": 30, "iron_ore": 20, "charcoal": 40,
+                     "copper_ingot": 12, "tin_ingot": 4 }
+  },
   "phases": {
     // The old quick match, creative: five minutes with timed phases, bombs and the nuke, to try them by hand.
     "creative": true,

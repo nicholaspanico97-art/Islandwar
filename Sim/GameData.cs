@@ -97,11 +97,27 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
         return PlaneState.Parked(new System.Numerics.Vector3(x + 0.5f, ground, z + 0.5f), MathF.PI);
     }
 
-    /// <summary>The named preset, or an error listing the ones that exist.</summary>
-    public MatchPreset Preset(string name) =>
-        Presets.TryGetValue(name, out MatchPreset? preset)
-            ? preset
-            : throw new InvalidDataException($"No preset '{name}' in presets.json. Choose one of: {string.Join(", ", Presets.Keys)}.");
+    /// <summary>The named preset, or an error listing the ones that exist. Its starting techs and items must exist.</summary>
+    public MatchPreset Preset(string name)
+    {
+        if (!Presets.TryGetValue(name, out MatchPreset? preset))
+        {
+            throw new InvalidDataException($"No preset '{name}' in presets.json. Choose one of: {string.Join(", ", Presets.Keys)}.");
+        }
+
+        if (preset.StartResearch.Any(t => Techs.Tech(t) is null) || preset.StartPoints.Keys.Any(e => Techs.EraIndex(e) < 0)
+            || preset.StartBackpack.Concat(preset.StartDepot).Any(i => Items.Item(i.Key) is null || i.Value <= 0)
+            || preset.StartBackpack.Values.Sum() > Items.BackpackCapacity
+            || (preset.StartDepot.Count > 0 && preset.StartDepot.Values.Sum() > (Kinds.Get(StarterDepot)?.Capacity ?? 0)))
+        {
+            throw new InvalidDataException($"presets.json: '{name}' starts with techs, eras or items that don't exist, or more than fits.");
+        }
+
+        return preset;
+    }
+
+    /// <summary>The kind of the stocked depot a playtest preset gives each team.</summary>
+    public const string StarterDepot = "depot";
 
     /// <summary>
     /// A plane may not cross more than one block per tick, or the block collision could skip one. Sink only

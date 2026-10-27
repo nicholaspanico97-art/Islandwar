@@ -673,3 +673,11 @@ Fortification). Check, in order:
    pickaxe and axe at the workbench (3 iron ingots and 2 planks each; tier 3, faster than bronze).
 6. The research window then says the Iron Age is as far as research goes for now.
 
+## The bronze playtest preset
+
+`--preset=bronze` gives the Bronze Age with real rules and a head start (see `data/presets.json`): it never
+starts a match, each team starts in the Bronze Age with its basic techs and points, each player with bronze
+tools and a bow, and each team with a stocked depot by its spawn. The status line reads `Playtest: no match
+on this server. Real rules, with a head start.` The checklist for pieces 1 to 4 in one sitting is
+`docs/playtest-bronze-age.md`.
+

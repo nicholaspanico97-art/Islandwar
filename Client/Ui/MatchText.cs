@@ -14,8 +14,10 @@ public static class MatchText
         return match.Stage switch
         {
             // A preset that needs more players than a team may hold never starts: the practice server.
-            MatchStage.Warmup when preset.MinPlayersPerTeam > preset.MaxPlayersPerTeam =>
+            MatchStage.Warmup when preset.MinPlayersPerTeam > preset.MaxPlayersPerTeam && preset.Creative =>
                 "Practice: no match on this server. Anything goes.",
+            MatchStage.Warmup when preset.MinPlayersPerTeam > preset.MaxPlayersPerTeam =>
+                "Playtest: no match on this server. Real rules, with a head start.",
             MatchStage.Warmup =>
                 $"Warmup: the match starts when both teams have {preset.MinPlayersPerTeam} (Red {red}, Blue {blue}). Anything goes; the island resets at the start.",
             MatchStage.Countdown => $"Match starts in {Seconds(next)}",

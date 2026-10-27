@@ -244,6 +244,54 @@ public sealed class Structures
     /// <summary>No objects (a fresh match; the new world has none of their blocks either).</summary>
     public void Reset() => _state.Objects.Clear();
 
+    /// <summary>
+    /// A playtest preset's stocked depot, built, a few blocks from each team's spawn. Put straight into the
+    /// world before anyone is sent it (at start-up, or in a reset before the fresh world goes out).
+    /// </summary>
+    public void PlaceStarterDepots()
+    {
+        if (_state.Preset.StartDepot.Count == 0 || _state.Data.Kinds.Get(GameData.StarterDepot) is not { } kind)
+        {
+            return;
+        }
+
+        foreach (Team team in Teams.Playing)
+        {
+            (int cx, int cz) = _state.Data.Terrain.IslandCentre(team.IslandIndex());
+            BlockPos? site = (
+                from radius in Enumerable.Range(6, 10)
+                from dz in new[] { -radius, radius, 0 }
+                from dx in new[] { 0, -radius, radius }
+                let x = cx + dx
+                let z = cz + dz
+                let top = _state.World.HighestSolid(x, z)
+                where top is not null
+                let origin = new BlockPos(x, top!.Value + 1, z)
+                where ObjectRules.WhyNot(_state.World, _state.Data.Player, kind, origin, 0, Array.Empty<Vector3>()) is null
+                select (BlockPos?)origin).FirstOrDefault();
+            if (site is not { } at)
+            {
+                _state.Log($"[server] found no room for {team}'s starter depot");
+                continue;
+            }
+
+            var depot = new GameObject(_nextId++, kind.Id, team, 0, at, 0, kind.MaxHealth);
+            foreach ((string item, int count) in _state.Preset.StartDepot)
+            {
+                depot = ItemCounts.WithStored(depot, item, count);
+            }
+
+            foreach (BlockPos cell in depot.Footprint(kind))
+            {
+                _state.World.ApplyEdit(new VoxelEdit(cell, Block.Structure, depot.Owner));
+            }
+
+            _state.Objects.Set(depot);
+            Inventory?.RecountStock(team);
+            _state.Log($"[server] {team}'s starter depot is at {at}");
+        }
+    }
+
     /// <summary>Removes an object and empties its footprint, returning the edits made.</summary>
     private List<VoxelEdit> Clear(GameObject target)
     {

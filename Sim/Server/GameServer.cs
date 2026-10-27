@@ -53,6 +53,8 @@ public sealed class GameServer
 
         log($"[server] generated island: seed {options.Seed}, {World.SizeX}x{World.SizeY}x{World.SizeZ} blocks, hash {World.ComputeHash():x16}");
         _vehicles.ParkPlanes();
+        _teams.Reset();
+        _structures.PlaceStarterDepots();
         log($"[server] warmup: the match starts {State.Preset.CountdownSeconds:0} s after both teams have {State.Preset.MinPlayersPerTeam} player(s)");
         log($"[server] preset '{options.PresetName}', up to {State.Preset.MaxPlayersPerTeam} per team{(options.Dev ? "; developer mode: noclip on, any team" : "")}");
     }
@@ -130,6 +132,7 @@ public sealed class GameServer
         _teams.Reset();
         _inventory.Reset();
         _vehicles.ResetToMoorings();
+        _structures.PlaceStarterDepots();
         State.ResetSpawns();
         WorldInit fresh = State.CurrentWorld();
         foreach ((int peer, ServerPlayer player) in State.Players)

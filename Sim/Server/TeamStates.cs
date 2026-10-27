@@ -1,3 +1,4 @@
+using IslandWar.Sim.Items;
 using IslandWar.Sim.Match;
 using IslandWar.Sim.Protocol;
 
@@ -29,12 +30,26 @@ public sealed class TeamStates
     public void SendTo(ServerPlayer player) =>
         _state.Net.SendTeamState(player.Peer, WireFormat.EncodeTeamState(Of(player.Team)));
 
-    /// <summary>Every team starts from nothing (a fresh match). Players hear of it with the new world.</summary>
+    /// <summary>
+    /// Every team starts from nothing (a fresh match), or from a playtest preset's techs and points. Players
+    /// hear of it with the new world.
+    /// </summary>
     public void Reset()
     {
+        MatchPreset preset = _state.Preset;
         foreach (Team team in Teams.Playing)
         {
-            _state.TeamStates[team] = new TeamState(team);
+            var start = new TeamState(team)
+            {
+                Researched = preset.StartResearch.Distinct().Order(StringComparer.Ordinal).ToList(),
+                Points = preset.StartPoints.Aggregate(ItemCounts.None, (points, p) => points.Plus(p.Key, p.Value)),
+            };
+            for (TeamState next = _state.Data.Techs.Advanced(start); next.Era > start.Era; next = _state.Data.Techs.Advanced(start))
+            {
+                start = next;
+            }
+
+            _state.TeamStates[team] = start;
         }
     }
 }

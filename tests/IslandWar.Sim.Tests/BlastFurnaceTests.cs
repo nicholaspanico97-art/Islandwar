@@ -128,3 +128,27 @@ public class BlastFurnaceTests
         Assert.False(test.State.Objects.Get(blueprint.Id)!.IsBlueprint(), string.Join("\n", test.Log));
     }
 }
+
+/// <summary>The bronze playtest preset: real rules, but a head start.</summary>
+public class PlaytestPresetTests
+{
+    [Fact]
+    public void TheBronzePresetStartsInTheBronzeAgeWithAKitAndAStockedDepot()
+    {
+        var test = new TestServer("bronze");
+        ServerPlayer player = test.Join(2, "Tester", Team.Red);
+
+        TeamState red = test.State.TeamStates[Team.Red];
+        Assert.Equal(1, red.Era);
+        Assert.True(red.HasResearched("prospecting"));
+        Assert.Equal(60, red.Points.Of("bronze"));
+        Assert.Equal(1, player.Backpack.Of("bow"));
+        Assert.False(test.State.Creative);
+        foreach (Team team in Teams.Playing)
+        {
+            GameObject depot = Assert.Single(test.State.Objects.All, o => o.Team == team);
+            Assert.Equal(30, ItemCounts.Contents(depot).Of("bronze_ingot"));
+            Assert.Equal(200, test.State.TeamStates[team].Amount("planks"));
+        }
+    }
+}

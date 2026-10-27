@@ -240,15 +240,18 @@ public sealed class Inventory
         }
     }
 
-    /// <summary>Everyone starts a match with an empty backpack.</summary>
+    /// <summary>Everyone starts a match with an empty backpack (or a playtest preset's starting kit).</summary>
     public void Reset()
     {
         foreach (ServerPlayer player in _state.Players.Values)
         {
-            player.Backpack = ItemCounts.None;
+            player.Backpack = StartingBackpack;
             SendBackpack(player);
         }
     }
+
+    /// <summary>What a player carries on joining or at a match's start: nothing, or a playtest preset's kit.</summary>
+    public IReadOnlyDictionary<string, int> StartingBackpack => ItemCounts.None.Sum(_state.Preset.StartBackpack);
 
     /// <summary>A team's built storage structures; a dropped backpack isn't one, whoever's it was.</summary>
     private IEnumerable<GameObject> TeamStorage(Team team) =>
