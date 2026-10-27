@@ -116,7 +116,7 @@ public class CraftingTests
         ServerPlayer player = test.Join(2, "Crafter", Team.Red);
         GameObject crate = InventoryTests.PlaceCrate(test, player);
         player.Backpack = ItemCounts.None.Plus("log", 3);
-        test.Server.TransferRequested(2, crate.Id, "log", 3, intoStorage: true);
+        test.Server.TransferRequested(2, crate.Id, "item", "log", 3, intoStructure: true);
         player.Backpack = ItemCounts.None.Plus("log", 1);
 
         test.Server.CraftRequested(2, "planks", 0);

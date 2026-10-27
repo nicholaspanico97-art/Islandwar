@@ -54,46 +54,69 @@ public sealed class Inventory
     public void SendBackpack(ServerPlayer player) => _state.Net.SendBackpack(player.Peer, WireFormat.EncodeCounts(player.Backpack));
 
     /// <summary>
-    /// Moves up to <paramref name="count"/> of an item between a player's backpack and one of their team's
-    /// storage structures, as much as is there and as fits on the other side.
+    /// Moves up to <paramref name="count"/> of an item between a player's backpack and a slot of one of their
+    /// team's structures (a storage's <c>item</c> slot, or a furnace's input, fuel or output), as much as is
+    /// there and as fits on the other side.
     /// </summary>
-    public void TransferRequested(int peer, int storageId, string item, int count, bool intoStorage)
+    public void TransferRequested(int peer, int objectId, string slot, string item, int count, bool intoStructure)
     {
-        if (!_state.Players.TryGetValue(peer, out ServerPlayer? player) || _state.Objects.Get(storageId) is not { } storage || count <= 0)
+        if (!_state.Players.TryGetValue(peer, out ServerPlayer? player) || _state.Objects.Get(objectId) is not { } target || count <= 0)
         {
             return;
         }
 
-        ObjectKind kind = _state.Objects.KindOf(storage);
-        IReadOnlyDictionary<string, int> stored = ItemCounts.Contents(storage);
-        string? reason = !kind.IsStorage ? "not storage"
-            : storage.Team != player.Team ? "the other team's"
+        ObjectKind kind = _state.Objects.KindOf(target);
+        IReadOnlyDictionary<string, int> held = ItemCounts.Contents(target, slot);
+        string? reason = target.Team != player.Team ? "the other team's"
             : player.Pawn.InPlane ? "flying a plane"
-            : !InReach(player, storage, kind) ? "out of reach"
+            : !InReach(player, target, kind) ? "out of reach"
             : Items.Item(item) is null ? "unknown item"
+            : SlotCapacity(kind, slot) is null ? $"no {slot} slot"
+            : intoStructure && !Accepts(slot, item) ? $"{item} doesn't go in the {slot}"
             : null;
         if (reason is not null)
         {
-            _state.Log($"[server] rejected peer {peer} moving {item} {(intoStorage ? "into" : "out of")} object {storageId}: {reason}");
+            _state.Log($"[server] rejected peer {peer} moving {item} {(intoStructure ? "into" : "out of")} the {slot} of object {objectId}: {reason}");
             return;
         }
 
-        int moved = intoStorage
-            ? Math.Min(Math.Min(count, player.Backpack.Of(item)), kind.Capacity - stored.Total())
-            : Math.Min(Math.Min(count, stored.Of(item)), Items.BackpackCapacity - player.Backpack.Total());
+        int moved = intoStructure
+            ? Math.Min(Math.Min(count, player.Backpack.Of(item)), SlotCapacity(kind, slot)!.Value - held.Total())
+            : Math.Min(Math.Min(count, held.Of(item)), Items.BackpackCapacity - player.Backpack.Total());
         if (moved <= 0)
         {
             return;
         }
 
-        player.Backpack = player.Backpack.Plus(item, intoStorage ? -moved : moved);
-        GameObject changed = ItemCounts.WithStored(storage, item, intoStorage ? moved : -moved);
+        player.Backpack = player.Backpack.Plus(item, intoStructure ? -moved : moved);
+        GameObject changed = ItemCounts.WithSlot(target, slot, item, intoStructure ? moved : -moved);
         _state.Objects.Set(changed);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { changed }));
         SendBackpack(player);
-        RecountStock(player.Team);
-        _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStorage ? "into" : "out of")} {kind.Name} {storage.Id}");
+        if (kind.IsStorage)
+        {
+            RecountStock(player.Team);
+        }
+
+        _state.Log($"[server] '{player.Name}' moved {moved} {item} {(intoStructure ? "into" : "out of")} {kind.Name} {target.Id} ({slot})");
     }
+
+    /// <summary>How many items a slot of a kind of structure holds, or null if it has no such slot.</summary>
+    public static int? SlotCapacity(ObjectKind kind, string slot) => slot switch
+    {
+        ItemCounts.StorageSlot when kind.IsStorage => kind.Capacity,
+        ItemCounts.InputSlot or ItemCounts.FuelSlot or ItemCounts.OutputSlot when kind.Smelter is { } smelter => smelter.SlotCapacity,
+        _ => null,
+    };
+
+    /// <summary>What a player may put in a slot: anything in storage, things that smelt or burn in a furnace, nothing in its output.</summary>
+    private bool Accepts(string slot, string item) => slot switch
+    {
+        ItemCounts.InputSlot => Items.SmeltingFor(item) is not null,
+        ItemCounts.FuelSlot => Items.IsFuel(item),
+        ItemCounts.OutputSlot => false,
+        _ => true,
+    };
 
     /// <summary>Everything a player can spend: their backpack and their team's storage.</summary>
     public IReadOnlyDictionary<string, int> Available(ServerPlayer player) => player.Backpack.Sum(_teams.Of(player.Team).Stock);

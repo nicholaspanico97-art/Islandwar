@@ -10,6 +10,7 @@ using IslandWar.Sim.Match;
 using IslandWar.Sim.Objects;
 using IslandWar.Sim.Players;
 using IslandWar.Sim.Protocol;
+using IslandWar.Sim.Server;
 using IslandWar.Sim.Vehicles;
 using IslandWar.Sim.Voxels;
 using IslandWar.Sim.Weapons;
@@ -121,11 +122,18 @@ public partial class ClientGame : Node3D
         };
         AddChild(_hud);
         _hud.Crafting.CraftClicked += recipe => Link?.RequestCraft(recipe, _hud.Crafting.StationId);
+        _hud.Furnace.TransferClicked += (slot, item, count, into) =>
+        {
+            if (_hud.Furnace.FurnaceId is { } id)
+            {
+                Link?.RequestTransfer(id, slot, item, count, into);
+            }
+        };
         _hud.Storage.TransferClicked += (item, count, into) =>
         {
             if (_hud.Storage.StorageId is { } id)
             {
-                Link?.RequestTransfer(id, item, count, into);
+                Link?.RequestTransfer(id, ItemCounts.StorageSlot, item, count, into);
             }
         };
         Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -496,7 +504,7 @@ public partial class ClientGame : Node3D
                 return $"{nameOf(structure.OwnerPlayerId)} built that. Teammates' structures are protected.";
             }
 
-            return Link.Objects.KindOf(structure).IsStorage && ItemCounts.Contents(structure).Count > 0
+            return ItemCounts.HasItems(structure)
                 ? $"Empty the {Link.Objects.KindOf(structure).Name} before taking it down."
                 : null;
         }
@@ -599,6 +607,11 @@ public partial class ClientGame : Node3D
             _hud.Crafting.Show(where, Items, available, Creative);
         }
 
+        if (_hud.Furnace.FurnaceId is { } furnaceId)
+        {
+            ShowFurnace(furnaceId);
+        }
+
         if (_hud.Storage.StorageId is not { } id)
         {
             return;
@@ -616,6 +629,49 @@ public partial class ClientGame : Node3D
             ItemCounts.Contents(storage), kind.Capacity, Items);
     }
 
+    private void ShowFurnace(int id)
+    {
+        if (Link?.Objects?.Get(id) is not { } furnace || !InReach(furnace) || Link.Objects.KindOf(furnace).Smelter is not { } smelter)
+        {
+            CloseWindows();
+            return;
+        }
+
+        var slots = new Dictionary<string, IReadOnlyDictionary<string, int>>
+        {
+            [ItemCounts.InputSlot] = ItemCounts.Contents(furnace, ItemCounts.InputSlot),
+            [ItemCounts.FuelSlot] = ItemCounts.Contents(furnace, ItemCounts.FuelSlot),
+            [ItemCounts.OutputSlot] = ItemCounts.Contents(furnace, ItemCounts.OutputSlot),
+        };
+        _hud.Furnace.Show($"{furnace.Team} Furnace", FurnaceStatus(furnace, smelter), Link.Backpack, slots, smelter.SlotCapacity, Items);
+    }
+
+    /// <summary>One line on what a furnace is doing, from its slots and burn and progress values.</summary>
+    private string FurnaceStatus(GameObject furnace, SmelterSpec smelter)
+    {
+        IReadOnlyDictionary<string, int> input = ItemCounts.Contents(furnace, ItemCounts.InputSlot);
+        SmeltingRecipe? recipe = input.Keys.Select(Items.SmeltingFor).FirstOrDefault(r => r is not null);
+        int burn = furnace.Values.Of(Furnaces.BurnValue);
+        bool fuel = ItemCounts.Contents(furnace, ItemCounts.FuelSlot).Count > 0;
+        if (recipe is null)
+        {
+            return burn > 0 ? $"Idle, {burn / 1000f:0} s of fuel still burning" : "Idle: put in something to smelt";
+        }
+
+        if (ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() >= smelter.SlotCapacity)
+        {
+            return "Stopped: take out what's done";
+        }
+
+        if (burn <= 0 && !fuel)
+        {
+            return "Stopped: needs fuel";
+        }
+
+        string makes = Items.Item(recipe.Makes)?.Name.ToLowerInvariant() ?? recipe.Makes;
+        return $"Making {makes}: {furnace.Values.Of(Furnaces.ProgressValue) / 1000f:0.0} / {recipe.Seconds:0} s   (fuel burning {burn / 1000f:0} s)";
+    }
+
     /// <summary>
     /// Opens the storage or crafting station under the crosshair if it's our team's; false if there isn't
     /// one (so E goes to the plane instead).
@@ -629,7 +685,7 @@ public partial class ClientGame : Node3D
 
         ObjectKind kind = objects.KindOf(target);
         bool station = Items.Recipes.Any(r => r.Station == kind.Id);
-        if (!kind.IsStorage && !station)
+        if (!kind.IsStorage && !station && kind.Smelter is null)
         {
             return false;
         }
@@ -644,6 +700,10 @@ public partial class ClientGame : Node3D
         {
             _hud.Storage.Open(target.Id);
         }
+        else if (kind.Smelter is not null)
+        {
+            _hud.Furnace.Open(target.Id);
+        }
         else
         {
             _hud.Crafting.Open(kind.Id, target.Id);
@@ -653,12 +713,13 @@ public partial class ClientGame : Node3D
         return true;
     }
 
-    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen;
+    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null;
 
     private void CloseWindows()
     {
         _hud.Storage.Close();
         _hud.Crafting.Close();
+        _hud.Furnace.Close();
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -766,6 +827,7 @@ public partial class ClientGame : Node3D
         string open = structure.Team != Link.MyTeam ? ""
             : kind.IsStorage ? $"   {ItemCounts.Contents(structure).Total()} / {kind.Capacity} stored, E to open"
             : Items.Recipes.Any(r => r.Station == kind.Id) ? "   E to craft"
+            : kind.Smelter is not null ? $"   {(structure.Values.Of(Furnaces.BurnValue) > 0 ? "burning, " : "")}E to open"
             : "";
         string take = Creative ? "left click" : "hold left click";
         return $"{structure.Team} {kind.Name}   {structure.Health} / {kind.MaxHealth}{open}   ({take} to take it down)";

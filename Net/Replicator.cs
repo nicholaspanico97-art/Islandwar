@@ -47,8 +47,8 @@ public partial class Replicator : Node
     /// <summary>Server: a player asks to remove a structure (peer id, object id).</summary>
     public event Action<int, int>? RemoveRequested;
 
-    /// <summary>Server: a player moves items between their backpack and a storage (peer id, storage id, item, count, into storage).</summary>
-    public event Action<int, int, string, int, bool>? TransferRequested;
+    /// <summary>Server: a player moves items between their backpack and a structure's slot (peer id, object id, slot, item, count, into the structure).</summary>
+    public event Action<int, int, string, string, int, bool>? TransferRequested;
 
     /// <summary>Server: a player asks to craft (peer id, recipe id, station object id or 0 by hand).</summary>
     public event Action<int, string, int>? CraftRequested;
@@ -114,8 +114,8 @@ public partial class Replicator : Node
 
     public void RequestCraft(string recipeId, int stationId) => RpcId(ServerId, MethodName.ReceiveCraftRequest, recipeId, stationId);
 
-    public void RequestTransfer(int storageId, string item, int count, bool intoStorage) =>
-        RpcId(ServerId, MethodName.ReceiveTransferRequest, storageId, item, count, intoStorage);
+    public void RequestTransfer(int objectId, string slot, string item, int count, bool intoStructure) =>
+        RpcId(ServerId, MethodName.ReceiveTransferRequest, objectId, slot, item, count, intoStructure);
 
     // ---- Server to client ----
 
@@ -228,11 +228,11 @@ public partial class Replicator : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ReceiveTransferRequest(int storageId, string item, int count, bool intoStorage)
+    private void ReceiveTransferRequest(int objectId, string slot, string item, int count, bool intoStructure)
     {
         if (Multiplayer.IsServer())
         {
-            TransferRequested?.Invoke(Multiplayer.GetRemoteSenderId(), storageId, item, count, intoStorage);
+            TransferRequested?.Invoke(Multiplayer.GetRemoteSenderId(), objectId, slot, item, count, intoStructure);
         }
     }
 

@@ -8,8 +8,16 @@ namespace IslandWar.Sim.Items;
 /// </summary>
 public static class ItemCounts
 {
-    /// <summary>A storage structure keeps its contents in its values under this prefix: <c>item:stone</c>.</summary>
-    public const string StoragePrefix = "item:";
+    /// <summary>
+    /// Structures keep items in their values as <c>slot:item</c>: a storage structure's in the <c>item</c> slot
+    /// (<c>item:stone</c>), a furnace's in <c>input</c>, <c>fuel</c> and <c>output</c>.
+    /// </summary>
+    public const string StorageSlot = "item";
+    public const string InputSlot = "input";
+    public const string FuelSlot = "fuel";
+    public const string OutputSlot = "output";
+
+    public const string StoragePrefix = StorageSlot + ":";
 
     public static readonly IReadOnlyDictionary<string, int> None = new SortedDictionary<string, int>(StringComparer.Ordinal);
 
@@ -42,22 +50,29 @@ public static class ItemCounts
     public static IReadOnlyDictionary<string, int> Sum(this IReadOnlyDictionary<string, int> counts, IReadOnlyDictionary<string, int> more) =>
         more.Aggregate(counts, (total, entry) => total.Plus(entry.Key, entry.Value));
 
-    /// <summary>What a storage structure holds.</summary>
-    public static IReadOnlyDictionary<string, int> Contents(GameObject storage)
+    /// <summary>What a structure holds in one slot (a storage structure's contents by default).</summary>
+    public static IReadOnlyDictionary<string, int> Contents(GameObject obj, string slot = StorageSlot)
     {
+        string prefix = slot + ":";
         var contents = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        foreach ((string name, int value) in storage.Values)
+        foreach ((string name, int value) in obj.Values)
         {
-            if (name.StartsWith(StoragePrefix, StringComparison.Ordinal))
+            if (name.StartsWith(prefix, StringComparison.Ordinal))
             {
-                contents[name[StoragePrefix.Length..]] = value;
+                contents[name[prefix.Length..]] = value;
             }
         }
 
         return contents;
     }
 
+    /// <summary>Whether a structure holds any items in any slot.</summary>
+    public static bool HasItems(GameObject obj) => obj.Values.Keys.Any(k => k.Contains(':'));
+
+    /// <summary>A copy of a structure with <paramref name="change"/> more (or fewer) of an item in one slot.</summary>
+    public static GameObject WithSlot(GameObject obj, string slot, string item, int change) =>
+        obj.With($"{slot}:{item}", Math.Max(0, Contents(obj, slot).Of(item) + change));
+
     /// <summary>A copy of a storage structure with <paramref name="change"/> more (or fewer) of an item in it.</summary>
-    public static GameObject WithStored(GameObject storage, string item, int change) =>
-        storage.With(StoragePrefix + item, Math.Max(0, Contents(storage).Of(item) + change));
+    public static GameObject WithStored(GameObject storage, string item, int change) => WithSlot(storage, StorageSlot, item, change);
 }

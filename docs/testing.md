@@ -490,3 +490,25 @@ One client on each team. Check, in order:
 6. Hold left click on your own empty crate: it comes down and its 6 planks come back into your backpack.
 7. The other team's workbench answers `That's the other team's workbench.`
 
+## Stone Age, piece 3: the furnace
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+./build.sh client
+```
+
+One client on each team. Check, in order:
+1. Mine stone and dig clay from the beach sand, then place a furnace (slot after the depot; 12 stone,
+   4 clay). It's a tall box; aiming at it says `E to open`.
+2. E opens the furnace window: your backpack on the left, with `Smelt` on things that smelt (copper and tin
+   ore, logs) and `Fuel` on things that burn (logs, planks, charcoal, coal); the furnace's `To smelt`, `Fuel`
+   and `Done` slots on the right, each item with `Take`.
+3. Put in copper ore and no fuel: the status line says `Stopped: needs fuel`. Add a log: it says `Making
+   copper ingot: 0.5 / 5 s (fuel burning 14 s)` and counts up; every 5 seconds an ingot appears in `Done`.
+   The other client, opening the same furnace (same team), sees the same.
+4. Logs in `To smelt` make charcoal (8 s each), which burns twice as long as a log.
+5. Stone won't go in. A full `Done` slot (32) stops the furnace until it's emptied.
+6. Ingots taken out and put in a crate show in the scoreboard's stock; what's in the furnace doesn't.
+7. A furnace with anything in it can't be taken down; a bombed one loses everything in it.
+

@@ -8,6 +8,12 @@ public sealed record Size3
     public int Z { get; init; } = 1;
 }
 
+/// <summary>A structure that smelts: how many items each of its slots (to smelt, fuel, done) holds.</summary>
+public sealed record SmelterSpec
+{
+    public int SlotCapacity { get; init; } = 32;
+}
+
 /// <summary>One kind of object players can place, from <c>data/structures.json</c>.</summary>
 public sealed record ObjectKind
 {
@@ -26,6 +32,9 @@ public sealed record ObjectKind
     public int Capacity { get; init; }
 
     public bool IsStorage => Capacity > 0;
+
+    /// <summary>Set for a furnace: it smelts what's put in it while fuel burns.</summary>
+    public SmelterSpec? Smelter { get; init; }
 
     /// <summary>What placing one takes, by item id.</summary>
     public IReadOnlyDictionary<string, int> Cost { get; init; } = new Dictionary<string, int>();
@@ -50,6 +59,11 @@ public sealed class ObjectKinds
             if (kind.Id.Length == 0 || kind.Name.Length == 0 || !_byId.TryAdd(kind.Id, kind))
             {
                 throw new InvalidDataException($"structures.json: every kind needs a unique id and a name ('{kind.Id}').");
+            }
+
+            if (kind.Smelter is { SlotCapacity: <= 0 })
+            {
+                throw new InvalidDataException($"structures.json: '{kind.Id}' needs a positive smelter slot_capacity.");
             }
 
             if (kind.Cost.Any(c => c.Value <= 0))

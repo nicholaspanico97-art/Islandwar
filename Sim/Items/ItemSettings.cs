@@ -45,6 +45,16 @@ public sealed record Recipe
     public bool ByHand => Station == "hand";
 }
 
+/// <summary>One thing a furnace makes: one item in, one out, taking this long while fuel burns.</summary>
+public sealed record SmeltingRecipe
+{
+    public string Takes { get; init; } = "";
+
+    public string Makes { get; init; } = "";
+
+    public float Seconds { get; init; } = 5;
+}
+
 /// <summary>Mining one block: how long it takes by hand and what it gives.</summary>
 public sealed record BlockRule
 {
@@ -78,6 +88,16 @@ public sealed record ItemSettings
     public IReadOnlyDictionary<string, BlockRule> Blocks { get; init; } = new Dictionary<string, BlockRule>();
 
     public IReadOnlyList<Recipe> Recipes { get; init; } = Array.Empty<Recipe>();
+
+    /// <summary>What burns in a furnace, and for how many seconds per item.</summary>
+    public IReadOnlyDictionary<string, float> Fuel { get; init; } = new Dictionary<string, float>();
+
+    public IReadOnlyList<SmeltingRecipe> Smelting { get; init; } = Array.Empty<SmeltingRecipe>();
+
+    /// <summary>The smelting recipe for an item, or null if it doesn't smelt.</summary>
+    public SmeltingRecipe? SmeltingFor(string item) => Smelting.FirstOrDefault(s => s.Takes == item);
+
+    public bool IsFuel(string item) => Fuel.ContainsKey(item);
 
     private Dictionary<string, ItemKind> _items = new();
     private Dictionary<Block, BlockRule> _rules = new();
@@ -186,6 +206,13 @@ public sealed record ItemSettings
             {
                 throw new InvalidDataException($"items.json: recipe '{recipe.Id}' needs a unique id, a station, and positive amounts of items that exist.");
             }
+        }
+
+        if (Fuel.Any(f => !_items.ContainsKey(f.Key) || f.Value <= 0)
+            || Smelting.Any(s => !_items.ContainsKey(s.Takes) || !_items.ContainsKey(s.Makes) || s.Seconds <= 0)
+            || Smelting.Select(s => s.Takes).Distinct().Count() != Smelting.Count)
+        {
+            throw new InvalidDataException("items.json: fuel and smelting must name items that exist, with positive seconds, and one smelting recipe per item.");
         }
 
         // Every block players can meet must say how it's mined.

@@ -76,8 +76,8 @@ public interface IGameLink
     /// <summary>The server builds freely (practice, tests): no items needed, instant mining.</summary>
     bool Creative { get; }
 
-    /// <summary>Moves items between our backpack and one of our team's storage structures.</summary>
-    void RequestTransfer(int storageId, string item, int count, bool intoStorage);
+    /// <summary>Moves items between our backpack and a slot of one of our team's structures (storage's <c>item</c>, a furnace's input, fuel or output).</summary>
+    void RequestTransfer(int objectId, string slot, string item, int count, bool intoStructure);
 
     /// <summary>Asks the server to craft a recipe, by hand (station 0) or at one of our team's stations.</summary>
     void RequestCraft(string recipeId, int stationId);

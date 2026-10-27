@@ -79,7 +79,7 @@ public sealed class Structures
             : !player.TrySpendEdit() ? "too many edits"
             : !InReach(player, target.Footprint(kind)) ? "out of reach"
             : !Protection.MayBreak(target.Owner, player.PlayerId, player.Team, _state.IsOnline) ? "a teammate built that"
-            : kind.IsStorage && ItemCounts.Contents(target).Count > 0 ? "it isn't empty"
+            : ItemCounts.HasItems(target) ? "it isn't empty"
             : !_state.Creative && _state.Seconds - player.LastMinedSeconds < _state.Data.Items.StructureHardness - _state.Data.Items.MiningSlackSeconds ? "taking it down too fast"
             : null;
         if (reason is not null)

@@ -23,6 +23,7 @@ public sealed class GameServer
     private readonly TeamStates _teams;
     private readonly Inventory _inventory;
     private readonly Crafting _crafting;
+    private readonly Furnaces _furnaces;
 
     public GameServer(GameData data, ServerOptions options, IServerTransport net, Action<string> log)
     {
@@ -33,6 +34,7 @@ public sealed class GameServer
         _inventory = new Inventory(State, _teams);
         _structures.Inventory = _inventory;
         _crafting = new Crafting(State, _inventory);
+        _furnaces = new Furnaces(State);
         _weapons = new Weapons(State, _structures);
         _sessions = new Sessions(State, _vehicles, _teams, _inventory);
         _match = new MatchSystem(State);
@@ -54,7 +56,7 @@ public sealed class GameServer
 
     public VoxelWorld World => State.World;
 
-    /// <summary>One server tick: the clock, then players and planes, then bombs, then what goes out.</summary>
+    /// <summary>One server tick: the clock, then players and planes, then bombs and furnaces, then what goes out.</summary>
     public void Tick(ulong nowMsec)
     {
         State.Tick++;
@@ -63,6 +65,7 @@ public sealed class GameServer
         _movement.Step();
         _vehicles.StepEmpty();
         _weapons.FlyBombs();
+        _furnaces.Step();
         _replication.Step();
     }
 
@@ -84,8 +87,9 @@ public sealed class GameServer
 
     public void RemoveRequested(int peer, int objectId) => _structures.RemoveRequested(peer, objectId);
 
-    public void TransferRequested(int peer, int storageId, string item, int count, bool intoStorage) =>
-        _inventory.TransferRequested(peer, storageId, item, count, intoStorage);
+    /// <param name="slot">The structure's slot: <c>item</c> for storage; <c>input</c>, <c>fuel</c> or <c>output</c> for a furnace.</param>
+    public void TransferRequested(int peer, int objectId, string slot, string item, int count, bool intoStructure) =>
+        _inventory.TransferRequested(peer, objectId, slot, item, count, intoStructure);
 
     public Inventory Inventory => _inventory;
 

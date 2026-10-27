@@ -153,14 +153,14 @@ public class InventoryTests
         player.Backpack = ItemCounts.None.Plus("copper_ore", 10);
         test.Net.TeamStates.Clear();
 
-        test.Server.TransferRequested(2, crate.Id, "copper_ore", 7, intoStorage: true);
+        test.Server.TransferRequested(2, crate.Id, "item", "copper_ore", 7, intoStructure: true);
 
         Assert.Equal(3, player.Backpack.Of("copper_ore"));
         Assert.Equal(7, ItemCounts.Contents(test.State.Objects.Get(crate.Id)!).Of("copper_ore"));
         Assert.Equal(7, test.Net.TeamStates.Last().State.Amount("copper_ore"));
         Assert.Equal(7, ItemCounts.Contents(test.Net.Objects.Last()).Of("copper_ore"));
 
-        test.Server.TransferRequested(2, crate.Id, "copper_ore", 100, intoStorage: false);
+        test.Server.TransferRequested(2, crate.Id, "item", "copper_ore", 100, intoStructure: false);
 
         Assert.Equal(10, player.Backpack.Of("copper_ore"));
         Assert.Empty(ItemCounts.Contents(test.State.Objects.Get(crate.Id)!));
@@ -177,12 +177,12 @@ public class InventoryTests
         test.State.Objects.Set(ItemCounts.WithStored(crate, "stone", kind.Capacity - 3));
         player.Backpack = ItemCounts.None.Plus("stone", 10);
 
-        test.Server.TransferRequested(2, crate.Id, "stone", 10, intoStorage: true);
+        test.Server.TransferRequested(2, crate.Id, "item", "stone", 10, intoStructure: true);
         Assert.Equal(7, player.Backpack.Of("stone"));
         Assert.Equal(kind.Capacity, ItemCounts.Contents(test.State.Objects.Get(crate.Id)!).Total());
 
         player.Backpack = ItemCounts.None.Plus("dirt", Data.Items.BackpackCapacity - 2);
-        test.Server.TransferRequested(2, crate.Id, "stone", 10, intoStorage: false);
+        test.Server.TransferRequested(2, crate.Id, "item", "stone", 10, intoStructure: false);
         Assert.Equal(2, player.Backpack.Of("stone"));
     }
 
@@ -196,7 +196,7 @@ public class InventoryTests
         enemy.Pawn = owner.Pawn;
         enemy.Backpack = ItemCounts.None.Plus("stone", 5);
 
-        test.Server.TransferRequested(3, crate.Id, "stone", 5, intoStorage: true);
+        test.Server.TransferRequested(3, crate.Id, "item", "stone", 5, intoStructure: true);
 
         Assert.Equal(5, enemy.Backpack.Of("stone"));
         Assert.Contains(test.Log, line => line.Contains("the other team's"));
@@ -223,7 +223,7 @@ public class InventoryTests
         ServerPlayer player = test.Join(2, "Hauler", Team.Red);
         GameObject crate = PlaceCrate(test, player);
         player.Backpack = ItemCounts.None.Plus("tin_ore", 4);
-        test.Server.TransferRequested(2, crate.Id, "tin_ore", 4, intoStorage: true);
+        test.Server.TransferRequested(2, crate.Id, "item", "tin_ore", 4, intoStructure: true);
         Assert.Equal(4, test.State.TeamStates[Team.Red].Amount("tin_ore"));
 
         BlastResult blast = test.Server.Structures.Blast(crate.Origin, 2, 10_000);

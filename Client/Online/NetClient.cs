@@ -158,7 +158,8 @@ public partial class NetClient : Node, IGameLink
 
     public void RequestRemove(int objectId) => Replicator.RequestRemove(objectId);
 
-    public void RequestTransfer(int storageId, string item, int count, bool intoStorage) => Replicator.RequestTransfer(storageId, item, count, intoStorage);
+    public void RequestTransfer(int objectId, string slot, string item, int count, bool intoStructure) =>
+        Replicator.RequestTransfer(objectId, slot, item, count, intoStructure);
 
     public void RequestCraft(string recipeId, int stationId) => Replicator.RequestCraft(recipeId, stationId);
 

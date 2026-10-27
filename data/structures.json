@@ -10,6 +10,10 @@
       "cost": { "planks": 6 } },
     { "id": "depot", "name": "Depot", "size": { "x": 3, "y": 2, "z": 3 }, "max_health": 200, "color": "#5d6670", "capacity": 1000,
       "cost": { "planks": 12, "stone": 20 } },
+    // Smelts ore into ingots (and logs into charcoal) over time while fuel burns. Open it with E. Each of its
+    // three slots (to smelt, fuel, done) holds up to slot_capacity items; what's in it is lost if destroyed.
+    { "id": "furnace", "name": "Furnace", "size": { "x": 1, "y": 2, "z": 1 }, "max_health": 120, "color": "#6b5f58",
+      "cost": { "stone": 12, "clay": 4 }, "smelter": { "slot_capacity": 32 } },
     // Crafting station for tools (open it with E).
     { "id": "workbench", "name": "Workbench", "size": { "x": 2, "y": 1, "z": 1 }, "max_health": 80, "color": "#8c6a3c",
       "cost": { "planks": 4 } },
