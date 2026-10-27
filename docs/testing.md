@@ -651,3 +651,25 @@ for nothing). Check, in order:
 6. The other team can't board your galley. Another player sees it move smoothly.
 7. A new match (countdown ending) removes every galley along with the docks; the planes stay.
 
+## Bronze Age, piece 4: the blast furnace and the Iron Age
+
+```sh
+./build.sh server --port=7777 --preset=quick --dev
+./build.sh client
+```
+
+Stay in warmup. Bronze Age points come from smelting bronze (2 per ingot) and placing stone (1, after
+Fortification). Check, in order:
+1. The research window lists Blast furnace (35 points, needs Prospecting and Fortification) and its goal
+   line reads `To reach the Iron Age: research Blast furnace, then build a blast furnace`. Shipbuilding now
+   needs Bronze tools.
+2. After researching it, the goal line says only `build a blast furnace`, and you're still in the Bronze Age.
+3. The blast furnace (2 x 3 x 2, dark grey) goes down as a blueprint: 30 stone, 10 clay, 4 bronze ingots.
+   The delivery that finishes it starts the Iron Age: the banner shows, and the era line top right changes.
+4. Iron ore (mined with a bronze pickaxe) goes into a blast furnace's input but not an ordinary furnace's (no
+   Smelt button there; if some gets in, the status reads `Stopped: iron ingot needs a blast furnace`). One
+   ore makes one iron ingot in 8 s. Ordinary recipes (copper, tin, bronze, charcoal) work in it too.
+5. Iron Age points: 2 per iron ingot smelted, 4 per iron tool made. Smithing (20 points) unlocks the iron
+   pickaxe and axe at the workbench (3 iron ingots and 2 planks each; tier 3, faster than bronze).
+6. The research window then says the Iron Age is as far as research goes for now.
+

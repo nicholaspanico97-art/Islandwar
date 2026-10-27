@@ -4,8 +4,9 @@
   //
   // eras, in order. minutes: the average time a team should spend in the era (a balancing target, not a rule).
   // points: what earns this era's research points, once the team has reached it. Each era has its own pool,
-  //   spent only on its own techs. mine and place go by block name; smelt by the item a furnace makes.
+  //   spent only on its own techs. mine and place go by block name; smelt and craft by the item made.
   // advance: the techs that take the team into the next era once all are researched (none: not yet reachable).
+  // advance_builds: structures the team must also have built (finished, not a blueprint) to move on.
   // unlocks: what reaching the era gives on its own, without research.
   //
   // techs. points: what it costs from its era's pool. costs: items too, paid like crafting (backpack first,
@@ -23,9 +24,16 @@
       // Dealing damage to enemy structures earns points too, once there's a Bronze Age weapon that can.
       "id": "bronze", "name": "Bronze Age", "minutes": 15,
       "points": { "smelt": { "bronze_ingot": 2 }, "place": { "stone": 1 } },
-      // The way on (research the blast furnace, then build one) comes with the Iron Age.
+      // The way on: research the blast furnace, then build one.
+      "advance": ["blast_furnace"], "advance_builds": ["blast_furnace"],
     },
-    { "id": "iron", "name": "Iron Age", "minutes": 15 },
+    {
+      // Damaging enemy players, ships and structures, placing fortifications and smelting glass earn points
+      // too, once those exist.
+      "id": "iron", "name": "Iron Age", "minutes": 15,
+      "points": { "smelt": { "iron_ingot": 2 }, "craft": { "iron_pickaxe": 4, "iron_axe": 4 } },
+      // The way on (research the telescope and the upgraded furnace, then build one) comes later.
+    },
     { "id": "renaissance", "name": "Renaissance Age", "minutes": 20 },
     { "id": "exploration", "name": "Exploration Age", "minutes": 30 },
     { "id": "industrial", "name": "Industrial Age", "minutes": 45 },
@@ -59,9 +67,16 @@
       "unlocks": { "yield": { "iron_ore": 2 } },
     },
     {
-      "id": "shipbuilding", "name": "Shipbuilding", "era": "bronze", "points": 20,
+      "id": "shipbuilding", "name": "Shipbuilding", "era": "bronze", "points": 20, "requires": ["bronze_tools"],
       "unlocks": { "structures": ["dock"], "vehicles": ["galley"] },
     },
-    // Still to come in the Bronze Age: the blast furnace. The catapult is the Iron Age's.
+    {
+      "id": "blast_furnace", "name": "Blast furnace", "era": "bronze", "points": 35, "requires": ["prospecting", "fortification"],
+      "unlocks": { "structures": ["blast_furnace"], "smelting": ["iron_ingot"] },
+    },
+
+    { "id": "smithing", "name": "Smithing", "era": "iron", "points": 20, "unlocks": { "recipes": ["iron_pickaxe", "iron_axe"] } },
+    // Still to come in the Iron Age: reinforced structures, the ballista and catapult, the war galley,
+    // glassworking, the telescope and the upgraded furnace.
   ],
 }

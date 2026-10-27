@@ -133,6 +133,11 @@ public sealed record GameData(string TerrainJson, string PlayerJson, string NetJ
             throw new InvalidDataException($"structures.json: '{kind.Id}' costs an item that isn't in items.json.");
         }
 
+        foreach (SmeltingRecipe recipe in items.Smelting.Where(r => r.Smelters.Any(k => kinds.Get(k)?.Smelter is null)))
+        {
+            throw new InvalidDataException($"items.json: smelting {recipe.Makes} names a smelter that isn't a furnace in structures.json.");
+        }
+
         foreach (ShipKind ship in kinds.Ships.Values)
         {
             ship.Validate(net.TickRate);

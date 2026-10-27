@@ -22,6 +22,11 @@
     // three slots (to smelt, fuel, done) holds up to slot_capacity items; what's in it is lost if destroyed.
     { "id": "furnace", "name": "Furnace", "size": { "x": 1, "y": 2, "z": 1 }, "max_health": 120, "color": "#6b5f58",
       "cost": { "stone": 12, "clay": 4 }, "smelter": { "slot_capacity": 32 } },
+    // The Bronze Age's last step (Blast furnace research): a bigger furnace, the only one hot enough for
+    // iron. Built by blueprint; a team that has researched it and built one enters the Iron Age. A single
+    // structure for now (a multiblock build may come later).
+    { "id": "blast_furnace", "name": "Blast furnace", "size": { "x": 2, "y": 3, "z": 2 }, "max_health": 300, "color": "#4f4440",
+      "cost": { "stone": 30, "clay": 10, "bronze_ingot": 4 }, "smelter": { "slot_capacity": 48 } },
     // What a player was carrying, left where they died. Anyone can open it (E) and take from it; nothing goes
     // in, and it disappears once empty. Not placeable by players (loot).
     { "id": "dropped_backpack", "name": "Dropped backpack", "size": { "x": 1, "y": 1, "z": 1 }, "max_health": 30, "color": "#6e4b2a",

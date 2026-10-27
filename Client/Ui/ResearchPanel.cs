@@ -65,7 +65,8 @@ public partial class ResearchPanel : PanelContainer
 
     /// <summary>Redraws if the team's research or what it can afford changed.</summary>
     /// <param name="available">Everything the player can spend: backpack and team storage together.</param>
-    public void Show(TechTree tree, TeamState team, IReadOnlyDictionary<string, int> available, ItemSettings items, ObjectKinds kinds)
+    /// <param name="built">Whether our team has a finished structure of a kind, for an era that needs one to move on.</param>
+    public void Show(TechTree tree, TeamState team, IReadOnlyDictionary<string, int> available, ItemSettings items, ObjectKinds kinds, Func<string, bool> built)
     {
         Era era = tree.EraOf(team);
         Tech[] techs = tree.Techs.Where(t => tree.EraIndex(t.Era) <= team.Era).ToArray();
@@ -78,7 +79,7 @@ public partial class ResearchPanel : PanelContainer
 
         _shown = content;
         _title.Text = $"{team.Team} team research: {era.Name}";
-        _goal.Text = Goal(tree, team);
+        _goal.Text = Goal(tree, team, kinds, built);
         foreach (Node old in _rows.GetChildren())
         {
             _rows.RemoveChild(old);
@@ -126,7 +127,7 @@ public partial class ResearchPanel : PanelContainer
     }
 
     /// <summary>What takes the team on to the next era, or that it's as far as the game goes for now.</summary>
-    private static string Goal(TechTree tree, TeamState team)
+    private static string Goal(TechTree tree, TeamState team, ObjectKinds kinds, Func<string, bool> built)
     {
         Era era = tree.EraOf(team);
         if (era.Advance.Count == 0 || team.Era >= tree.Eras.Count - 1)
@@ -134,8 +135,20 @@ public partial class ResearchPanel : PanelContainer
             return $"The {era.Name} is as far as research goes for now.";
         }
 
-        string[] left = era.Advance.Where(t => !team.HasResearched(t)).Select(t => tree.Tech(t)?.Name ?? t).ToArray();
-        return $"To reach the {tree.Eras[team.Era + 1].Name}: research {string.Join(" and ", left)}";
+        string[] research = era.Advance.Where(t => !team.HasResearched(t)).Select(t => tree.Tech(t)?.Name ?? t).ToArray();
+        string[] build = era.AdvanceBuilds.Where(k => !built(k)).Select(k => kinds.Get(k)?.Name.ToLowerInvariant() ?? k).ToArray();
+        var steps = new List<string>();
+        if (research.Length > 0)
+        {
+            steps.Add($"research {string.Join(" and ", research)}");
+        }
+
+        if (build.Length > 0)
+        {
+            steps.Add($"build a {string.Join(" and a ", build)}");
+        }
+
+        return $"To reach the {tree.Eras[team.Era + 1].Name}: {string.Join(", then ", steps)}";
     }
 
     /// <summary>What earns an era's points, in words.</summary>
@@ -147,7 +160,7 @@ public partial class ResearchPanel : PanelContainer
             foreach ((string what, int points) in sources)
             {
                 // Blocks by the item that places them: wood is a log.
-                string? itemId = action == PointSource.Smelt ? what : items.ItemPlacing(BlockNames.Parse(what, "techs.json"))?.Id;
+                string? itemId = action is PointSource.Smelt or PointSource.Craft ? what : items.ItemPlacing(BlockNames.Parse(what, "techs.json"))?.Id;
                 string name = items.Item(itemId ?? "")?.Name.ToLowerInvariant() ?? what.Replace('_', ' ');
                 parts.Add($"{action} {name}: {points}");
             }

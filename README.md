@@ -40,8 +40,9 @@ prospecting). Real matches now go by eras instead of timed phases, so planes wai
 The Bronze Age has started: players have health, die and respawn (dropping what they carried), and Archery
 gives a bow and arrows that hurt the other team. Structures are now built by blueprint: placing one is
 free, and players haul its cost to it. Shipbuilding gives a dock at the shore that launches galleys once
-players have hauled the materials, and a galley can be rowed by one player. Next: the blast furnace and the
-step into the Iron Age.
+players have hauled the materials, and a galley can be rowed by one player. A blast furnace (researched, then
+built) takes a team into the Iron Age, where iron is smelted and Smithing gives iron tools. Next: the rest of
+the Iron Age (reinforced structures, ballista and catapult, the war galley), when the developer is ready.
 
 ## Versions
 

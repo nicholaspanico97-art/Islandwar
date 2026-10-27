@@ -98,7 +98,7 @@ public class ResearchTests
     }
 
     [Theory]
-    [InlineData("\"recipes\": [\"stone_pickaxe\"]", "\"recipes\": [\"iron_pickaxe\"]")]
+    [InlineData("\"recipes\": [\"stone_pickaxe\"]", "\"recipes\": [\"steel_pickaxe\"]")]
     [InlineData("\"requires\": [\"smelting\"]", "\"requires\": [\"alchemy\"]")]
     [InlineData("\"advance\": [\"bronze_working\"]", "\"advance\": [\"bronze_tools\"]")]
     [InlineData("\"mine\": { \"wood\": 1", "\"mine\": { \"gold\": 1")]

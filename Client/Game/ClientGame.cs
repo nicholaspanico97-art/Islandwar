@@ -746,7 +746,8 @@ public partial class ClientGame : Node3D
 
         if (_hud.Research.IsOpen && Link?.TeamState is { } team)
         {
-            _hud.Research.Show(Techs, team, Link.Backpack.Sum(team.Stock), Items, Link.Objects!.Kinds);
+            _hud.Research.Show(Techs, team, Link.Backpack.Sum(team.Stock), Items, Link.Objects!.Kinds,
+                kind => Link.Objects.All.Any(o => o.Team == Link.MyTeam && o.Kind == kind && !o.IsBlueprint()));
         }
 
         if (_hud.Storage.StorageId is not { } id)
@@ -781,14 +782,14 @@ public partial class ClientGame : Node3D
             [ItemCounts.FuelSlot] = ItemCounts.Contents(furnace, ItemCounts.FuelSlot),
             [ItemCounts.OutputSlot] = ItemCounts.Contents(furnace, ItemCounts.OutputSlot),
         };
-        _hud.Furnace.Show($"{furnace.Team} Furnace", FurnaceStatus(furnace, smelter), Link.Backpack, slots, smelter.SlotCapacity, Items);
+        _hud.Furnace.Show($"{furnace.Team} {Link.Objects.KindOf(furnace).Name}", FurnaceStatus(furnace, smelter), Link.Backpack, slots, smelter.SlotCapacity, Items, furnace.Kind);
     }
 
     /// <summary>One line on what a furnace is doing, from its slots and burn and progress values.</summary>
     private string FurnaceStatus(GameObject furnace, SmelterSpec smelter)
     {
         IReadOnlyDictionary<string, int> input = ItemCounts.Contents(furnace, ItemCounts.InputSlot);
-        SmeltingRecipe? recipe = Furnaces.RecipeIn(furnace, Items, r => Unlocked(Unlock.Smelting(r.Makes)));
+        SmeltingRecipe? recipe = Furnaces.RecipeIn(furnace, Items, r => r.SmeltsIn(furnace.Kind) && Unlocked(Unlock.Smelting(r.Makes)));
         int burn = furnace.Values.Of(Furnaces.BurnValue);
         bool fuel = ItemCounts.Contents(furnace, ItemCounts.FuelSlot).Count > 0;
         if (recipe is null)
@@ -797,7 +798,8 @@ public partial class ClientGame : Node3D
             string name(string item) => Items.Item(item)?.Name.ToLowerInvariant() ?? item;
             if (input.Keys.Select(Items.SmeltingFor).OfType<SmeltingRecipe>().FirstOrDefault() is { } partial)
             {
-                return Locked(Unlock.Smelting(partial.Makes)) is { } why
+                return !partial.SmeltsIn(furnace.Kind) ? $"Stopped: {name(partial.Makes)} needs a {string.Join(" or ", partial.Smelters.Select(k => Link!.Objects!.Kinds.Get(k)?.Name.ToLowerInvariant() ?? k))}"
+                    : Locked(Unlock.Smelting(partial.Makes)) is { } why
                     ? $"Stopped: {name(partial.Makes)} {why.ToLowerInvariant()}"
                     : $"Waiting: {name(partial.Makes)} takes {string.Join(" and ", partial.Takes.Select(t => $"{t.Value} {name(t.Key)}"))}";
             }

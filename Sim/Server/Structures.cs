@@ -100,6 +100,7 @@ public sealed class Structures
         _state.Objects.Set(built);
         _state.Net.BroadcastObjects(WireFormat.EncodeObjects(new[] { built }));
         _state.Log($"[server] {built.Team}'s {kind.Name} {built.Id} is built");
+        _research.Built(built.Team);
         return built;
     }
 

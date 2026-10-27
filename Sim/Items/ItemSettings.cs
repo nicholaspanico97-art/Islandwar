@@ -55,6 +55,11 @@ public sealed record SmeltingRecipe
     public int Count { get; init; } = 1;
 
     public float Seconds { get; init; } = 5;
+
+    /// <summary>The structure kinds that can make it; empty for any furnace.</summary>
+    public IReadOnlyList<string> Smelters { get; init; } = Array.Empty<string>();
+
+    public bool SmeltsIn(string kind) => Smelters.Count == 0 || Smelters.Contains(kind);
 }
 
 /// <summary>Mining one block: how long it takes by hand and what it gives.</summary>

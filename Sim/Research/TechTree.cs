@@ -57,6 +57,7 @@ public static class PointSource
     public const string Mine = "mine";
     public const string Place = "place";
     public const string Smelt = "smelt";
+    public const string Craft = "craft";
 }
 
 /// <summary>One era, from <c>data/techs.json</c>.</summary>
@@ -74,6 +75,9 @@ public sealed record Era
 
     /// <summary>The techs that take a team on to the next era once all are researched; empty when it can't go on yet.</summary>
     public IReadOnlyList<string> Advance { get; init; } = Array.Empty<string>();
+
+    /// <summary>Structure kinds the team must also have built (finished) to move on.</summary>
+    public IReadOnlyList<string> AdvanceBuilds { get; init; } = Array.Empty<string>();
 
     /// <summary>What reaching the era gives without research.</summary>
     public Unlocks Unlocks { get; init; } = new();
@@ -196,19 +200,30 @@ public sealed record TechTree
 
     /// <summary>
     /// The team after researching a tech it may research: the points spent, the tech added, and the next era
-    /// reached if that was the last of its era's advance techs.
+    /// reached if that completes what its era needs to move on (see <see cref="Advanced"/>).
     /// </summary>
-    public TeamState Research(TeamState team, Tech tech)
+    /// <param name="built">Whether the team has a finished structure of a kind; null for none.</param>
+    public TeamState Research(TeamState team, Tech tech, Func<string, bool>? built = null)
     {
         TeamState after = team with
         {
             Points = team.Points.Plus(tech.Era, -tech.Points),
             Researched = team.Researched.Append(tech.Id).Distinct().OrderBy(t => t, StringComparer.Ordinal).ToList(),
         };
-        Era current = EraOf(after);
-        return current.Advance.Count > 0 && current.Advance.All(after.HasResearched) && after.Era < Eras.Count - 1
-            ? after with { Era = after.Era + 1 }
-            : after;
+        return Advanced(after, built);
+    }
+
+    /// <summary>
+    /// The team in the next era if it has everything its era needs to move on (every advance tech researched
+    /// and every advance structure built), otherwise as it is.
+    /// </summary>
+    /// <param name="built">Whether the team has a finished structure of a kind; null for none.</param>
+    public TeamState Advanced(TeamState team, Func<string, bool>? built = null)
+    {
+        Era current = EraOf(team);
+        bool ready = current.Advance.Count > 0 && current.Advance.All(team.HasResearched)
+            && current.AdvanceBuilds.All(kind => built?.Invoke(kind) ?? false);
+        return ready && team.Era < Eras.Count - 1 ? team with { Era = team.Era + 1 } : team;
     }
 
     /// <summary>Plain words for what a tech unlocks, for the research window.</summary>
@@ -272,17 +287,22 @@ public sealed record TechTree
                 throw Bad($"era '{era.Id}' advances with a tech that isn't one of its own.");
             }
 
+            if (era.AdvanceBuilds.Any(k => kinds.Get(k) is null) || (era.AdvanceBuilds.Count > 0 && era.Advance.Count == 0))
+            {
+                throw Bad($"era '{era.Id}': advance_builds must name structures, and needs advance techs too.");
+            }
+
             foreach ((string action, IReadOnlyDictionary<string, int> sources) in era.Points)
             {
                 bool known = action switch
                 {
                     PointSource.Mine or PointSource.Place => sources.Keys.All(b => Enum.GetValues<Block>().Any(block => BlockNames.Of(block) == b)),
-                    PointSource.Smelt => sources.Keys.All(i => items.Item(i) is not null),
+                    PointSource.Smelt or PointSource.Craft => sources.Keys.All(i => items.Item(i) is not null),
                     _ => false,
                 };
                 if (!known)
                 {
-                    throw Bad($"era '{era.Id}': points for '{action}' must be mine or place (by block) or smelt (by item), naming things that exist.");
+                    throw Bad($"era '{era.Id}': points for '{action}' must be mine or place (by block) or smelt or craft (by item), naming things that exist.");
                 }
             }
         }

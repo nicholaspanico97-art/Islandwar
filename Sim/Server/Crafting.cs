@@ -55,6 +55,7 @@ public sealed class Crafting
         foreach ((string item, int count) in recipe!.Makes)
         {
             _inventory.Give(player, item, count);
+            _research.Earn(player.Team, PointSource.Craft, item, count);
         }
 
         _state.Log($"[server] '{player.Name}' crafted {recipe.Id}");

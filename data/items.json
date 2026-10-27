@@ -33,6 +33,9 @@
     { "id": "bow", "name": "Bow", "color": "#8a5a2b" },
     { "id": "arrow", "name": "Arrow", "color": "#c8c0a8" },
     { "id": "bronze_pickaxe", "name": "Bronze pickaxe", "color": "#9c7034", "tool": { "kind": "pickaxe", "tier": 2, "speed": 3.0 } },
+    { "id": "iron_ingot", "name": "Iron ingot", "color": "#8e9399" },
+    { "id": "iron_axe", "name": "Iron axe", "color": "#7c8288", "tool": { "kind": "axe", "tier": 3, "speed": 4.5 } },
+    { "id": "iron_pickaxe", "name": "Iron pickaxe", "color": "#737a82", "tool": { "kind": "pickaxe", "tier": 3, "speed": 4.0 } },
   ],
 
   // Every natural or placeable block: seconds to mine by hand, the item it drops (none for leaves), the
@@ -63,6 +66,8 @@
     { "id": "arrows", "station": "workbench", "takes": { "planks": 1, "stone": 1 }, "makes": { "arrow": 4 } },
     { "id": "bronze_axe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_axe": 1 } },
     { "id": "bronze_pickaxe", "station": "workbench", "takes": { "bronze_ingot": 3, "planks": 2 }, "makes": { "bronze_pickaxe": 1 } },
+    { "id": "iron_axe", "station": "workbench", "takes": { "iron_ingot": 3, "planks": 2 }, "makes": { "iron_axe": 1 } },
+    { "id": "iron_pickaxe", "station": "workbench", "takes": { "iron_ingot": 3, "planks": 2 }, "makes": { "iron_pickaxe": 1 } },
   ],
 
   // What burns in a furnace, and for how many seconds per item.
@@ -70,12 +75,14 @@
 
   // What a furnace makes while it has fuel burning: once its input holds everything a recipe takes, that
   // many turn into count of what it makes after seconds. An item goes into one recipe at most; recipes are
-  // tried in this order.
+  // tried in this order. smelters: the only structures that can make it (any furnace if left out).
   "smelting": [
     { "takes": { "copper_ore": 1 }, "makes": "copper_ingot", "seconds": 5 },
     { "takes": { "tin_ore": 1 }, "makes": "tin_ingot", "seconds": 5 },
     { "takes": { "log": 1 }, "makes": "charcoal", "seconds": 8 },
     // Bronze: three parts copper to one of tin.
     { "takes": { "copper_ingot": 3, "tin_ingot": 1 }, "makes": "bronze_ingot", "count": 4, "seconds": 10 },
+    // Iron only melts in a blast furnace (the step into the Iron Age).
+    { "takes": { "iron_ore": 1 }, "makes": "iron_ingot", "seconds": 8, "smelters": ["blast_furnace"] },
   ]
 }

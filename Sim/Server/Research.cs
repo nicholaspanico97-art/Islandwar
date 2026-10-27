@@ -71,7 +71,7 @@ public sealed class Research
         }
 
         _inventory.Pay(player, payment!);
-        TeamState after = Tree.Research(_teams.Of(player.Team), tech!);
+        TeamState after = Tree.Research(_teams.Of(player.Team), tech!, kind => HasBuilt(player.Team, kind));
         _teams.Change(player.Team, _ => after);
         _state.Log($"[server] '{player.Name}' researched {tech!.Name} for {player.Team}");
         if (after.Era > team.Era)
@@ -79,4 +79,24 @@ public sealed class Research
             _state.Log($"[server] {player.Team} entered the {Tree.EraOf(after).Name}");
         }
     }
+
+    /// <summary>A team finished a structure: if that was the last thing its era needed, it moves on.</summary>
+    public void Built(Team team)
+    {
+        if (_state.Creative || !Teams.Playing.Contains(team))
+        {
+            return;
+        }
+
+        TeamState before = _teams.Of(team);
+        TeamState after = Tree.Advanced(before, kind => HasBuilt(team, kind));
+        if (after.Era > before.Era)
+        {
+            _teams.Change(team, _ => after);
+            _state.Log($"[server] {team} entered the {Tree.EraOf(after).Name}");
+        }
+    }
+
+    /// <summary>Whether a team has a finished structure of a kind standing.</summary>
+    private bool HasBuilt(Team team, string kind) => _state.Objects.All.Any(o => o.Team == team && o.Kind == kind && !o.IsBlueprint());
 }

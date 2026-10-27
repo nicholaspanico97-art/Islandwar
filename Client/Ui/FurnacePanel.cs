@@ -75,7 +75,7 @@ public partial class FurnacePanel : PanelContainer
     /// <summary>Redraws the rows if anything on them changed; the status line every time.</summary>
     /// <param name="slots">The furnace's input, fuel and output, by slot name.</param>
     public void Show(string title, string status, IReadOnlyDictionary<string, int> backpack, IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> slots,
-        int slotCapacity, ItemSettings items)
+        int slotCapacity, ItemSettings items, string furnaceKind)
     {
         _status.Text = status;
         string content = $"{title}|{string.Join(",", backpack)}|{string.Join(";", slots.Values.Select(s => string.Join(",", s)))}";
@@ -90,7 +90,7 @@ public partial class FurnacePanel : PanelContainer
         Heading(_backpack, $"Backpack  {backpack.Total()} / {items.BackpackCapacity}");
         foreach ((string item, int count) in backpack)
         {
-            bool smelts = items.SmeltingFor(item) is not null;
+            bool smelts = items.SmeltingFor(item) is { } recipe && recipe.SmeltsIn(furnaceKind);
             bool burns = items.IsFuel(item);
             if (!smelts && !burns)
             {

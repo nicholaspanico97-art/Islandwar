@@ -44,7 +44,7 @@ public sealed class Furnaces
                 continue;
             }
 
-            bool allowed(SmeltingRecipe recipe) => _research.Unlocked(furnace.Team, Unlock.Smelting(recipe.Makes));
+            bool allowed(SmeltingRecipe recipe) => recipe.SmeltsIn(furnace.Kind) && _research.Unlocked(furnace.Team, Unlock.Smelting(recipe.Makes));
             if (Smelt(furnace, smelter, _state.Data.Items, elapsedMs, allowed) is { } after)
             {
                 _state.Objects.Set(after);
