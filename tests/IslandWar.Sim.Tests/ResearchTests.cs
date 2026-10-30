@@ -220,12 +220,13 @@ public class ResearchTests
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
         test.Research(Team.Red, "mining", "logging", "smelting");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
-        player.Backpack = ItemCounts.None.Plus("copper_ingot", 3).Plus("tin_ingot", 1).Plus("coal", 1);
+        player.Backpack = ItemCounts.None.Plus("copper_ingot", 3).Plus("tin_ingot", 1).Plus("coal", 2);
         test.Server.TransferRequested(2, furnace.Id, ItemCounts.InputSlot, "copper_ingot", 3, intoStructure: true);
-        test.Server.TransferRequested(2, furnace.Id, ItemCounts.InputSlot, "tin_ingot", 1, intoStructure: true);
-        test.Server.TransferRequested(2, furnace.Id, ItemCounts.FuelSlot, "coal", 1, intoStructure: true);
+        test.Server.TransferRequested(2, furnace.Id, ItemCounts.Input2Slot, "tin_ingot", 1, intoStructure: true);
+        test.Server.TransferRequested(2, furnace.Id, ItemCounts.FuelSlot, "coal", 2, intoStructure: true);
 
-        test.Run(12 * test.State.Data.Net.TickRate);
+        // Hot enough for bronze within the half minute, but it's not researched yet.
+        test.Run(30 * test.State.Data.Net.TickRate);
         Assert.Empty(ItemCounts.Contents(test.State.Objects.Get(furnace.Id)!, ItemCounts.OutputSlot));
 
         test.Research(Team.Red, "bronze_working");
@@ -233,7 +234,7 @@ public class ResearchTests
 
         GameObject now = test.State.Objects.Get(furnace.Id)!;
         Assert.Equal(4, ItemCounts.Contents(now, ItemCounts.OutputSlot).Of("bronze_ingot"));
-        Assert.Empty(ItemCounts.Contents(now, ItemCounts.InputSlot));
+        Assert.Empty(Furnaces.Inputs(now));
         Assert.Equal(8, test.State.TeamStates[Team.Red].Points.Of("bronze"));
     }
 

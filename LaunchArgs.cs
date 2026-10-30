@@ -47,6 +47,9 @@ public sealed record LaunchArgs
     /// </summary>
     public string? Token { get; init; }
 
+    /// <summary>Client: show one window on its own with made-up contents (furnace), to work on its layout.</summary>
+    public string? Preview { get; init; }
+
     public static LaunchArgs Parse(string[] args)
     {
         var result = new LaunchArgs();
@@ -63,12 +66,13 @@ public sealed record LaunchArgs
                 "--preset" => result with { Preset = Required(key, value) },
                 "--name" => result with { Name = Required(key, value) },
                 "--token" => result with { Token = Required(key, value) },
+                "--preview" => result with { Preview = value == "furnace" ? value : throw new ArgumentException("--preview must be furnace.") },
                 "--team" => result with { Team = value is "red" or "blue" ? value : throw new ArgumentException("--team must be red or blue.") },
                 "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" or "nuker" or "defender" or "leaver" or "returner" or "conceder" or "researcher" or "archer" or "target" or "sailor"
                     ? value
                     : throw new ArgumentException("--bot must be builder, breaker, pilot, watcher, nuker, defender, leaver, returner, conceder, researcher, archer, target or sailor.") },
                 _ => throw new ArgumentException(
-                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue, --token=TOKEN or --bot=ROLE."),
+                    $"Unknown argument '{arg}'. Expected --server, --port=N, --seed=N, --dev, --preset=NAME, --connect=HOST[:PORT], --name=NAME, --team=red|blue, --token=TOKEN, --bot=ROLE or --preview=WINDOW."),
             };
         }
 

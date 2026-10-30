@@ -85,6 +85,7 @@ public sealed class Inventory
             : slot == Blueprint.DeliveredSlot && Blueprint.Missing(target, kind, _state.Objects.Kinds).Of(item) == 0 ? $"it doesn't need {item}"
             : slot != Blueprint.DeliveredSlot && SlotCapacity(kind, slot) is null ? $"no {slot} slot"
             : intoStructure && !Accepts(slot, item, kind) ? $"{item} doesn't go in the {slot} of a {kind.Name}"
+            : intoStructure && slot is ItemCounts.InputSlot or ItemCounts.Input2Slot && held.Keys.Any(k => k != item) ? $"the {slot} already holds something else"
             : null;
         if (reason is not null)
         {
@@ -132,14 +133,14 @@ public sealed class Inventory
     public static int? SlotCapacity(ObjectKind kind, string slot) => slot switch
     {
         ItemCounts.StorageSlot when kind.IsStorage => kind.Capacity,
-        ItemCounts.InputSlot or ItemCounts.FuelSlot or ItemCounts.OutputSlot when kind.Smelter is { } smelter => smelter.SlotCapacity,
+        ItemCounts.InputSlot or ItemCounts.Input2Slot or ItemCounts.FuelSlot or ItemCounts.OutputSlot when kind.Smelter is { } smelter => smelter.SlotCapacity,
         _ => null,
     };
 
     /// <summary>What a player may put in a slot: anything in storage, things that smelt (in that kind of furnace) or burn, nothing in its output.</summary>
     private bool Accepts(string slot, string item, ObjectKind kind) => slot switch
     {
-        ItemCounts.InputSlot => Items.SmeltingFor(item) is { } recipe && recipe.SmeltsIn(kind.Id),
+        ItemCounts.InputSlot or ItemCounts.Input2Slot => Items.SmeltingFor(item) is { } recipe && recipe.SmeltsIn(kind.Id),
         ItemCounts.FuelSlot => Items.IsFuel(item),
         ItemCounts.OutputSlot => false,
         _ => true,

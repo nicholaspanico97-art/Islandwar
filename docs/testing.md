@@ -681,3 +681,28 @@ tools and a bow, and each team with a stocked depot by its spawn. The status lin
 on this server. Real rules, with a head start.` The checklist for pieces 1 to 4 in one sitting is
 `docs/playtest-bronze-age.md`.
 
+## Furnace heat and the furnace window
+
+```sh
+./build.sh server --port=7777 --preset=bronze --dev
+./build.sh client
+```
+
+The bronze preset's depot has charcoal, logs, copper and tin ingots and iron ore. To look at the window's
+layout on its own: `godot --path . -- --preview=furnace`. Check, in order:
+1. E on a furnace opens the new window: FURNACE, a progress bar, Slot 1 and Slot 2, an arrow, the output;
+   the fuel slot under the inputs with a small bar; Efficiency 30%, Current temp 20 °C, Required temp -; your
+   backpack as a grid.
+2. Click an item in the backpack: it follows the mouse. Click a slot to put it there; click elsewhere or
+   right click to put it down. Shift-click sends it straight to the slot it belongs in (fuel to fuel). Click a
+   filled slot to take everything out. Each input slot holds one kind of item.
+3. Charcoal in the fuel: Current temp climbs about 40 °C a second, up to 1250 °C. Copper ore needs 1100 °C
+   (Required temp shows it; Current temp turns from orange to green once hot enough), then 5 s per ingot.
+4. Logs as fuel only get the furnace to about 950 °C: enough for charcoal (300 °C) and tin (900 °C), not
+   copper; the status line says to try charcoal or coal.
+5. Bronze: copper ingots in one slot, tin ingots in the other, 1000 °C.
+6. Take the fuel out: it keeps smelting for a while on the heat left, then cools (about 100-300 °C in the
+   first 20 s, back to 20 °C over several minutes).
+7. Iron ore in an ordinary furnace: `Too hot a job: this furnace tops out at 1250 °C`. In the blast furnace
+   (efficiency 60%, up to 1650 °C) with charcoal it smelts once past 1500 °C.
+

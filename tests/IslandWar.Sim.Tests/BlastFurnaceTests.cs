@@ -23,7 +23,9 @@ public class BlastFurnaceTests
         Era bronze = Tree.Eras[1];
         Assert.Equal(new[] { "blast_furnace" }, bronze.Advance);
         Assert.Equal(new[] { "blast_furnace" }, bronze.AdvanceBuilds);
-        Assert.Equal(new[] { "blast_furnace" }, Data.Items.SmeltingFor("iron_ore")!.Smelters);
+        // Iron needs more heat than an ordinary furnace can make.
+        Assert.True(Data.Items.SmeltingFor("iron_ore")!.Temperature > Data.Kinds.Get("furnace")!.Smelter!.MaxTemperature);
+        Assert.True(Data.Items.SmeltingFor("iron_ore")!.Temperature < Data.Kinds.Get("blast_furnace")!.Smelter!.MaxTemperature);
         Assert.Contains("Smithing", Tree.UnlockedBy(Unlock.Recipe("iron_pickaxe")));
     }
 
@@ -60,17 +62,18 @@ public class BlastFurnaceTests
     }
 
     [Fact]
-    public void IronOreOnlySmeltsInABlastFurnace()
+    public void IronOreOnlySmeltsInABlastFurnaceHotEnough()
     {
         var test = new TestServer("quick");
         ServerPlayer player = test.Join(2, "Smith", Team.Red);
         test.Research(Team.Red, "mining", "logging", "smelting", "bronze_working", "bronze_tools", "prospecting", "fortification", "blast_furnace");
         GameObject furnace = InventoryTests.PlaceCrate(test, player, "furnace");
-        player.Backpack = ItemCounts.None.Plus("iron_ore", 3);
-
+        player.Backpack = ItemCounts.None.Plus("iron_ore", 3).Plus("charcoal", 2);
         test.Server.TransferRequested(2, furnace.Id, ItemCounts.InputSlot, "iron_ore", 3, intoStructure: true);
-        Assert.Equal(3, player.Backpack.Of("iron_ore"));
-        Assert.Contains(test.Log, line => line.Contains("doesn't go in the input of a Furnace"));
+        test.Server.TransferRequested(2, furnace.Id, ItemCounts.FuelSlot, "charcoal", 2, intoStructure: true);
+
+        test.Run(test.State.Data.Net.TickRate * 60);
+        Assert.Empty(ItemCounts.Contents(test.State.Objects.Get(furnace.Id)!, ItemCounts.OutputSlot));
 
         test.Server.Structures.Remove(furnace);
         GameObject blast = PlaceBlastFurnace(test, player);
@@ -79,7 +82,7 @@ public class BlastFurnaceTests
         test.Server.TransferRequested(2, blast.Id, ItemCounts.InputSlot, "iron_ore", 3, intoStructure: true);
         test.Server.TransferRequested(2, blast.Id, ItemCounts.FuelSlot, "charcoal", 2, intoStructure: true);
 
-        test.Run(test.State.Data.Net.TickRate * 30);
+        test.Run(test.State.Data.Net.TickRate * 60);
 
         Assert.Equal(3, ItemCounts.Contents(test.State.Objects.Get(blast.Id)!, ItemCounts.OutputSlot).Of("iron_ingot"));
         Assert.True(test.State.TeamStates[Team.Red].Points.Of("iron") >= 6);

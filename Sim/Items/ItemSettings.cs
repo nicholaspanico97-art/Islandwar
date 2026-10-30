@@ -59,7 +59,22 @@ public sealed record SmeltingRecipe
     /// <summary>The structure kinds that can make it; empty for any furnace.</summary>
     public IReadOnlyList<string> Smelters { get; init; } = Array.Empty<string>();
 
+    /// <summary>The least a furnace must be at, in degrees C, for it to make progress.</summary>
+    public float Temperature { get; init; }
+
     public bool SmeltsIn(string kind) => Smelters.Count == 0 || Smelters.Contains(kind);
+}
+
+/// <summary>One fuel: how long an item burns flat out, the heat it gives and the hottest it can make a furnace.</summary>
+public sealed record FuelSpec
+{
+    public float Seconds { get; init; } = 10;
+
+    /// <summary>Degrees C per second it adds to a furnace at 100% efficiency.</summary>
+    public float Heat { get; init; } = 50;
+
+    /// <summary>The hottest it can make a furnace, in degrees C.</summary>
+    public float Flame { get; init; } = 1000;
 }
 
 /// <summary>Mining one block: how long it takes by hand and what it gives.</summary>
@@ -96,8 +111,19 @@ public sealed record ItemSettings
 
     public IReadOnlyList<Recipe> Recipes { get; init; } = Array.Empty<Recipe>();
 
-    /// <summary>What burns in a furnace, and for how many seconds per item.</summary>
-    public IReadOnlyDictionary<string, float> Fuel { get; init; } = new Dictionary<string, float>();
+    /// <summary>What burns in a furnace, and how.</summary>
+    public IReadOnlyDictionary<string, FuelSpec> Fuel { get; init; } = new Dictionary<string, FuelSpec>();
+
+    /// <summary>The temperature of anything not being heated, in degrees C.</summary>
+    public float AmbientTemperature { get; init; } = 20;
+
+    /// <summary>A fuel by its number (1 up, in id order; how a furnace remembers what's burning), or null.</summary>
+    public string? FuelNumbered(int number) => number >= 1 && number <= _fuelIds.Count ? _fuelIds[number - 1] : null;
+
+    /// <summary>A fuel's number (1 up, in id order).</summary>
+    public int FuelNumber(string fuel) => _fuelIds.IndexOf(fuel) + 1;
+
+    private List<string> _fuelIds = new();
 
     public IReadOnlyList<SmeltingRecipe> Smelting { get; init; } = Array.Empty<SmeltingRecipe>();
 
@@ -216,7 +242,9 @@ public sealed record ItemSettings
         }
 
         List<string> smelted = Smelting.SelectMany(s => s.Takes.Keys).ToList();
-        if (Fuel.Any(f => !_items.ContainsKey(f.Key) || f.Value <= 0)
+        _fuelIds = Fuel.Keys.Order(StringComparer.Ordinal).ToList();
+        if (Fuel.Any(f => !_items.ContainsKey(f.Key) || f.Value.Seconds <= 0 || f.Value.Heat <= 0 || f.Value.Flame <= AmbientTemperature)
+            || Smelting.Any(s => s.Temperature < 0)
             || Smelting.Any(s => s.Takes.Count == 0 || s.Takes.Any(t => !_items.ContainsKey(t.Key) || t.Value <= 0) || !_items.ContainsKey(s.Makes) || s.Count <= 0 || s.Seconds <= 0)
             || smelted.Distinct().Count() != smelted.Count
             || Smelting.Select(s => s.Makes).Distinct().Count() != Smelting.Count)

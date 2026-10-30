@@ -776,49 +776,76 @@ public partial class ClientGame : Node3D
             return;
         }
 
-        var slots = new Dictionary<string, IReadOnlyDictionary<string, int>>
+        var slots = new Dictionary<string, IReadOnlyDictionary<string, int>>();
+        foreach (string slot in new[] { ItemCounts.InputSlot, ItemCounts.Input2Slot, ItemCounts.FuelSlot, ItemCounts.OutputSlot })
         {
-            [ItemCounts.InputSlot] = ItemCounts.Contents(furnace, ItemCounts.InputSlot),
-            [ItemCounts.FuelSlot] = ItemCounts.Contents(furnace, ItemCounts.FuelSlot),
-            [ItemCounts.OutputSlot] = ItemCounts.Contents(furnace, ItemCounts.OutputSlot),
-        };
-        _hud.Furnace.Show($"{furnace.Team} {Link.Objects.KindOf(furnace).Name}", FurnaceStatus(furnace, smelter), Link.Backpack, slots, smelter.SlotCapacity, Items, furnace.Kind);
+            slots[slot] = ItemCounts.Contents(furnace, slot);
+        }
+
+        string name(string item) => Items.Item(item)?.Name ?? item;
+        SmeltingRecipe? recipe = Furnaces.RecipeIn(furnace, Items, r => r.SmeltsIn(furnace.Kind) && Unlocked(Unlock.Smelting(r.Makes)));
+        // What the inputs are headed for, even if something is still missing: its temperature is the one to reach.
+        SmeltingRecipe? aim = recipe ?? Furnaces.Inputs(furnace).Keys.Select(Items.SmeltingFor).OfType<SmeltingRecipe>().FirstOrDefault();
+        float progress = recipe is null ? 0 : furnace.Values.Of(Furnaces.ProgressValue) / (recipe.Seconds * 1000);
+        string? burning = furnace.Values.Of(Furnaces.BurnValue) > 0 ? Items.FuelNumbered(furnace.Values.Of(Furnaces.BurningValue)) : null;
+        float fuelLeft = burning is null ? 0 : furnace.Values.Of(Furnaces.BurnValue) / (Items.Fuel[burning].Seconds * 1000);
+        var view = new FurnaceView(
+            Link.Objects.KindOf(furnace).Name,
+            FurnaceStatus(furnace, smelter, recipe, aim, burning),
+            Math.Clamp(progress, 0, 1),
+            recipe is null ? "Progress" : $"{name(recipe.Makes)}   {furnace.Values.Of(Furnaces.ProgressValue) / 1000f:0.0} / {recipe.Seconds:0} s",
+            Math.Clamp(fuelLeft, 0, 1),
+            smelter.Efficiency,
+            Furnaces.Temperature(furnace, Items),
+            aim?.Temperature,
+            slots,
+            smelter.SlotCapacity);
+        _hud.Furnace.Show(view, Link.Backpack, Items, furnace.Kind);
     }
 
-    /// <summary>One line on what a furnace is doing, from its slots and burn and progress values.</summary>
-    private string FurnaceStatus(GameObject furnace, SmelterSpec smelter)
+    /// <summary>One line on what a furnace is doing, or what's stopping it.</summary>
+    private string FurnaceStatus(GameObject furnace, SmelterSpec smelter, SmeltingRecipe? recipe, SmeltingRecipe? aim, string? burning)
     {
-        IReadOnlyDictionary<string, int> input = ItemCounts.Contents(furnace, ItemCounts.InputSlot);
-        SmeltingRecipe? recipe = Furnaces.RecipeIn(furnace, Items, r => r.SmeltsIn(furnace.Kind) && Unlocked(Unlock.Smelting(r.Makes)));
-        int burn = furnace.Values.Of(Furnaces.BurnValue);
-        bool fuel = ItemCounts.Contents(furnace, ItemCounts.FuelSlot).Count > 0;
+        string name(string item) => Items.Item(item)?.Name.ToLowerInvariant() ?? item;
+        bool fuel = burning is not null || ItemCounts.Contents(furnace, ItemCounts.FuelSlot).Count > 0;
+        float temperature = Furnaces.Temperature(furnace, Items);
+        if (aim is null)
+        {
+            return burning is not null ? $"Burning {name(burning)}: keeping warm" : fuel ? "" : "Put in something to smelt, and fuel to heat it";
+        }
+
         if (recipe is null)
         {
             // Something partway there: locked behind research, or short of an ingredient (bronze takes copper and tin).
-            string name(string item) => Items.Item(item)?.Name.ToLowerInvariant() ?? item;
-            if (input.Keys.Select(Items.SmeltingFor).OfType<SmeltingRecipe>().FirstOrDefault() is { } partial)
-            {
-                return !partial.SmeltsIn(furnace.Kind) ? $"Stopped: {name(partial.Makes)} needs a {string.Join(" or ", partial.Smelters.Select(k => Link!.Objects!.Kinds.Get(k)?.Name.ToLowerInvariant() ?? k))}"
-                    : Locked(Unlock.Smelting(partial.Makes)) is { } why
-                    ? $"Stopped: {name(partial.Makes)} {why.ToLowerInvariant()}"
-                    : $"Waiting: {name(partial.Makes)} takes {string.Join(" and ", partial.Takes.Select(t => $"{t.Value} {name(t.Key)}"))}";
-            }
-
-            return burn > 0 ? $"Idle, {burn / 1000f:0} s of fuel still burning" : "Idle: put in something to smelt";
+            return !aim.SmeltsIn(furnace.Kind) ? $"{Items.Item(aim.Makes)?.Name ?? aim.Makes} can't be made here"
+                : Locked(Unlock.Smelting(aim.Makes)) is { } why ? $"{Items.Item(aim.Makes)?.Name ?? aim.Makes}: {why.ToLowerInvariant()}"
+                : $"{Items.Item(aim.Makes)?.Name ?? aim.Makes} takes {string.Join(" and ", aim.Takes.Select(t => $"{t.Value} {name(t.Key)}"))}";
         }
 
         if (ItemCounts.Contents(furnace, ItemCounts.OutputSlot).Total() + recipe.Count > smelter.SlotCapacity)
         {
-            return "Stopped: take out what's done";
+            return "Output full: take out what's done";
         }
 
-        if (burn <= 0 && !fuel)
+        if (temperature >= recipe.Temperature)
         {
-            return "Stopped: needs fuel";
+            return fuel ? "Smelting" : "Smelting on the heat that's left: add fuel to keep it going";
         }
 
-        string makes = Items.Item(recipe.Makes)?.Name.ToLowerInvariant() ?? recipe.Makes;
-        return $"Making {makes}: {furnace.Values.Of(Furnaces.ProgressValue) / 1000f:0.0} / {recipe.Seconds:0} s   (fuel burning {burn / 1000f:0} s)";
+        if (recipe.Temperature > smelter.MaxTemperature)
+        {
+            return $"Too hot a job: this furnace tops out at {smelter.MaxTemperature:0} °C";
+        }
+
+        if (!fuel)
+        {
+            return "Too cold: needs fuel";
+        }
+
+        float hottest = burning is null ? smelter.MaxTemperature : Math.Min(smelter.MaxTemperature, Items.Fuel[burning].Flame);
+        return hottest < recipe.Temperature
+            ? $"Too cold: {name(burning!)} only gets it to {hottest:0} °C (try charcoal or coal)"
+            : "Heating up";
     }
 
     /// <summary>

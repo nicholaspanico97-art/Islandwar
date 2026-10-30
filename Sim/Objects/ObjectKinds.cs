@@ -14,6 +14,15 @@ public sealed record Size3
 public sealed record SmelterSpec
 {
     public int SlotCapacity { get; init; } = 32;
+
+    /// <summary>The share of its fuel's heat that warms it (fuel efficiency), from 0 to 1.</summary>
+    public float Efficiency { get; init; } = 0.3f;
+
+    /// <summary>The hottest it gets, in degrees C.</summary>
+    public float MaxTemperature { get; init; } = 1250;
+
+    /// <summary>The share of its heat above ambient it loses each second.</summary>
+    public float HeatLoss { get; init; } = 0.008f;
 }
 
 /// <summary>One kind of object players can place, from <c>data/structures.json</c>.</summary>
@@ -86,9 +95,9 @@ public sealed class ObjectKinds
                 throw new InvalidDataException($"structures.json: dock '{kind.Id}' must build ships from the ships list.");
             }
 
-            if (kind.Smelter is { SlotCapacity: <= 0 })
+            if (kind.Smelter is { } smelter && (smelter.SlotCapacity <= 0 || smelter.Efficiency is <= 0 or > 1 || smelter.MaxTemperature <= 0 || smelter.HeatLoss is <= 0 or >= 1))
             {
-                throw new InvalidDataException($"structures.json: '{kind.Id}' needs a positive smelter slot_capacity.");
+                throw new InvalidDataException($"structures.json: '{kind.Id}' needs a positive smelter slot_capacity and max_temperature, an efficiency from 0 to 1 and a heat_loss under 1.");
             }
 
             if (kind.Cost.Any(c => c.Value <= 0))

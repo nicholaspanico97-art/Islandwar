@@ -10,10 +10,11 @@ public static class ItemCounts
 {
     /// <summary>
     /// Structures keep items in their values as <c>slot:item</c>: a storage structure's in the <c>item</c> slot
-    /// (<c>item:stone</c>), a furnace's in <c>input</c>, <c>fuel</c> and <c>output</c>.
+    /// (<c>item:stone</c>), a furnace's in <c>input</c>, <c>input2</c>, <c>fuel</c> and <c>output</c>.
     /// </summary>
     public const string StorageSlot = "item";
     public const string InputSlot = "input";
+    public const string Input2Slot = "input2";
     public const string FuelSlot = "fuel";
     public const string OutputSlot = "output";
 

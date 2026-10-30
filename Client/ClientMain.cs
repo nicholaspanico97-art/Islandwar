@@ -35,6 +35,11 @@ public partial class ClientMain : Node
         // Same name as the server's root node, so RPC paths match (see Replicator).
         Name = "Game";
         InputActions.Register();
+        if (Args.Preview is not null)
+        {
+            AddChild(new Ui.UiPreview { Window = Args.Preview });
+            return;
+        }
 
         _ui = new CanvasLayer { Layer = 10 };
         _status = new Label { Position = new Vector2(16, 62) };
