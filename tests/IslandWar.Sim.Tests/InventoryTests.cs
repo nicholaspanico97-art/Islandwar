@@ -311,3 +311,39 @@ public class InventoryTests
         return test.State.Objects.At(origin) ?? throw new InvalidOperationException(string.Join("\n", test.Log));
     }
 }
+
+public class GiveTests
+{
+    [Fact]
+    public void DeveloperModeGivesItemsUpToTheBackpacksLimitAndTakesThemAway()
+    {
+        var test = new TestServer("bronze", dev: true);
+        ServerPlayer player = test.Join(2, "Tester", Team.Red);
+        int room = test.State.Data.Items.BackpackCapacity - player.Backpack.Total();
+
+        test.Server.GiveRequested(2, "charcoal", 10);
+        Assert.Equal(10, player.Backpack.Of("charcoal"));
+        Assert.Equal(10, test.Net.Backpacks.Last(b => b.Peer == 2).Counts.Of("charcoal"));
+
+        test.Server.GiveRequested(2, "planks", 1000);
+        Assert.Equal(room - 10, player.Backpack.Of("planks"));
+
+        test.Server.GiveRequested(2, "charcoal", -4);
+        Assert.Equal(6, player.Backpack.Of("charcoal"));
+        test.Server.GiveRequested(2, "nonsense", 5);
+        Assert.Contains(test.Log, line => line.Contains("unknown item"));
+    }
+
+    [Fact]
+    public void WithoutDeveloperModeNobodyGetsAnything()
+    {
+        var test = new TestServer("bronze");
+        ServerPlayer player = test.Join(2, "Tester", Team.Red);
+        int before = player.Backpack.Total();
+
+        test.Server.GiveRequested(2, "charcoal", 10);
+
+        Assert.Equal(before, player.Backpack.Total());
+        Assert.Contains(test.Log, line => line.Contains("not in developer mode"));
+    }
+}

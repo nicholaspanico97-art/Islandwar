@@ -108,6 +108,9 @@ public sealed class GameServer
     /// <summary>A player asks to research a tech for their team.</summary>
     public void ResearchRequested(int peer, string techId) => _research.ResearchRequested(peer, techId);
 
+    /// <summary>Developer mode: items for (or taken from) a player's backpack, for testing.</summary>
+    public void GiveRequested(int peer, string item, int count) => _inventory.GiveRequested(peer, item, count);
+
     public Research Research => _research;
 
     public Combat Combat => _combat;

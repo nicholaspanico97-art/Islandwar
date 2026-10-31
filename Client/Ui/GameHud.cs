@@ -58,6 +58,9 @@ public partial class GameHud : CanvasLayer
 
     public ResearchPanel Research { get; private set; } = null!;
 
+    /// <summary>Developer mode's give window (G).</summary>
+    public GivePanel Give { get; private set; } = null!;
+
     private Label _era = null!;
 
     private ProgressBar _mining = null!;
@@ -108,6 +111,8 @@ public partial class GameHud : CanvasLayer
         AddChild(Furnace);
         Research = new ResearchPanel();
         AddChild(Research);
+        Give = new GivePanel();
+        AddChild(Give);
 
         _era = Outlined(new Label { HorizontalAlignment = HorizontalAlignment.Right });
         _era.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);

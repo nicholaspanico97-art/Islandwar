@@ -96,4 +96,7 @@ public interface IGameLink
 
     /// <summary>Asks the server to research a tech for our team.</summary>
     void RequestResearch(string techId);
+
+    /// <summary>Developer mode: asks the server for items in our backpack (a negative count takes them away).</summary>
+    void RequestGive(string item, int count);
 }

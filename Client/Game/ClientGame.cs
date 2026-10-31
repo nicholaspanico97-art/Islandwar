@@ -147,6 +147,14 @@ public partial class ClientGame : Node3D
         AddChild(_hud);
         _hud.Crafting.CraftClicked += recipe => Link?.RequestCraft(recipe, _hud.Crafting.StationId);
         _hud.Research.ResearchClicked += tech => Link?.RequestResearch(tech);
+        _hud.Give.GiveClicked += (item, count) => Link?.RequestGive(item, count);
+        _hud.Give.EmptyClicked += () =>
+        {
+            foreach ((string item, int count) in Link?.Backpack ?? ItemCounts.None)
+            {
+                Link!.RequestGive(item, -count);
+            }
+        };
         _hud.Furnace.TransferClicked += (slot, item, count, into) =>
         {
             if (_hud.Furnace.FurnaceId is { } id)
@@ -239,7 +247,8 @@ public partial class ClientGame : Node3D
             }
         }
         else if (WindowOpen && (@event.IsActionPressed(InputActions.Use) || @event.IsActionPressed(InputActions.ReleaseMouse)
-                                || @event.IsActionPressed(InputActions.Craft) || @event.IsActionPressed(InputActions.Research)))
+                                || @event.IsActionPressed(InputActions.Craft) || @event.IsActionPressed(InputActions.Research)
+                                || @event.IsActionPressed(InputActions.Give)))
         {
             CloseWindows();
             GetViewport().SetInputAsHandled();
@@ -283,6 +292,22 @@ public partial class ClientGame : Node3D
             else
             {
                 _hud.Research.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+            }
+        }
+        else if (@event.IsActionPressed(InputActions.Give) && !State.InPlane && Link is not null)
+        {
+            if (!Link.DevMode)
+            {
+                _hud.Toast("Giving yourself items needs a server in developer mode (--dev).");
+            }
+            else if (Creative)
+            {
+                _hud.Toast("This server is creative: nothing needs items.");
+            }
+            else
+            {
+                _hud.Give.Open();
                 Input.MouseMode = Input.MouseModeEnum.Visible;
             }
         }
@@ -744,6 +769,11 @@ public partial class ClientGame : Node3D
             ShowFurnace(furnaceId);
         }
 
+        if (_hud.Give.IsOpen && Link is not null)
+        {
+            _hud.Give.Show(Items, Link.Backpack);
+        }
+
         if (_hud.Research.IsOpen && Link?.TeamState is { } team)
         {
             _hud.Research.Show(Techs, team, Link.Backpack.Sum(team.Stock), Items, Link.Objects!.Kinds,
@@ -929,7 +959,7 @@ public partial class ClientGame : Node3D
         _hud.Toast(missing.Count == 0 ? $"Delivered {delivered}. The {what} {done}!" : $"Delivered {delivered}. The {what} still needs {CountsText(missing)}.");
     }
 
-    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null || _hud.Research.IsOpen;
+    private bool WindowOpen => _hud.Storage.StorageId is not null || _hud.Crafting.IsOpen || _hud.Furnace.FurnaceId is not null || _hud.Research.IsOpen || _hud.Give.IsOpen;
 
     private void CloseWindows()
     {
@@ -937,6 +967,7 @@ public partial class ClientGame : Node3D
         _hud.Crafting.Close();
         _hud.Furnace.Close();
         _hud.Research.Close();
+        _hud.Give.Close();
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 

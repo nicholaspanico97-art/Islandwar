@@ -241,6 +241,35 @@ public sealed class Inventory
         }
     }
 
+    /// <summary>
+    /// Developer mode only: puts items in a player's backpack out of thin air (as many as fit), or takes them
+    /// away with a negative count. For testing.
+    /// </summary>
+    public void GiveRequested(int peer, string item, int count)
+    {
+        if (!_state.Players.TryGetValue(peer, out ServerPlayer? player))
+        {
+            return;
+        }
+
+        string? reason = !_state.Options.Dev ? "not in developer mode" : Items.Item(item) is null ? "unknown item" : count == 0 ? "nothing asked for" : null;
+        if (reason is not null)
+        {
+            _state.Log($"[server] rejected peer {peer} asking for {count} {item}: {reason}");
+            return;
+        }
+
+        if (count > 0)
+        {
+            _state.Log($"[server] developer mode: '{player.Name}' got {Give(player, item, count)} {item}");
+            return;
+        }
+
+        int gone = Math.Min(-count, player.Backpack.Of(item));
+        Take(player, item, gone);
+        _state.Log($"[server] developer mode: '{player.Name}' dropped {gone} {item}");
+    }
+
     /// <summary>Everyone starts a match with an empty backpack (or a playtest preset's starting kit).</summary>
     public void Reset()
     {

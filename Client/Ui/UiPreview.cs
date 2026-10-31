@@ -6,7 +6,7 @@ namespace IslandWar.Client.Ui;
 
 /// <summary>
 /// A window on its own with made-up contents, for working on its layout without playing to it
-/// (<c>--preview=furnace</c>). Nothing is connected: clicks do nothing.
+/// (<c>--preview=furnace</c> or <c>--preview=give</c>). Nothing is connected: clicks do nothing.
 /// </summary>
 public partial class UiPreview : CanvasLayer
 {
@@ -19,6 +19,15 @@ public partial class UiPreview : CanvasLayer
         AddChild(backdrop);
 
         ItemSettings items = ItemSettings.FromJson(FileAccess.GetFileAsString("res://data/items.json"));
+        if (Window == "give")
+        {
+            var give = new GivePanel();
+            AddChild(give);
+            give.Open();
+            give.Show(items, ItemCounts.None.Plus("charcoal", 10).Plus("copper_ore", 10));
+            return;
+        }
+
         var furnace = new FurnacePanel();
         AddChild(furnace);
         furnace.Open(1);

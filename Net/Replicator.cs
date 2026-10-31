@@ -56,6 +56,9 @@ public partial class Replicator : Node
     /// <summary>Server: a player asks to research a tech for their team (peer id, tech id).</summary>
     public event Action<int, string>? ResearchRequested;
 
+    /// <summary>Server: developer mode, a player asks for items (peer id, item id, count; negative takes away).</summary>
+    public event Action<int, string, int>? GiveRequested;
+
     /// <summary>Client: everyone's name and team, sent whenever it changes.</summary>
     public event Action<byte[]>? RosterReceived;
 
@@ -124,6 +127,8 @@ public partial class Replicator : Node
     public void RequestCraft(string recipeId, int stationId) => RpcId(ServerId, MethodName.ReceiveCraftRequest, recipeId, stationId);
 
     public void RequestResearch(string techId) => RpcId(ServerId, MethodName.ReceiveResearchRequest, techId);
+
+    public void RequestGive(string item, int count) => RpcId(ServerId, MethodName.ReceiveGiveRequest, item, count);
 
     public void RequestTransfer(int objectId, string slot, string item, int count, bool intoStructure) =>
         RpcId(ServerId, MethodName.ReceiveTransferRequest, objectId, slot, item, count, intoStructure);
@@ -268,6 +273,15 @@ public partial class Replicator : Node
         if (Multiplayer.IsServer())
         {
             ResearchRequested?.Invoke(Multiplayer.GetRemoteSenderId(), techId);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveGiveRequest(string item, int count)
+    {
+        if (Multiplayer.IsServer())
+        {
+            GiveRequested?.Invoke(Multiplayer.GetRemoteSenderId(), item, count);
         }
     }
 

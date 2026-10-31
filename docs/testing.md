@@ -706,3 +706,10 @@ layout on its own: `godot --path . -- --preview=furnace`. Check, in order:
 7. Iron ore in an ordinary furnace: `Too hot a job: this furnace tops out at 1250 °C`. In the blast furnace
    (efficiency 60%, up to 1650 °C) with charcoal it smelts once past 1500 °C.
 
+## Giving yourself items (developer mode)
+
+On any non-creative server started with `--dev` (for example `--preset=bronze --dev` or `--preset=quick --dev`),
+press G in game. Every item is listed: click one for 10, shift-click for 1, `Empty backpack` clears it; the
+backpack's limit still applies. Without `--dev`, G only says it needs developer mode. To look at the window
+on its own: `godot --path . -- --preview=give`.
+

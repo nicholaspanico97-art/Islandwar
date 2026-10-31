@@ -47,7 +47,7 @@ public sealed record LaunchArgs
     /// </summary>
     public string? Token { get; init; }
 
-    /// <summary>Client: show one window on its own with made-up contents (furnace), to work on its layout.</summary>
+    /// <summary>Client: show one window on its own with made-up contents (furnace or give), to work on its layout.</summary>
     public string? Preview { get; init; }
 
     public static LaunchArgs Parse(string[] args)
@@ -66,7 +66,7 @@ public sealed record LaunchArgs
                 "--preset" => result with { Preset = Required(key, value) },
                 "--name" => result with { Name = Required(key, value) },
                 "--token" => result with { Token = Required(key, value) },
-                "--preview" => result with { Preview = value == "furnace" ? value : throw new ArgumentException("--preview must be furnace.") },
+                "--preview" => result with { Preview = value is "furnace" or "give" ? value : throw new ArgumentException("--preview must be furnace or give.") },
                 "--team" => result with { Team = value is "red" or "blue" ? value : throw new ArgumentException("--team must be red or blue.") },
                 "--bot" => result with { Bot = value is "builder" or "breaker" or "pilot" or "watcher" or "nuker" or "defender" or "leaver" or "returner" or "conceder" or "researcher" or "archer" or "target" or "sailor"
                     ? value

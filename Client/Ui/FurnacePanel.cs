@@ -346,6 +346,9 @@ public partial class ItemSlot : Button
     private Label _name = null!;
     private Label _count = null!;
 
+    /// <summary>Whether to show how many; off where the count means nothing (the give window).</summary>
+    public bool ShowCount { get; init; } = true;
+
     public ItemSlot(string emptyLabel, int size)
     {
         _emptyLabel = emptyLabel;
@@ -411,7 +414,7 @@ public partial class ItemSlot : Button
         _swatch.Color = kind is null ? Colors.Magenta : new Color(kind.Color).Darkened(0.15f);
         _name.Text = kind?.Name ?? item;
         _name.Modulate = Colors.White;
-        _count.Text = count.ToString();
+        _count.Text = ShowCount ? count.ToString() : "";
         TooltipText = $"{kind?.Name ?? item} x{count}";
     }
 

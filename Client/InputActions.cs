@@ -24,6 +24,7 @@ public static class InputActions
     public const string Scoreboard = "scoreboard";
     public const string Craft = "craft";
     public const string Research = "research";
+    public const string Give = "give";
     public const string HotbarNext = "hotbar_next";
     public const string HotbarPrevious = "hotbar_previous";
     public const string ReleaseMouse = "release_mouse";
@@ -49,6 +50,7 @@ public static class InputActions
         AddKey(ReleaseMouse, Key.Escape);
         AddKey(Craft, Key.C);
         AddKey(Research, Key.R);
+        AddKey(Give, Key.G);
         AddMouse(Break, MouseButton.Left);
         AddMouse(Place, MouseButton.Right);
         AddMouse(HotbarNext, MouseButton.WheelDown);

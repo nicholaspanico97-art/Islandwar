@@ -56,6 +56,7 @@ public partial class ServerMain : Node, IServerTransport
         _net.TransferRequested += _game.TransferRequested;
         _net.CraftRequested += _game.CraftRequested;
         _net.ResearchRequested += _game.ResearchRequested;
+        _net.GiveRequested += _game.GiveRequested;
 
         var peer = new ENetMultiplayerPeer();
         Error error = peer.CreateServer(Args.Port, MaxClients);
